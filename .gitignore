@@ -1,0 +1,33 @@
+# =========================
+# Python & Django (Backend)
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+db.sqlite3
+media/
+staticfiles/
+
+# =========================
+# Node & React (Frontend)
+# =========================
+node_modules/
+dist/
+build/
+.npm
+.eslintcache
+
+# =========================
+# OS & IDEs
+# =========================
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw? 
