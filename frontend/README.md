@@ -1,16 +1,30 @@
-# React + Vite
+# فرانت‌اند سامانه ساکن
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+این نسخه نهایی تا این مرحله شامل موارد زیر است:
 
-Currently, two official plugins are available:
+- ثبت‌نام واقعی کاربر
+- ورود واقعی با کوکی امن و JWT
+- اتصال پایدار به بک‌اند با پشتیبانی از env
+- دریافت کاربر جاری
+- داشبورد ساکن
+- پنل مدیریت کاربران برای مدیر
+- اعلان‌های toast
+- طراحی فارسی، راست‌چین، مدرن و واکنش‌گرا
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## تنظیم env
 
-## React Compiler
+یک فایل `.env` در پوشه `frontend` بسازید:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+VITE_API_BASE_URL=http://127.0.0.1:8000/api
+```
 
-## Expanding the ESLint configuration
+در GitHub Codespaces مقدار آن را با آدرس عمومی بک‌اند خود تنظیم کنید.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## اجرا
+
+```bash
+cd frontend
+npm install
+npm run dev -- --host 0.0.0.0 --port 5173
+```

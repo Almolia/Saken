@@ -1,0 +1,96 @@
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop().split(';').shift()
+  }
+  return ''
+}
+
+async function request(path, options = {}) {
+  const method = options.method || 'GET'
+  const headers = {
+    ...(options.headers || {}),
+  }
+
+  if (!(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json'
+  }
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase())) {
+    const csrfToken = getCookie('csrftoken')
+    if (csrfToken) {
+      headers['X-CSRFToken'] = csrfToken
+    }
+  }
+
+  let response
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: 'include',
+      mode: 'cors',
+      ...options,
+      headers,
+    })
+  } catch {
+    throw new Error('ارتباط با سرور برقرار نشد. آدرس API، تنظیمات CORS یا Public بودن پورت‌ها را بررسی کنید.')
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  const data = contentType.includes('application/json') ? await response.json() : null
+
+  if (!response.ok) {
+    const message =
+      data?.detail ||
+      data?.message ||
+      Object.values(data || {}).flat().join(' ') ||
+      'خطایی در ارتباط با سرور رخ داد.'
+    throw new Error(message)
+  }
+
+  return data
+}
+
+export const authApi = {
+  register(payload) {
+    return request('/auth/register/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  login(payload) {
+    return request('/auth/login/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  logout() {
+    return request('/auth/logout/', {
+      method: 'POST',
+    })
+  },
+  me() {
+    return request('/auth/me/')
+  },
+}
+
+export const managerApi = {
+  bootstrap(payload) {
+    return request('/manager/bootstrap/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  users() {
+    return request('/manager/users/')
+  },
+  updateUserStatus(userId, payload) {
+    return request(`/manager/users/${userId}/status/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+}
