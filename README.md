@@ -17,10 +17,9 @@
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/YOUR-USERNAME/Saken.git
+git clone https://github.com/Almolia/Saken.git
 cd Saken
 ```
-*(Note: Replace the URL with the actual repository URL)*
 
 ### 2. Backend Setup (Django)
 **For Windows:**
