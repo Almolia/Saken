@@ -1,34 +1,87 @@
 # =========================
-# Python & Django (Backend)
+# Environment & secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python & Django
 # =========================
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
+.python-version
+
+.venv/
 venv/
-.vnev/
 env/
-.env
+ENV/
+
+pip-wheel-metadata/
+*.egg-info/
+.eggs/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.pyre/
+
 db.sqlite3
+db.sqlite3-journal
 media/
 staticfiles/
 
 # =========================
-# Node & React (Frontend)
+# Django logs & local files
+# =========================
+*.log
+local_settings.py
+
+# =========================
+# Node & React
 # =========================
 node_modules/
 dist/
 build/
-.npm
+.npm/
+.pnpm-store/
+.parcel-cache/
+.next/
+.nuxt/
+.svelte-kit/
+coverage/
+vite.svg
+*.tsbuildinfo
 .eslintcache
 
 # =========================
-# OS & IDEs
+# OS files
 # =========================
 .DS_Store
+Thumbs.db
+
+# =========================
+# IDEs & editors
+# =========================
 .vscode/
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.swp
+*.swo
+*~
+
+# =========================
+# Misc
+# =========================
+tmp/
+temp/
+.cache/
