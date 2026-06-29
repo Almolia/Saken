@@ -106,20 +106,26 @@ export const authApi = {
   me() {
     return request('/auth/me/')
   },
-}
-
-export const managerApi = {
-  bootstrap(payload) {
-    return request('/manager/bootstrap/', {
+  changeAdminPassword(payload) {
+    return request('/auth/admin/change-password/', {
       method: 'POST',
       body: JSON.stringify(payload),
     })
   },
+}
+
+export const managerApi = {
   users() {
     return request('/manager/users/')
   },
   updateUserStatus(userId, payload) {
     return request(`/manager/users/${userId}/status/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  updateUserRole(userId, payload) {
+    return request(`/manager/users/${userId}/role/`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     })

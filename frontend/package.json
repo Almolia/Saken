@@ -11,9 +11,12 @@
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.2.8",
+    "@tailwindcss/vite": "^4.3.1",
+    "lucide-react": "^1.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.4",
+    "tailwindcss": "^4.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

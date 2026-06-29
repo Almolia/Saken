@@ -2,13 +2,21 @@ from django.conf import settings
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .jwt import clear_auth_cookies, create_token_pair_for_user, set_auth_cookies
 from .models import User, UserRole
 from .permissions import IsManagerOrAdmin
-from .serializers import AuthUserSerializer, LoginSerializer, ManagerBootstrapSerializer, RegisterSerializer, UserSerializer, UserStatusSerializer
+from .serializers import (
+    AdminPasswordChangeSerializer,
+    AuthUserSerializer,
+    LoginSerializer,
+    RegisterSerializer,
+    UserRoleUpdateSerializer,
+    UserSerializer,
+    UserStatusSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -48,8 +56,6 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     def post(self, request):
-        from django.conf import settings
-
         refresh_token = request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
         if refresh_token:
             try:
@@ -96,7 +102,7 @@ class UserStatusToggleView(generics.UpdateAPIView):
 
     def patch(self, request, *args, **kwargs):
         instance = self.get_object()
-        if instance.role in {UserRole.MANAGER, UserRole.ADMIN} and instance.pk == request.user.pk:
+        if instance.pk == request.user.pk:
             return Response({'detail': 'امکان غیرفعال‌سازی حساب جاری وجود ندارد.'}, status=status.HTTP_400_BAD_REQUEST)
         response = super().patch(request, *args, **kwargs)
         return Response(
@@ -108,19 +114,45 @@ class UserStatusToggleView(generics.UpdateAPIView):
         )
 
 
-class ManagerBootstrapView(APIView):
-    permission_classes = [permissions.AllowAny]
+class UserRoleUpdateView(generics.UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserRoleUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request):
-        if User.objects.filter(role__in=[UserRole.MANAGER, UserRole.ADMIN]).exists():
-            return Response({'detail': 'مدیر اولیه قبلاً ایجاد شده است.'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = ManagerBootstrapSerializer(data=request.data)
+    def patch(self, request, *args, **kwargs):
+        if request.user.role != UserRole.ADMIN:
+            return Response({'detail': 'فقط ادمین می‌تواند نقش کاربران را تغییر دهد.'}, status=status.HTTP_403_FORBIDDEN)
+
+        instance = self.get_object()
+        if instance.role == UserRole.ADMIN:
+            return Response({'detail': 'نقش ادمین قابل تغییر نیست.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(
             {
-                'message': 'مدیر اولیه با موفقیت ایجاد شد.',
-                'user': AuthUserSerializer(user).data,
-            },
-            status=status.HTTP_201_CREATED,
+                'message': 'نقش کاربر با موفقیت به‌روزرسانی شد.',
+                'user': UserSerializer(user).data,
+            }
         )
+
+
+class AdminPasswordChangeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != UserRole.ADMIN:
+            return Response({'detail': 'فقط ادمین می‌تواند گذرواژه ادمین را تغییر دهد.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AdminPasswordChangeSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        access_token, refresh_token = create_token_pair_for_user(user)
+        response = Response(
+            {
+                'message': 'گذرواژه ادمین با موفقیت تغییر کرد.',
+                'user': AuthUserSerializer(user).data,
+            }
+        )
+        return set_auth_cookies(response, request, access_token, refresh_token)

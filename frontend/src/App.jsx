@@ -1,10 +1,23 @@
-import { useEffect, useState } from 'react'
+import {
+  BadgeCheck,
+  Building2,
+  Crown,
+  KeyRound,
+  LoaderCircle,
+  LogOut,
+  Phone,
+  ShieldCheck,
+  UserCog,
+  UserRound,
+  Users,
+} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import './App.css'
 import { ToastProvider, useToast } from './components/ToastProvider'
 import { useForm } from './hooks/useForm'
 import { authApi, managerApi } from './lib/api'
-import { validateLogin, validateManagerBootstrap, validateRegister } from './lib/validators'
+import { validateAdminPasswordChange, validateLogin, validateRegister } from './lib/validators'
 
 function App() {
   return (
@@ -42,11 +55,7 @@ function AppRoutes() {
   }, [])
 
   if (authState.loading) {
-    return (
-      <div className="app-backdrop centered-shell">
-        <div className="loading-card">در حال آماده‌سازی برنامه...</div>
-      </div>
-    )
+    return <FullscreenLoader />
   }
 
   return (
@@ -54,20 +63,27 @@ function AppRoutes() {
       <Route path="/" element={<Navigate to={resolveHomePath(authState.user)} replace />} />
       <Route path="/login" element={<LoginPage authState={authState} setAuthState={setAuthState} />} />
       <Route path="/register" element={<RegisterPage authState={authState} />} />
-      <Route path="/setup-manager" element={<ManagerBootstrapPage />} />
       <Route
         path="/resident/dashboard"
         element={
           <ProtectedRoute user={authState.user} allowedRoles={['resident']}>
-            <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
+            <SimpleDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
       <Route
-        path="/manager/users"
+        path="/manager/dashboard"
         element={
-          <ProtectedRoute user={authState.user} allowedRoles={['manager', 'admin']}>
-            <ManagerUsersPage authState={authState} setAuthState={setAuthState} />
+          <ProtectedRoute user={authState.user} allowedRoles={['manager']}>
+            <SimpleDashboardPage authState={authState} setAuthState={setAuthState} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
+        element={
+          <ProtectedRoute user={authState.user} allowedRoles={['admin']}>
+            <AdminDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
@@ -83,7 +99,10 @@ function resolveHomePath(user) {
   if (user.role === 'resident') {
     return '/resident/dashboard'
   }
-  return '/manager/users'
+  if (user.role === 'manager') {
+    return '/manager/dashboard'
+  }
+  return '/admin/dashboard'
 }
 
 function ProtectedRoute({ user, allowedRoles, children }) {
@@ -98,26 +117,71 @@ function ProtectedRoute({ user, allowedRoles, children }) {
   return children
 }
 
-function AuthLayout({ title, subtitle, caption, children }) {
+function FullscreenLoader() {
   return (
-    <div className="app-backdrop auth-page-shell">
-      <div className="auth-page-grid">
-        <section className="auth-hero-panel">
-          <div className="brand-chip">سامانه ساکن</div>
-          <div className="hero-content">
-            <span className="hero-caption">{caption}</span>
-            <h1>{title}</h1>
-            <p>{subtitle}</p>
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="flex w-full max-w-md items-center gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-white shadow-2xl backdrop-blur-xl">
+        <LoaderCircle className="h-6 w-6 animate-spin text-sky-300" />
+        <div>
+          <div className="font-bold">در حال آماده‌سازی برنامه</div>
+          <div className="mt-1 text-sm text-slate-300">لطفاً چند لحظه منتظر بمانید...</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AuthShell({ eyebrow, title, subtitle, children }) {
+  return (
+    <div className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-sky-500/15 blur-3xl" />
+        <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-600/15 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-7xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 shadow-[0_30px_120px_rgba(2,6,23,0.55)] backdrop-blur-2xl lg:grid-cols-[1.08fr_0.92fr]">
+        <section className="relative hidden overflow-hidden bg-gradient-to-br from-sky-500 via-blue-700 to-slate-950 p-10 lg:flex lg:flex-col lg:justify-between xl:p-14">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white/95">
+              <Building2 className="h-4 w-4" />
+              سامانه ساکن
+            </div>
           </div>
-          <div className="hero-orbs">
-            <span className="orb orb-one"></span>
-            <span className="orb orb-two"></span>
-            <span className="orb orb-three"></span>
+
+          <div className="relative z-10 max-w-xl">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md">
+              <ShieldCheck className="h-4 w-4" />
+              {eyebrow}
+            </div>
+            <h1 className="text-4xl font-black leading-[1.4] text-white xl:text-6xl">{title}</h1>
+            <p className="mt-6 max-w-lg text-base leading-8 text-slate-100/90 xl:text-lg">{subtitle}</p>
           </div>
+
+          <div className="grid grid-cols-2 gap-4 text-sm text-white/90">
+            <GlassStat icon={Users} label="مدیریت کاربران" value="پایدار و شفاف" />
+            <GlassStat icon={UserCog} label="کنترل نقش‌ها" value="فقط توسط ادمین" />
+            <GlassStat icon={KeyRound} label="امنیت ورود" value="رمز قدرتمند" />
+            <GlassStat icon={BadgeCheck} label="تجربه کاربری" value="مدرن و حرفه‌ای" />
+          </div>
+
+          <div className="absolute -right-12 top-20 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute bottom-8 left-8 h-36 w-36 rounded-full bg-sky-300/20 blur-2xl" />
         </section>
 
-        <section className="auth-form-panel">{children}</section>
+        <section className="flex items-center justify-center p-5 sm:p-8 xl:p-12">
+          <div className="w-full max-w-xl">{children}</div>
+        </section>
       </div>
+    </div>
+  )
+}
+
+function GlassStat({ icon: Icon, label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
+      <Icon className="mb-3 h-5 w-5 text-sky-100" />
+      <div className="text-xs text-white/70">{label}</div>
+      <div className="mt-1 font-bold">{value}</div>
     </div>
   )
 }
@@ -142,33 +206,26 @@ function LoginPage({ authState, setAuthState }) {
   }
 
   return (
-    <AuthLayout
-      caption="ورود امن"
-      title="ورود به حساب کاربری"
-      subtitle="برای دسترسی به سامانه، شماره موبایل و گذرواژه 6 رقمی خود را وارد کنید."
+    <AuthShell
+      eyebrow="ورود امن"
+      title="ورود حرفه‌ای به پنل ساکن"
+      subtitle="شماره موبایل و گذرواژه خود را وارد کنید تا وارد پنل متناسب با نقش خود شوید."
     >
-      <form className="auth-form modern-form" onSubmit={form.handleSubmit}>
-        <div className="form-header compact-header">
-          <h2>خوش برگشتید</h2>
-        </div>
+      <AuthCard
+        title="خوش برگشتید"
+        subtitle="برای ادامه، اطلاعات حساب خود را وارد کنید."
+        footer={<InlineLink href="/register" text="هنوز حساب ندارید؟ ایجاد حساب جدید" />}
+      >
+        <form className="space-y-5" onSubmit={form.handleSubmit}>
+          <InputField icon={Phone} label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
+          <InputField icon={KeyRound} label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="مثلاً admin123" />
 
-        <div className="form-grid single-column">
-          <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-          <InputField label="گذرواژه 6 رقمی" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="123456" />
-        </div>
+          <ServerError error={form.serverError} />
 
-        {form.serverError ? <div className="form-alert error">{form.serverError}</div> : null}
-
-        <button className="primary-button gradient-button" type="submit" disabled={form.loading}>
-          {form.loading ? 'در حال ورود...' : 'ورود به سامانه'}
-        </button>
-
-        <div className="auth-footer-links">
-          <a href="/setup-manager">ایجاد مدیر اولیه</a>
-          <a href="/register">ایجاد حساب جدید</a>
-        </div>
-      </form>
-    </AuthLayout>
+          <PrimaryButton loading={form.loading} text="ورود به سامانه" loadingText="در حال ورود..." />
+        </form>
+      </AuthCard>
+    </AuthShell>
   )
 }
 
@@ -197,86 +254,94 @@ function RegisterPage({ authState }) {
   }
 
   return (
-    <AuthLayout
-      caption="ثبت‌نام"
-      title="ایجاد حساب کاربری"
-      subtitle="فقط اطلاعات اصلی را وارد کنید تا حساب شما سریع ساخته شود."
+    <AuthShell
+      eyebrow="ثبت‌نام"
+      title="ساخت حساب کاربری جدید"
+      subtitle="حساب‌های جدید به صورت پیش‌فرض با نقش ساکن عادی ساخته می‌شوند و در صورت نیاز ادمین می‌تواند نقش آن‌ها را تغییر دهد."
     >
-      <form className="auth-form modern-form" onSubmit={form.handleSubmit}>
-        <div className="form-header compact-header">
-          <h2>ایجاد حساب</h2>
-        </div>
+      <AuthCard
+        title="ایجاد حساب"
+        subtitle="اطلاعات زیر را با دقت وارد کنید."
+        footer={<InlineLink href="/login" text="قبلاً ثبت‌نام کرده‌اید؟ ورود به حساب" />}
+      >
+        <form className="space-y-5" onSubmit={form.handleSubmit}>
+          <div className="grid gap-5 md:grid-cols-2">
+            <InputField icon={UserRound} label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً علی رضایی" />
+            <InputField icon={Phone} label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
+            <InputField icon={BadgeCheck} label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
+            <InputField icon={KeyRound} label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="حداقل 8 کاراکتر شامل حرف و عدد" />
+          </div>
 
-        <div className="form-grid">
-          <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً علی رضایی" />
-          <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-          <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
-          <InputField label="گذرواژه 6 رقمی" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="123456" />
-          <InputField label="تکرار گذرواژه" name="password_confirmation" type="password" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="123456" />
-        </div>
+          <InputField icon={KeyRound} label="تکرار گذرواژه" name="password_confirmation" type="password" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="تکرار گذرواژه" />
 
-        {form.serverError ? <div className="form-alert error">{form.serverError}</div> : null}
+          <ServerError error={form.serverError} />
 
-        <button className="primary-button gradient-button" type="submit" disabled={form.loading}>
-          {form.loading ? 'در حال ثبت‌نام...' : 'ایجاد حساب کاربری'}
-        </button>
-
-        <div className="auth-footer-links single-link-row">
-          <a href="/login">ورود به حساب موجود</a>
-        </div>
-      </form>
-    </AuthLayout>
+          <PrimaryButton loading={form.loading} text="ایجاد حساب کاربری" loadingText="در حال ثبت‌نام..." />
+        </form>
+      </AuthCard>
+    </AuthShell>
   )
 }
 
-function ManagerBootstrapPage() {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
-
-  const form = useForm({
-    initialValues: {
-      full_name: '',
-      phone: '',
-      national_id: '',
-      password: '',
-    },
-    validate: validateManagerBootstrap,
-    onSubmit: async (values) => {
-      await managerApi.bootstrap(values)
-      showToast('مدیر اولیه با موفقیت ایجاد شد.')
-      navigate('/login', { replace: true })
-    },
-  })
-
+function AuthCard({ title, subtitle, children, footer }) {
   return (
-    <AuthLayout
-      caption="راه‌اندازی اولیه"
-      title="ایجاد مدیر اولیه سامانه"
-      subtitle="برای شروع کار، حساب مدیر اولیه را با اطلاعات پایه ایجاد کنید."
-    >
-      <form className="auth-form modern-form" onSubmit={form.handleSubmit}>
-        <div className="form-header compact-header">
-          <h2>راه‌اندازی مدیر</h2>
-        </div>
-
-        <div className="form-grid">
-          <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً مدیر ساختمان" />
-          <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-          <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
-          <InputField label="گذرواژه 6 رقمی" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="123456" />
-        </div>
-
-        {form.serverError ? <div className="form-alert error">{form.serverError}</div> : null}
-
-        <button className="primary-button gradient-button" type="submit" disabled={form.loading}>
-          {form.loading ? 'در حال ایجاد...' : 'ایجاد مدیر اولیه'}
-        </button>
-      </form>
-    </AuthLayout>
+    <div className="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+      <div className="mb-8">
+        <h2 className="text-2xl font-extrabold text-white">{title}</h2>
+        <p className="mt-3 text-sm leading-7 text-slate-300">{subtitle}</p>
+      </div>
+      {children}
+      {footer ? <div className="mt-6 border-t border-white/10 pt-5">{footer}</div> : null}
+    </div>
   )
 }
 
-function ResidentDashboardPage({ authState, setAuthState }) {
+function InlineLink({ href, text }) {
+  return <a className="text-sm font-bold text-sky-300 transition hover:text-sky-200" href={href}>{text}</a>
+}
+
+function InputField({ icon: Icon, label, name, type, value, onChange, error, placeholder }) {
+  return (
+    <label className="block">
+      <span className="mb-2.5 block text-sm font-medium text-slate-200">{label}</span>
+      <div className={`flex h-14 items-center gap-3 rounded-2xl border px-4 transition ${error ? 'border-rose-400/50 bg-rose-500/10' : 'border-white/10 bg-slate-900/70 hover:border-sky-400/30 focus-within:border-sky-400/60'}`}>
+        <Icon className={`h-5 w-5 ${error ? 'text-rose-300' : 'text-slate-400'}`} />
+        <input
+          name={name}
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="h-full flex-1 border-0 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+        />
+      </div>
+      {error ? <small className="mt-2 block text-xs text-rose-300">{error}</small> : null}
+    </label>
+  )
+}
+
+function ServerError({ error }) {
+  if (!error) {
+    return null
+  }
+
+  return <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>
+}
+
+function PrimaryButton({ loading, text, loadingText }) {
+  return (
+    <button
+      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 text-sm font-extrabold text-white shadow-lg shadow-sky-900/30 transition hover:-translate-y-0.5 hover:from-sky-400 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
+      type="submit"
+      disabled={loading}
+    >
+      {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+      {loading ? loadingText : text}
+    </button>
+  )
+}
+
+function SimpleDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
@@ -287,53 +352,80 @@ function ResidentDashboardPage({ authState, setAuthState }) {
     navigate('/login', { replace: true })
   }
 
-  return (
-    <div className="app-backdrop dashboard-shell">
-      <section className="dashboard-header resident-header">
-        <div>
-          <span className="dashboard-badge">پنل ساکن</span>
-          <h1>سلام {authState.user.full_name}</h1>
-          <p>حساب شما با موفقیت فعال است و آماده توسعه قابلیت‌های بعدی سامانه خواهد بود.</p>
-        </div>
-        <button className="secondary-button light-button" type="button" onClick={handleLogout}>
-          خروج از حساب
-        </button>
-      </section>
+  const roleConfig = {
+    resident: {
+      title: 'ساکن عادی',
+      icon: UserRound,
+      color: 'from-emerald-500/20 to-sky-500/10',
+      note: 'این صفحه موقت ساکن است و بعداً با قابلیت‌های اصلی جایگزین می‌شود.',
+    },
+    manager: {
+      title: 'مدیر',
+      icon: UserCog,
+      color: 'from-amber-500/20 to-sky-500/10',
+      note: 'این صفحه موقت مدیر است و بعداً با داشبورد کامل مدیریتی توسعه داده می‌شود.',
+    },
+    admin: {
+      title: 'ادمین',
+      icon: Crown,
+      color: 'from-fuchsia-500/20 to-sky-500/10',
+      note: 'این صفحه برای ادمین استفاده نمی‌شود.',
+    },
+  }
 
-      <section className="resident-grid">
-        <div className="dashboard-panel hero-panel">
-          <h2>اطلاعات حساب شما</h2>
-          <div className="resident-info-grid">
-            <InfoCard label="نام" value={authState.user.full_name} />
-            <InfoCard label="شماره موبایل" value={authState.user.phone} />
-            <InfoCard label="کد ملی" value={authState.user.national_id} />
-            <InfoCard label="نقش" value="ساکن" />
+  const current = roleConfig[authState.user.role]
+  const RoleIcon = current.icon
+
+  return (
+    <DashboardLayout
+      title={`داشبورد ${current.title}`}
+      subtitle={current.note}
+      user={authState.user}
+      onLogout={handleLogout}
+      badge={current.title}
+    >
+      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className={`rounded-[2rem] border border-white/10 bg-gradient-to-br ${current.color} p-6 shadow-2xl backdrop-blur-xl sm:p-8`}>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-white">سلام {authState.user.full_name}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-8 text-slate-200">{current.note}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
+              <RoleIcon className="h-8 w-8 text-white" />
+            </div>
           </div>
-        </div>
-        <div className="dashboard-panel notice-panel">
-          <h2>وضعیت فعلی</h2>
-          <p>ثبت‌نام، ورود، مدیریت دسترسی و داشبورد اولیه ساکن تا این مرحله آماده است.</p>
-          <div className="status-highlight">آماده برای توسعه امکانات رزرو، پرداخت، اعلان و خدمات تعاملی</div>
-        </div>
-      </section>
-    </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2">
+          <InfoCard icon={UserRound} label="نام" value={authState.user.full_name} />
+          <InfoCard icon={Phone} label="شماره موبایل" value={authState.user.phone} />
+          <InfoCard icon={BadgeCheck} label="کد ملی" value={authState.user.national_id} />
+          <InfoCard icon={ShieldCheck} label="نقش" value={current.title} />
+        </section>
+      </div>
+    </DashboardLayout>
   )
 }
 
-function InputField({ label, name, type, value, onChange, error, placeholder }) {
-  return (
-    <label className="field modern-field">
-      <span>{label}</span>
-      <input name={name} type={type} value={value} onChange={onChange} placeholder={placeholder} />
-      {error ? <small className="field-error">{error}</small> : null}
-    </label>
-  )
-}
-
-function ManagerUsersPage({ authState, setAuthState }) {
+function AdminDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [data, setData] = useState({ users: [], stats: null, loading: true, error: '' })
+  const [actionState, setActionState] = useState({})
+
+  const passwordForm = useForm({
+    initialValues: {
+      current_password: '',
+      new_password: '',
+      new_password_confirmation: '',
+    },
+    validate: validateAdminPasswordChange,
+    onSubmit: async (values) => {
+      await authApi.changeAdminPassword(values)
+      showToast('رمز عبور ادمین با موفقیت تغییر کرد.')
+    },
+  })
 
   useEffect(() => {
     let active = true
@@ -356,6 +448,8 @@ function ManagerUsersPage({ authState, setAuthState }) {
     }
   }, [])
 
+  const visibleUsers = useMemo(() => data.users, [data.users])
+
   async function handleLogout() {
     await authApi.logout()
     setAuthState({ loading: false, user: null })
@@ -364,112 +458,291 @@ function ManagerUsersPage({ authState, setAuthState }) {
   }
 
   async function toggleStatus(user) {
-    const shouldDisable = user.status === 'active'
-    const response = await managerApi.updateUserStatus(user.id, { is_disabled: shouldDisable })
-    setData((current) => ({
-      ...current,
-      users: current.users.map((item) => (item.id === user.id ? response.user : item)),
-      stats: {
-        total: current.stats.total,
-        active: shouldDisable ? current.stats.active - 1 : current.stats.active + 1,
-        disabled: shouldDisable ? current.stats.disabled + 1 : current.stats.disabled - 1,
-      },
-    }))
-    showToast(response.message)
+    setActionState((current) => ({ ...current, [`status-${user.id}`]: true }))
+    try {
+      const shouldDisable = user.status === 'active'
+      const response = await managerApi.updateUserStatus(user.id, { is_disabled: shouldDisable })
+      setData((current) => ({
+        ...current,
+        users: current.users.map((item) => (item.id === user.id ? response.user : item)),
+        stats: {
+          total: current.stats.total,
+          active: shouldDisable ? current.stats.active - 1 : current.stats.active + 1,
+          disabled: shouldDisable ? current.stats.disabled + 1 : current.stats.disabled - 1,
+        },
+      }))
+      showToast(response.message)
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setActionState((current) => ({ ...current, [`status-${user.id}`]: false }))
+    }
+  }
+
+  async function changeRole(user, role) {
+    setActionState((current) => ({ ...current, [`role-${user.id}`]: true }))
+    try {
+      const response = await managerApi.updateUserRole(user.id, { role })
+      setData((current) => ({
+        ...current,
+        users: current.users.map((item) => (item.id === user.id ? response.user : item)),
+      }))
+      showToast(response.message)
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setActionState((current) => ({ ...current, [`role-${user.id}`]: false }))
+    }
   }
 
   return (
-    <div className="app-backdrop dashboard-shell">
-      <section className="dashboard-header glass-header">
-        <div>
-          <span className="dashboard-badge">مدیریت کاربران</span>
-          <h1>فهرست کاربران سامانه</h1>
-          <p>در این بخش می‌توانید وضعیت دسترسی کاربران را مدیریت کنید.</p>
-        </div>
-        <div className="manager-card elevated-card">
-          <span>کاربر جاری</span>
-          <strong>{authState.user.full_name}</strong>
-          <small>{authState.user.role === 'manager' ? 'مدیر ساختمان' : 'ادمین سیستم'}</small>
-          <button className="secondary-button light-button" type="button" onClick={handleLogout}>
-            خروج از حساب
-          </button>
-        </div>
-      </section>
-
-      <section className="dashboard-grid refined-grid">
-        <div className="dashboard-panel soft-panel">
-          <div className="panel-header">
-            <h2>کاربران ثبت‌شده</h2>
-            {data.stats ? <span className="pill refined-pill">{data.stats.total} کاربر</span> : null}
+    <DashboardLayout
+      title="داشبورد ادمین"
+      subtitle="در این بخش می‌توانید کاربران واقعی موجود در دیتابیس را مشاهده، نقش آن‌ها را بین مدیر و ساکن عادی تغییر دهید و دسترسی آن‌ها را مدیریت کنید."
+      user={authState.user}
+      onLogout={handleLogout}
+      badge="مدیریت سیستم"
+    >
+      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.8fr]">
+        <section className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard icon={Users} label="کل کاربران" value={data.stats?.total ?? '—'} />
+            <StatCard icon={BadgeCheck} label="کاربران فعال" value={data.stats?.active ?? '—'} />
+            <StatCard icon={ShieldCheck} label="کاربران غیرفعال" value={data.stats?.disabled ?? '—'} />
           </div>
 
-          {data.loading ? <div className="empty-state">در حال دریافت اطلاعات کاربران...</div> : null}
-          {data.error ? <div className="form-alert error">{data.error}</div> : null}
-
-          {data.stats ? (
-            <div className="stats-row">
-              <StatCard label="کل کاربران" value={data.stats.total} />
-              <StatCard label="کاربران فعال" value={data.stats.active} />
-              <StatCard label="کاربران غیرفعال" value={data.stats.disabled} />
+          <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 shadow-2xl backdrop-blur-xl">
+            <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div>
+                <h2 className="text-lg font-extrabold text-white">کاربران موجود در دیتابیس</h2>
+                <p className="mt-1 text-sm text-slate-400">نمایش مستقیم کاربران ثبت‌شده و مدیریت سطح دسترسی آن‌ها</p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-xs font-bold text-sky-200">
+                <Users className="h-4 w-4" />
+                {visibleUsers.length} کاربر نمایش داده شده
+              </div>
             </div>
-          ) : null}
 
-          {!data.loading && !data.error ? (
-            <div className="users-table-wrapper">
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>نام</th>
-                    <th>شماره موبایل</th>
-                    <th>کد ملی</th>
-                    <th>نقش</th>
-                    <th>وضعیت</th>
-                    <th>عملیات</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.users.map((user) => (
-                    <tr key={user.id}>
-                      <td>{user.full_name}</td>
-                      <td>{user.phone}</td>
-                      <td>{user.national_id}</td>
-                      <td>{user.role === 'resident' ? 'ساکن' : user.role === 'manager' ? 'مدیر' : 'ادمین'}</td>
-                      <td>
-                        <span className={`status-badge ${user.status}`}>{user.status === 'active' ? 'فعال' : 'غیرفعال'}</span>
-                      </td>
-                      <td>
-                        <button className="secondary-button" type="button" onClick={() => toggleStatus(user)} disabled={authState.user.id === user.id}>
-                          {user.status === 'active' ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
-                        </button>
-                      </td>
+            {data.loading ? (
+              <div className="flex items-center justify-center gap-3 px-6 py-16 text-slate-300">
+                <LoaderCircle className="h-5 w-5 animate-spin text-sky-300" />
+                در حال بارگذاری کاربران...
+              </div>
+            ) : null}
+
+            {data.error ? <div className="p-6"><ServerError error={data.error} /></div> : null}
+
+            {!data.loading && !data.error ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-right">
+                  <thead className="bg-white/5 text-xs text-slate-400">
+                    <tr>
+                      <th className="px-6 py-4 font-bold">کاربر</th>
+                      <th className="px-6 py-4 font-bold">شماره موبایل</th>
+                      <th className="px-6 py-4 font-bold">کد ملی</th>
+                      <th className="px-6 py-4 font-bold">نقش</th>
+                      <th className="px-6 py-4 font-bold">وضعیت</th>
+                      <th className="px-6 py-4 font-bold">عملیات</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {visibleUsers.map((user) => {
+                      const statusLoading = Boolean(actionState[`status-${user.id}`])
+                      const roleLoading = Boolean(actionState[`role-${user.id}`])
+                      const isSelf = authState.user.id === user.id
+                      const isAdmin = user.role === 'admin'
+                      return (
+                        <tr key={user.id} className="border-t border-white/5 text-sm text-slate-200">
+                          <td className="px-6 py-5">
+                            <div className="flex min-w-[220px] items-center gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/8 text-sky-200">
+                                {user.role === 'admin' ? <Crown className="h-5 w-5" /> : user.role === 'manager' ? <UserCog className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
+                              </div>
+                              <div>
+                                <div className="font-bold text-white">{user.full_name}</div>
+                                <div className="mt-1 text-xs text-slate-400">شناسه کاربر: {user.id}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5">{user.phone}</td>
+                          <td className="px-6 py-5">{user.national_id}</td>
+                          <td className="px-6 py-5">
+                            <RoleBadge role={user.role} />
+                          </td>
+                          <td className="px-6 py-5">
+                            <StatusBadge status={user.status} />
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex min-w-[260px] flex-wrap gap-2">
+                              <button
+                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                                type="button"
+                                onClick={() => toggleStatus(user)}
+                                disabled={isSelf || statusLoading}
+                              >
+                                {statusLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                                {user.status === 'active' ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
+                              </button>
+
+                              {!isAdmin ? (
+                                <button
+                                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                                  type="button"
+                                  onClick={() => changeRole(user, user.role === 'resident' ? 'manager' : 'resident')}
+                                  disabled={roleLoading}
+                                >
+                                  {roleLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserCog className="h-4 w-4" />}
+                                  {user.role === 'resident' ? 'تبدیل به مدیر' : 'تبدیل به ساکن'}
+                                </button>
+                              ) : (
+                                <span className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2 text-xs font-bold text-fuchsia-100">
+                                  <Crown className="h-4 w-4" />
+                                  نقش ادمین ثابت است
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="space-y-6">
+          <div className="rounded-[2rem] border border-white/10 bg-slate-950/55 p-6 shadow-2xl backdrop-blur-xl">
+            <div className="mb-6 flex items-center gap-3">
+              <div className="rounded-2xl bg-sky-500/15 p-3 text-sky-200">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-extrabold text-white">تغییر رمز عبور ادمین</h2>
+                <p className="mt-1 text-sm text-slate-400">رمز جدید باید حداقل 8 کاراکتر و شامل حرف انگلیسی و عدد باشد.</p>
+              </div>
             </div>
-          ) : null}
+
+            <form className="space-y-5" onSubmit={passwordForm.handleSubmit}>
+              <InputField icon={KeyRound} label="رمز فعلی" name="current_password" type="password" value={passwordForm.values.current_password} onChange={passwordForm.handleChange} error={passwordForm.errors.current_password} placeholder="رمز فعلی" />
+              <InputField icon={KeyRound} label="رمز جدید" name="new_password" type="password" value={passwordForm.values.new_password} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password} placeholder="حداقل 8 کاراکتر شامل حرف و عدد" />
+              <InputField icon={KeyRound} label="تکرار رمز جدید" name="new_password_confirmation" type="password" value={passwordForm.values.new_password_confirmation} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password_confirmation} placeholder="تکرار رمز جدید" />
+              <ServerError error={passwordForm.serverError} />
+              <PrimaryButton loading={passwordForm.loading} text="ذخیره رمز جدید" loadingText="در حال ذخیره..." />
+            </form>
+          </div>
+
+          <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-sky-500/15 to-blue-700/10 p-6 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl bg-white/10 p-3 text-white">
+                <Crown className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-extrabold text-white">سطح دسترسی ادمین</h3>
+                <p className="mt-2 text-sm leading-7 text-slate-200">فقط ادمین مجاز است نقش کاربران را بین مدیر و ساکن عادی جابه‌جا کند. همچنین نقش ادمین قابل تغییر نیست.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </DashboardLayout>
+  )
+}
+
+function DashboardLayout({ title, subtitle, badge, user, onLogout, children }) {
+  return (
+    <div className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <header className="rounded-[2rem] border border-white/10 bg-slate-950/55 p-5 shadow-2xl backdrop-blur-xl sm:p-6 lg:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-xs font-bold text-sky-200">
+                <ShieldCheck className="h-4 w-4" />
+                {badge}
+              </div>
+              <h1 className="mt-4 text-3xl font-black leading-[1.6] text-white sm:text-4xl">{title}</h1>
+              <p className="mt-4 text-sm leading-8 text-slate-300 sm:text-base">{subtitle}</p>
+            </div>
+
+            <div className="w-full max-w-sm rounded-[1.75rem] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-lg shadow-sky-900/40">
+                  {user.role === 'admin' ? <Crown className="h-6 w-6" /> : user.role === 'manager' ? <UserCog className="h-6 w-6" /> : <UserRound className="h-6 w-6" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-base font-extrabold text-white">{user.full_name}</div>
+                  <div className="mt-1 text-xs text-slate-400">{user.phone}</div>
+                </div>
+              </div>
+              <button
+                className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-white transition hover:bg-white/10"
+                type="button"
+                onClick={onLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                خروج از حساب
+              </button>
+            </div>
+          </div>
+        </header>
+
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function StatCard({ icon: Icon, label, value }) {
+  return (
+    <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-5 shadow-xl backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <div className="text-sm text-slate-400">{label}</div>
+          <div className="mt-3 text-3xl font-black text-white">{value}</div>
         </div>
-      </section>
+        <div className="rounded-2xl bg-sky-500/15 p-3 text-sky-200">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
     </div>
   )
 }
 
-function StatCard({ label, value }) {
+function InfoCard({ icon: Icon, label, value }) {
   return (
-    <div className="stat-card refined-stat-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-5 shadow-xl backdrop-blur-xl">
+      <div className="flex items-center gap-4">
+        <div className="rounded-2xl bg-white/5 p-3 text-sky-200">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <div className="text-sm text-slate-400">{label}</div>
+          <div className="mt-2 text-base font-extrabold text-white">{value}</div>
+        </div>
+      </div>
     </div>
   )
 }
 
-function InfoCard({ label, value }) {
+function StatusBadge({ status }) {
+  const active = status === 'active'
   return (
-    <div className="info-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${active ? 'bg-emerald-500/15 text-emerald-100' : 'bg-rose-500/15 text-rose-100'}`}>
+      <span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+      {active ? 'فعال' : 'غیرفعال'}
+    </span>
   )
+}
+
+function RoleBadge({ role }) {
+  const config = {
+    resident: { label: 'ساکن', className: 'bg-slate-500/15 text-slate-100' },
+    manager: { label: 'مدیر', className: 'bg-amber-500/15 text-amber-100' },
+    admin: { label: 'ادمین', className: 'bg-fuchsia-500/15 text-fuchsia-100' },
+  }
+  const current = config[role]
+  return <span className={`inline-flex rounded-full px-3 py-2 text-xs font-bold ${current.className}`}>{current.label}</span>
 }
 
 export default App
