@@ -1,4 +1,35 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api'
+function normalizeBaseUrl(url) {
+  return url.replace(/\/+$/, '')
+}
+
+function inferApiBaseUrl() {
+  const envBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+  if (envBaseUrl) {
+    return normalizeBaseUrl(envBaseUrl)
+  }
+
+  if (typeof window === 'undefined') {
+    return 'http://127.0.0.1:8000/api'
+  }
+
+  const { origin, hostname, port } = window.location
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return normalizeBaseUrl(`${window.location.protocol}//${hostname}:8000/api`)
+  }
+
+  if (origin.includes('-5173.app.github.dev')) {
+    return normalizeBaseUrl(origin.replace('-5173.app.github.dev', '-8000.app.github.dev') + '/api')
+  }
+
+  if (port === '5173') {
+    return normalizeBaseUrl(origin.replace(/:5173$/, ':8000') + '/api')
+  }
+
+  return normalizeBaseUrl(`${origin}/api`)
+}
+
+const API_BASE_URL = inferApiBaseUrl()
 
 function getCookie(name) {
   const value = `; ${document.cookie}`
@@ -36,7 +67,7 @@ async function request(path, options = {}) {
       headers,
     })
   } catch {
-    throw new Error('ارتباط با سرور برقرار نشد. آدرس API، تنظیمات CORS یا Public بودن پورت‌ها را بررسی کنید.')
+    throw new Error(`ارتباط با سرور برقرار نشد. API فعلی: ${API_BASE_URL}`)
   }
 
   const contentType = response.headers.get('content-type') || ''
@@ -94,3 +125,5 @@ export const managerApi = {
     })
   },
 }
+
+export { API_BASE_URL }
