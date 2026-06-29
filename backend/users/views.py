@@ -15,7 +15,6 @@ from .serializers import (
     RegisterSerializer,
     UserRoleUpdateSerializer,
     UserSerializer,
-    UserStatusSerializer,
 )
 
 
@@ -71,8 +70,8 @@ class LogoutView(APIView):
 
 class CurrentUserView(APIView):
     def get(self, request):
-        if request.user.is_disabled or not request.user.is_active:
-            return Response({'detail': 'حساب کاربری شما غیرفعال شده است.'}, status=status.HTTP_403_FORBIDDEN)
+        if not request.user.is_active:
+            return Response({'detail': 'حساب کاربری شما فعال نیست.'}, status=status.HTTP_403_FORBIDDEN)
         return Response({'user': AuthUserSerializer(request.user).data})
 
 
@@ -81,36 +80,15 @@ class UserListView(APIView):
 
     def get(self, request):
         users = User.objects.order_by('-date_joined')
-        active_count = users.filter(is_active=True, is_disabled=False).count()
-        disabled_count = users.filter(is_disabled=True).count()
         return Response(
             {
                 'stats': {
                     'total': users.count(),
-                    'active': active_count,
-                    'disabled': disabled_count,
+                    'managers': users.filter(role=UserRole.MANAGER).count(),
+                    'residents': users.filter(role=UserRole.RESIDENT).count(),
                 },
                 'users': UserSerializer(users, many=True).data,
             }
-        )
-
-
-class UserStatusToggleView(generics.UpdateAPIView):
-    queryset = User.objects.all()
-    serializer_class = UserStatusSerializer
-    permission_classes = [IsManagerOrAdmin]
-
-    def patch(self, request, *args, **kwargs):
-        instance = self.get_object()
-        if instance.pk == request.user.pk:
-            return Response({'detail': 'امکان غیرفعال‌سازی حساب جاری وجود ندارد.'}, status=status.HTTP_400_BAD_REQUEST)
-        response = super().patch(request, *args, **kwargs)
-        return Response(
-            {
-                'message': 'وضعیت حساب با موفقیت به‌روزرسانی شد.',
-                'user': UserSerializer(self.get_object()).data,
-            },
-            status=response.status_code,
         )
 
 

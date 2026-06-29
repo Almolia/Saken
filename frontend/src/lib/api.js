@@ -118,12 +118,6 @@ export const managerApi = {
   users() {
     return request('/manager/users/')
   },
-  updateUserStatus(userId, payload) {
-    return request(`/manager/users/${userId}/status/`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    })
-  },
   updateUserRole(userId, payload) {
     return request(`/manager/users/${userId}/role/`, {
       method: 'PATCH',

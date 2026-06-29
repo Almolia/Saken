@@ -7,6 +7,7 @@ class UserManager(BaseUserManager):
     def _create_user(self, phone, password, **extra_fields):
         if not phone:
             raise ValueError('شماره موبایل الزامی است.')
+        extra_fields.setdefault('username', phone)
         user = self.model(phone=phone, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)

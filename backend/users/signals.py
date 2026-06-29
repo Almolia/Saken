@@ -16,6 +16,7 @@ def ensure_default_admin(sender, **kwargs):
 
     User.objects.create_user(
         phone='09130000000',
+        username='admin',
         full_name='admin',
         national_id='0000000000',
         password='admin123',

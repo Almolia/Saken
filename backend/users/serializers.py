@@ -1,4 +1,5 @@
-from django.contrib.auth import authenticate, password_validation
+from django.contrib.auth import password_validation
+from django.db.models import Q
 from rest_framework import serializers
 
 from .models import User, UserRole
@@ -15,13 +16,24 @@ def validate_password_strength(value):
     return value
 
 
+def validate_username_value(value):
+    if not value:
+        return value
+    if len(value) < 3:
+        raise serializers.ValidationError('نام کاربری باید حداقل 3 کاراکتر باشد.')
+    if not value.replace('_', '').replace('-', '').isalnum():
+        raise serializers.ValidationError('نام کاربری فقط می‌تواند شامل حروف، عدد، خط تیره و زیرخط باشد.')
+    return value
+
+
 class RegisterSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=False, allow_blank=True, max_length=150)
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
     password_confirmation = serializers.CharField(write_only=True, min_length=8, max_length=128)
 
     class Meta:
         model = User
-        fields = ('full_name', 'phone', 'national_id', 'password', 'password_confirmation')
+        fields = ('full_name', 'username', 'phone', 'national_id', 'password', 'password_confirmation')
 
     def validate_phone(self, value):
         if not value.isdigit() or len(value) != 11 or not value.startswith('09'):
@@ -32,6 +44,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         if not value.isdigit() or len(value) != 10:
             raise serializers.ValidationError('کد ملی معتبر نیست.')
         return value
+
+    def validate_username(self, value):
+        value = value.strip()
+        return validate_username_value(value)
 
     def validate_password(self, value):
         return validate_password_strength(value)
@@ -44,49 +60,38 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data.pop('password_confirmation')
         password = validated_data.pop('password')
-        user = User(**validated_data)
+        username = validated_data.pop('username', '') or validated_data['phone']
+        user = User(**validated_data, username=username)
         user.set_password(password)
         user.save()
         return user
 
 
 class UserSerializer(serializers.ModelSerializer):
-    status = serializers.SerializerMethodField()
-
     class Meta:
         model = User
-        fields = ('id', 'full_name', 'phone', 'national_id', 'role', 'status', 'date_joined')
-
-    def get_status(self, obj):
-        return 'disabled' if obj.is_disabled or not obj.is_active else 'active'
+        fields = ('id', 'full_name', 'username', 'phone', 'national_id', 'role', 'date_joined')
 
 
 class LoginSerializer(serializers.Serializer):
-    phone = serializers.CharField()
+    login = serializers.CharField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        phone = attrs.get('phone', '').strip()
+        login = attrs.get('login', '').strip()
         password = attrs.get('password', '')
-        user = authenticate(request=self.context.get('request'), phone=phone, password=password)
-        if not user:
-            raise serializers.ValidationError({'detail': 'شماره موبایل یا گذرواژه نادرست است.'})
-        if user.is_disabled or not user.is_active:
-            raise serializers.ValidationError({'detail': 'حساب کاربری شما غیرفعال شده است.'})
+
+        if not login:
+            raise serializers.ValidationError({'login': 'نام کاربری، شماره موبایل یا کد ملی الزامی است.'})
+
+        user = User.objects.filter(Q(username=login) | Q(phone=login) | Q(national_id=login)).first()
+        if not user or not user.check_password(password):
+            raise serializers.ValidationError({'detail': 'اطلاعات ورود یا گذرواژه نادرست است.'})
+        if not user.is_active:
+            raise serializers.ValidationError({'detail': 'حساب کاربری شما فعال نیست.'})
+
         attrs['user'] = user
         return attrs
-
-
-class UserStatusSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ('is_disabled',)
-
-    def update(self, instance, validated_data):
-        instance.is_disabled = validated_data.get('is_disabled', instance.is_disabled)
-        instance.is_active = not instance.is_disabled
-        instance.save(update_fields=['is_disabled', 'is_active'])
-        return instance
 
 
 class UserRoleUpdateSerializer(serializers.ModelSerializer):
@@ -132,4 +137,4 @@ class AdminPasswordChangeSerializer(serializers.Serializer):
 class AuthUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'full_name', 'phone', 'national_id', 'role')
+        fields = ('id', 'full_name', 'username', 'phone', 'national_id', 'role')

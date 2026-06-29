@@ -9,6 +9,6 @@ class IsManagerOrAdmin(BasePermission):
         return bool(
             user
             and user.is_authenticated
-            and not user.is_disabled
+            and user.is_active
             and user.role in {UserRole.MANAGER, UserRole.ADMIN}
         )

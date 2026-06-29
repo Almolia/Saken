@@ -1,0 +1,41 @@
+.auth-shell {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(20, 184, 166, 0.16), transparent 28%),
+    radial-gradient(circle at 85% 20%, rgba(59, 130, 246, 0.12), transparent 30%),
+    linear-gradient(135deg, #f8fafc 0%, #eef6ff 48%, #f8fafc 100%);
+}
+
+.admin-hero,
+.panel-hero {
+  position: relative;
+  isolation: isolate;
+}
+
+.admin-hero::before,
+.panel-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(20, 184, 166, 0.36), transparent 28%),
+    radial-gradient(circle at 88% 70%, rgba(59, 130, 246, 0.24), transparent 32%);
+}
+
+.admin-hero::after,
+.panel-hero::after {
+  content: '';
+  position: absolute;
+  inset: auto -10% -45% auto;
+  z-index: -1;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+@media (max-width: 640px) {
+  .auth-shell {
+    padding-inline: 0.75rem;
+  }
+}

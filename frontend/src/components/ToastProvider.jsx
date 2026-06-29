@@ -29,20 +29,21 @@ export function ToastProvider({ children }) {
           return (
             <div
               key={toast.id}
-              className={`pointer-events-auto flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl ${
+              className={`pointer-events-auto flex items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-sm shadow-2xl shadow-slate-300/50 ${
                 isSuccess
-                  ? 'border-emerald-400/20 bg-emerald-500/10 text-emerald-50'
-                  : 'border-rose-400/20 bg-rose-500/10 text-rose-50'
+                  ? 'border-emerald-100 text-emerald-800'
+                  : 'border-rose-100 text-rose-800'
               }`}
             >
-              <div className={`mt-0.5 rounded-full p-1 ${isSuccess ? 'bg-emerald-400/15' : 'bg-rose-400/15'}`}>
+              <div className={`mt-0.5 rounded-full p-1 ${isSuccess ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                 {isSuccess ? <CheckCircle2 className="h-4 w-4" /> : <CircleAlert className="h-4 w-4" />}
               </div>
-              <div className="flex-1 leading-7">{toast.message}</div>
+              <div className="flex-1 font-medium leading-7">{toast.message}</div>
               <button
                 type="button"
                 onClick={() => removeToast(toast.id)}
-                className="rounded-full p-1 text-white/70 transition hover:bg-white/10 hover:text-white"
+                className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                aria-label="بستن پیام"
               >
                 <X className="h-4 w-4" />
               </button>

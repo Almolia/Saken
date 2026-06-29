@@ -11,6 +11,7 @@ class AuthenticationTests(TestCase):
         self.client = APIClient()
         self.admin = User.objects.create_user(
             phone='09129999999',
+            username='admin2',
             full_name='ادمین سیستم',
             national_id='1234567899',
             password='admin123',
@@ -20,6 +21,7 @@ class AuthenticationTests(TestCase):
         )
         self.manager = User.objects.create_user(
             phone='09120000000',
+            username='manager',
             full_name='مدیر ساختمان',
             national_id='1234567890',
             password='Manager123',
@@ -28,6 +30,7 @@ class AuthenticationTests(TestCase):
         )
         self.resident = User.objects.create_user(
             phone='09121111111',
+            username='resident',
             full_name='سارا احمدی',
             national_id='1234567891',
             password='Resident123',
@@ -36,6 +39,7 @@ class AuthenticationTests(TestCase):
     def test_register_user_successfully(self):
         payload = {
             'full_name': 'علی رضایی',
+            'username': 'ali-rezaei',
             'phone': '09123334444',
             'national_id': '1234567892',
             'password': 'Abcd1234',
@@ -43,7 +47,7 @@ class AuthenticationTests(TestCase):
         }
         response = self.client.post('/api/auth/register/', payload, format='json')
         self.assertEqual(response.status_code, 201)
-        self.assertTrue(User.objects.filter(phone='09123334444').exists())
+        self.assertTrue(User.objects.filter(phone='09123334444', username='ali-rezaei').exists())
 
     def test_register_rejects_weak_password(self):
         payload = {
@@ -56,26 +60,16 @@ class AuthenticationTests(TestCase):
         response = self.client.post('/api/auth/register/', payload, format='json')
         self.assertEqual(response.status_code, 400)
 
-    def test_login_successfully_sets_cookie(self):
-        response = self.client.post(
-            '/api/auth/login/',
-            {'phone': '09121111111', 'password': 'Resident123'},
-            format='json',
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data['user']['phone'], '09121111111')
-        self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
-
-    def test_login_rejects_disabled_user(self):
-        self.resident.is_disabled = True
-        self.resident.is_active = False
-        self.resident.save(update_fields=['is_disabled', 'is_active'])
-        response = self.client.post(
-            '/api/auth/login/',
-            {'phone': '09121111111', 'password': 'Resident123'},
-            format='json',
-        )
-        self.assertEqual(response.status_code, 400)
+    def test_login_with_username_phone_or_national_id(self):
+        for login_value in ['resident', '09121111111', '1234567891']:
+            response = self.client.post(
+                '/api/auth/login/',
+                {'login': login_value, 'password': 'Resident123'},
+                format='json',
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data['user']['phone'], '09121111111')
+            self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
 
     def test_current_user_requires_authentication(self):
         response = self.client.get('/api/auth/me/')
@@ -84,28 +78,30 @@ class AuthenticationTests(TestCase):
     def test_manager_can_get_user_list(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09120000000', 'password': 'Manager123'},
+            {'login': 'manager', 'password': 'Manager123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
         response = self.client.get('/api/manager/users/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data['users']), 4)
+        self.assertIn('managers', response.data['stats'])
+        self.assertIn('residents', response.data['stats'])
 
     def test_resident_cannot_get_user_list(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09121111111', 'password': 'Resident123'},
+            {'login': 'resident', 'password': 'Resident123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
         response = self.client.get('/api/manager/users/')
         self.assertEqual(response.status_code, 403)
 
-    def test_manager_can_disable_resident(self):
+    def test_status_toggle_endpoint_is_removed(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09120000000', 'password': 'Manager123'},
+            {'login': 'manager', 'password': 'Manager123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
@@ -114,15 +110,12 @@ class AuthenticationTests(TestCase):
             {'is_disabled': True},
             format='json',
         )
-        self.assertEqual(response.status_code, 200)
-        self.resident.refresh_from_db()
-        self.assertTrue(self.resident.is_disabled)
-        self.assertFalse(self.resident.is_active)
+        self.assertEqual(response.status_code, 404)
 
     def test_admin_can_change_resident_role_to_manager(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09129999999', 'password': 'admin123'},
+            {'login': 'admin2', 'password': 'admin123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
@@ -139,7 +132,7 @@ class AuthenticationTests(TestCase):
     def test_manager_cannot_change_roles(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09120000000', 'password': 'Manager123'},
+            {'login': 'manager', 'password': 'Manager123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
@@ -153,7 +146,7 @@ class AuthenticationTests(TestCase):
     def test_admin_can_change_own_password(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'phone': '09129999999', 'password': 'admin123'},
+            {'login': 'admin2', 'password': 'admin123'},
             format='json',
         )
         self.client.cookies = login_response.cookies

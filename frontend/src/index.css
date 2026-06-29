@@ -2,14 +2,15 @@
 
 html {
   direction: rtl;
+  scroll-behavior: smooth;
 }
 
 :root {
-  font-family: 'Vazirmatn', system-ui, sans-serif;
+  font-family: 'Vazirmatn', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #e5eefb;
-  background-color: #07111f;
+  color: #0f172a;
+  background-color: #f8fafc;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -18,11 +19,9 @@ html {
 
 body {
   min-width: 320px;
+  min-height: 100vh;
   margin: 0;
-  background:
-    radial-gradient(circle at top right, rgba(14, 165, 233, 0.15), transparent 25%),
-    radial-gradient(circle at bottom left, rgba(59, 130, 246, 0.18), transparent 30%),
-    linear-gradient(180deg, #020617 0%, #081121 45%, #0f172a 100%);
+  background: #f8fafc;
 }
 
 * {
@@ -31,6 +30,44 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.2);
+  color: #0f172a;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  border: 2px solid #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

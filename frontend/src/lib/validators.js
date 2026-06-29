@@ -21,6 +21,10 @@ export function validateRegister(values) {
     errors.full_name = 'نام و نام خانوادگی الزامی است.'
   }
 
+  if (values.username && values.username.trim().length < 3) {
+    errors.username = 'نام کاربری باید حداقل 3 کاراکتر باشد.'
+  }
+
   if (!/^09\d{9}$/.test(values.phone)) {
     errors.phone = 'شماره موبایل معتبر نیست.'
   }
@@ -44,8 +48,8 @@ export function validateRegister(values) {
 export function validateLogin(values) {
   const errors = {}
 
-  if (!/^09\d{9}$/.test(values.phone)) {
-    errors.phone = 'شماره موبایل معتبر نیست.'
+  if (!values.login?.trim()) {
+    errors.login = 'نام کاربری، شماره موبایل یا کد ملی الزامی است.'
   }
 
   if (!values.password) {
