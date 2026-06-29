@@ -1,11 +1,12 @@
 import {
   BadgeCheck,
-  Building2,
+  Bell,
   Crown,
-  KeyRound,
   LoaderCircle,
   LogOut,
-  Phone,
+  Search,
+  Settings,
+  Shield,
   ShieldCheck,
   UserCog,
   UserRound,
@@ -67,7 +68,7 @@ function AppRoutes() {
         path="/resident/dashboard"
         element={
           <ProtectedRoute user={authState.user} allowedRoles={['resident']}>
-            <SimpleDashboardPage authState={authState} setAuthState={setAuthState} />
+            <RolePlaceholderPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
@@ -75,7 +76,7 @@ function AppRoutes() {
         path="/manager/dashboard"
         element={
           <ProtectedRoute user={authState.user} allowedRoles={['manager']}>
-            <SimpleDashboardPage authState={authState} setAuthState={setAuthState} />
+            <RolePlaceholderPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
@@ -93,95 +94,57 @@ function AppRoutes() {
 }
 
 function resolveHomePath(user) {
-  if (!user) {
-    return '/login'
-  }
-  if (user.role === 'resident') {
-    return '/resident/dashboard'
-  }
-  if (user.role === 'manager') {
-    return '/manager/dashboard'
-  }
+  if (!user) return '/login'
+  if (user.role === 'resident') return '/resident/dashboard'
+  if (user.role === 'manager') return '/manager/dashboard'
   return '/admin/dashboard'
 }
 
 function ProtectedRoute({ user, allowedRoles, children }) {
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
-
-  if (!allowedRoles.includes(user.role)) {
-    return <Navigate to={resolveHomePath(user)} replace />
-  }
-
+  if (!user) return <Navigate to="/login" replace />
+  if (!allowedRoles.includes(user.role)) return <Navigate to={resolveHomePath(user)} replace />
   return children
 }
 
 function FullscreenLoader() {
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="flex w-full max-w-md items-center gap-4 rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-white shadow-2xl backdrop-blur-xl">
-        <LoaderCircle className="h-6 w-6 animate-spin text-sky-300" />
-        <div>
-          <div className="font-bold">در حال آماده‌سازی برنامه</div>
-          <div className="mt-1 text-sm text-slate-300">لطفاً چند لحظه منتظر بمانید...</div>
-        </div>
+    <div className="flex min-h-screen items-center justify-center bg-[#f8f9ff] px-6">
+      <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-6 py-4 text-slate-900 shadow-sm">
+        <LoaderCircle className="h-5 w-5 animate-spin text-teal-700" />
+        <span className="text-sm font-medium">در حال بارگذاری...</span>
       </div>
     </div>
   )
 }
 
-function AuthShell({ eyebrow, title, subtitle, children }) {
+function AuthPageShell({ children }) {
   return (
-    <div className="relative min-h-screen overflow-hidden px-4 py-6 sm:px-6 lg:px-8">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-sky-500/15 blur-3xl" />
-        <div className="absolute bottom-0 left-0 h-80 w-80 rounded-full bg-blue-600/15 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-7xl overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/70 shadow-[0_30px_120px_rgba(2,6,23,0.55)] backdrop-blur-2xl lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="relative hidden overflow-hidden bg-gradient-to-br from-sky-500 via-blue-700 to-slate-950 p-10 lg:flex lg:flex-col lg:justify-between xl:p-14">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-white/95">
-              <Building2 className="h-4 w-4" />
-              سامانه ساکن
+    <div className="min-h-screen bg-[#f8f9ff] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100vh-3rem)] max-w-[1440px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[420px_1fr]">
+        <aside className="hidden border-l border-slate-200 bg-[#091426] p-8 text-white lg:flex lg:flex-col lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-white/10 bg-slate-800 text-teal-200">
+              <Shield className="h-7 w-7" />
+            </div>
+            <div>
+              <div className="text-[28px] font-extrabold text-[#89f5e7]">سامانه ساکن</div>
+              <div className="text-sm text-slate-300">مدیریت هوشمند مجتمع</div>
             </div>
           </div>
 
-          <div className="relative z-10 max-w-xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-sm text-white/90 backdrop-blur-md">
-              <ShieldCheck className="h-4 w-4" />
-              {eyebrow}
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+              <div className="mb-2 text-sm text-slate-300">نسخه پنل</div>
+              <div className="text-2xl font-bold">Account Access</div>
             </div>
-            <h1 className="text-4xl font-black leading-[1.4] text-white xl:text-6xl">{title}</h1>
-            <p className="mt-6 max-w-lg text-base leading-8 text-slate-100/90 xl:text-lg">{subtitle}</p>
+            <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+              <div className="text-sm leading-7 text-slate-300">طراحی پنل بر اساس تم مرجع با ساختار روشن، رسمی و خوانا برای رابط فارسی.</div>
+            </div>
           </div>
+        </aside>
 
-          <div className="grid grid-cols-2 gap-4 text-sm text-white/90">
-            <GlassStat icon={Users} label="مدیریت کاربران" value="پایدار و شفاف" />
-            <GlassStat icon={UserCog} label="کنترل نقش‌ها" value="فقط توسط ادمین" />
-            <GlassStat icon={KeyRound} label="امنیت ورود" value="رمز قدرتمند" />
-            <GlassStat icon={BadgeCheck} label="تجربه کاربری" value="مدرن و حرفه‌ای" />
-          </div>
-
-          <div className="absolute -right-12 top-20 h-52 w-52 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute bottom-8 left-8 h-36 w-36 rounded-full bg-sky-300/20 blur-2xl" />
-        </section>
-
-        <section className="flex items-center justify-center p-5 sm:p-8 xl:p-12">
-          <div className="w-full max-w-xl">{children}</div>
-        </section>
+        <main className="flex items-center justify-center bg-[#f8f9ff] p-6 sm:p-8 lg:p-12">{children}</main>
       </div>
-    </div>
-  )
-}
-
-function GlassStat({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-md">
-      <Icon className="mb-3 h-5 w-5 text-sky-100" />
-      <div className="text-xs text-white/70">{label}</div>
-      <div className="mt-1 font-bold">{value}</div>
     </div>
   )
 }
@@ -201,31 +164,33 @@ function LoginPage({ authState, setAuthState }) {
     },
   })
 
-  if (authState.user) {
-    return <Navigate to={resolveHomePath(authState.user)} replace />
-  }
+  if (authState.user) return <Navigate to={resolveHomePath(authState.user)} replace />
 
   return (
-    <AuthShell
-      eyebrow="ورود امن"
-      title="ورود حرفه‌ای به پنل ساکن"
-      subtitle="شماره موبایل و گذرواژه خود را وارد کنید تا وارد پنل متناسب با نقش خود شوید."
-    >
-      <AuthCard
-        title="خوش برگشتید"
-        subtitle="برای ادامه، اطلاعات حساب خود را وارد کنید."
-        footer={<InlineLink href="/register" text="هنوز حساب ندارید؟ ایجاد حساب جدید" />}
-      >
+    <AuthPageShell>
+      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-[#091426]">ورود</h1>
+        </div>
+
         <form className="space-y-5" onSubmit={form.handleSubmit}>
-          <InputField icon={Phone} label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-          <InputField icon={KeyRound} label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="مثلاً admin123" />
+          <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
+          <InputField label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="••••••••" />
 
           <ServerError error={form.serverError} />
 
-          <PrimaryButton loading={form.loading} text="ورود به سامانه" loadingText="در حال ورود..." />
+          <button className="flex h-12 w-full items-center justify-center rounded-lg bg-[#091426] text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-70" type="submit" disabled={form.loading}>
+            {form.loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : 'ورود به سامانه'}
+          </button>
         </form>
-      </AuthCard>
-    </AuthShell>
+
+        <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+          <a className="text-sm font-medium text-teal-700 hover:underline" href="/register">
+            ایجاد حساب جدید
+          </a>
+        </div>
+      </div>
+    </AuthPageShell>
   )
 }
 
@@ -244,104 +209,69 @@ function RegisterPage({ authState }) {
     validate: validateRegister,
     onSubmit: async (values) => {
       await authApi.register(values)
-      showToast('ثبت‌نام با موفقیت انجام شد. اکنون وارد شوید.')
+      showToast('ثبت‌نام با موفقیت انجام شد.')
       navigate('/login', { replace: true })
     },
   })
 
-  if (authState.user) {
-    return <Navigate to={resolveHomePath(authState.user)} replace />
-  }
+  if (authState.user) return <Navigate to={resolveHomePath(authState.user)} replace />
 
   return (
-    <AuthShell
-      eyebrow="ثبت‌نام"
-      title="ساخت حساب کاربری جدید"
-      subtitle="حساب‌های جدید به صورت پیش‌فرض با نقش ساکن عادی ساخته می‌شوند و در صورت نیاز ادمین می‌تواند نقش آن‌ها را تغییر دهد."
-    >
-      <AuthCard
-        title="ایجاد حساب"
-        subtitle="اطلاعات زیر را با دقت وارد کنید."
-        footer={<InlineLink href="/login" text="قبلاً ثبت‌نام کرده‌اید؟ ورود به حساب" />}
-      >
+    <AuthPageShell>
+      <div className="w-full max-w-2xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-[#091426]">ثبت‌نام</h1>
+        </div>
+
         <form className="space-y-5" onSubmit={form.handleSubmit}>
           <div className="grid gap-5 md:grid-cols-2">
-            <InputField icon={UserRound} label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً علی رضایی" />
-            <InputField icon={Phone} label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-            <InputField icon={BadgeCheck} label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
-            <InputField icon={KeyRound} label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="حداقل 8 کاراکتر شامل حرف و عدد" />
+            <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً علی رضایی" />
+            <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
+            <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
+            <InputField label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="حداقل 8 کاراکتر" />
           </div>
-
-          <InputField icon={KeyRound} label="تکرار گذرواژه" name="password_confirmation" type="password" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="تکرار گذرواژه" />
+          <InputField label="تکرار گذرواژه" name="password_confirmation" type="password" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="تکرار گذرواژه" />
 
           <ServerError error={form.serverError} />
 
-          <PrimaryButton loading={form.loading} text="ایجاد حساب کاربری" loadingText="در حال ثبت‌نام..." />
+          <button className="flex h-12 w-full items-center justify-center rounded-lg bg-[#091426] text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-70" type="submit" disabled={form.loading}>
+            {form.loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : 'ایجاد حساب کاربری'}
+          </button>
         </form>
-      </AuthCard>
-    </AuthShell>
-  )
-}
 
-function AuthCard({ title, subtitle, children, footer }) {
-  return (
-    <div className="rounded-[2rem] border border-white/10 bg-white/6 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-extrabold text-white">{title}</h2>
-        <p className="mt-3 text-sm leading-7 text-slate-300">{subtitle}</p>
+        <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+          <a className="text-sm font-medium text-teal-700 hover:underline" href="/login">
+            ورود به حساب
+          </a>
+        </div>
       </div>
-      {children}
-      {footer ? <div className="mt-6 border-t border-white/10 pt-5">{footer}</div> : null}
-    </div>
+    </AuthPageShell>
   )
 }
 
-function InlineLink({ href, text }) {
-  return <a className="text-sm font-bold text-sky-300 transition hover:text-sky-200" href={href}>{text}</a>
-}
-
-function InputField({ icon: Icon, label, name, type, value, onChange, error, placeholder }) {
+function InputField({ label, name, type, value, onChange, error, placeholder }) {
   return (
     <label className="block">
-      <span className="mb-2.5 block text-sm font-medium text-slate-200">{label}</span>
-      <div className={`flex h-14 items-center gap-3 rounded-2xl border px-4 transition ${error ? 'border-rose-400/50 bg-rose-500/10' : 'border-white/10 bg-slate-900/70 hover:border-sky-400/30 focus-within:border-sky-400/60'}`}>
-        <Icon className={`h-5 w-5 ${error ? 'text-rose-300' : 'text-slate-400'}`} />
-        <input
-          name={name}
-          type={type}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          className="h-full flex-1 border-0 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-        />
-      </div>
-      {error ? <small className="mt-2 block text-xs text-rose-300">{error}</small> : null}
+      <span className="mb-2 block text-sm font-medium text-slate-700">{label}</span>
+      <input
+        name={name}
+        type={type}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`h-12 w-full rounded-lg border bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-100 ${error ? 'border-rose-300' : 'border-slate-300'}`}
+      />
+      {error ? <small className="mt-2 block text-xs text-rose-600">{error}</small> : null}
     </label>
   )
 }
 
 function ServerError({ error }) {
-  if (!error) {
-    return null
-  }
-
-  return <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div>
+  if (!error) return null
+  return <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
 }
 
-function PrimaryButton({ loading, text, loadingText }) {
-  return (
-    <button
-      className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-5 text-sm font-extrabold text-white shadow-lg shadow-sky-900/30 transition hover:-translate-y-0.5 hover:from-sky-400 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-70"
-      type="submit"
-      disabled={loading}
-    >
-      {loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
-      {loading ? loadingText : text}
-    </button>
-  )
-}
-
-function SimpleDashboardPage({ authState, setAuthState }) {
+function RolePlaceholderPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
 
@@ -352,59 +282,28 @@ function SimpleDashboardPage({ authState, setAuthState }) {
     navigate('/login', { replace: true })
   }
 
-  const roleConfig = {
-    resident: {
-      title: 'ساکن عادی',
-      icon: UserRound,
-      color: 'from-emerald-500/20 to-sky-500/10',
-      note: 'این صفحه موقت ساکن است و بعداً با قابلیت‌های اصلی جایگزین می‌شود.',
-    },
-    manager: {
-      title: 'مدیر',
-      icon: UserCog,
-      color: 'from-amber-500/20 to-sky-500/10',
-      note: 'این صفحه موقت مدیر است و بعداً با داشبورد کامل مدیریتی توسعه داده می‌شود.',
-    },
-    admin: {
-      title: 'ادمین',
-      icon: Crown,
-      color: 'from-fuchsia-500/20 to-sky-500/10',
-      note: 'این صفحه برای ادمین استفاده نمی‌شود.',
-    },
-  }
-
-  const current = roleConfig[authState.user.role]
-  const RoleIcon = current.icon
+  const roleTitle = authState.user.role === 'manager' ? 'پنل مدیر' : 'پنل ساکن'
 
   return (
-    <DashboardLayout
-      title={`داشبورد ${current.title}`}
-      subtitle={current.note}
-      user={authState.user}
-      onLogout={handleLogout}
-      badge={current.title}
-    >
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className={`rounded-[2rem] border border-white/10 bg-gradient-to-br ${current.color} p-6 shadow-2xl backdrop-blur-xl sm:p-8`}>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-black text-white">سلام {authState.user.full_name}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-8 text-slate-200">{current.note}</p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
-              <RoleIcon className="h-8 w-8 text-white" />
-            </div>
+    <div className="min-h-screen bg-[#f8f9ff] p-8">
+      <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-[#091426]">{roleTitle}</h1>
           </div>
-        </section>
+          <button className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50" type="button" onClick={handleLogout}>
+            <LogOut className="h-4 w-4" />
+            خروج
+          </button>
+        </div>
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <InfoCard icon={UserRound} label="نام" value={authState.user.full_name} />
-          <InfoCard icon={Phone} label="شماره موبایل" value={authState.user.phone} />
-          <InfoCard icon={BadgeCheck} label="کد ملی" value={authState.user.national_id} />
-          <InfoCard icon={ShieldCheck} label="نقش" value={current.title} />
-        </section>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <MiniInfoCard label="نام" value={authState.user.full_name} icon={UserRound} />
+          <MiniInfoCard label="شماره موبایل" value={authState.user.phone} icon={Users} />
+          <MiniInfoCard label="نقش" value={authState.user.role === 'manager' ? 'مدیر' : 'ساکن'} icon={ShieldCheck} />
+        </div>
       </div>
-    </DashboardLayout>
+    </div>
   )
 }
 
@@ -412,6 +311,7 @@ function AdminDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [data, setData] = useState({ users: [], stats: null, loading: true, error: '' })
+  const [search, setSearch] = useState('')
   const [actionState, setActionState] = useState({})
 
   const passwordForm = useForm({
@@ -429,7 +329,6 @@ function AdminDashboardPage({ authState, setAuthState }) {
 
   useEffect(() => {
     let active = true
-
     managerApi
       .users()
       .then((response) => {
@@ -442,13 +341,18 @@ function AdminDashboardPage({ authState, setAuthState }) {
           setData((current) => ({ ...current, loading: false, error: error.message }))
         }
       })
-
     return () => {
       active = false
     }
   }, [])
 
-  const visibleUsers = useMemo(() => data.users, [data.users])
+  const filteredUsers = useMemo(() => {
+    const value = search.trim().toLowerCase()
+    if (!value) return data.users
+    return data.users.filter((user) =>
+      [user.full_name, user.phone, user.national_id].some((field) => String(field).toLowerCase().includes(value)),
+    )
+  }, [data.users, search])
 
   async function handleLogout() {
     await authApi.logout()
@@ -496,212 +400,207 @@ function AdminDashboardPage({ authState, setAuthState }) {
   }
 
   return (
-    <DashboardLayout
-      title="داشبورد ادمین"
-      subtitle="در این بخش می‌توانید کاربران واقعی موجود در دیتابیس را مشاهده، نقش آن‌ها را بین مدیر و ساکن عادی تغییر دهید و دسترسی آن‌ها را مدیریت کنید."
-      user={authState.user}
-      onLogout={handleLogout}
-      badge="مدیریت سیستم"
-    >
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.8fr]">
-        <section className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard icon={Users} label="کل کاربران" value={data.stats?.total ?? '—'} />
-            <StatCard icon={BadgeCheck} label="کاربران فعال" value={data.stats?.active ?? '—'} />
-            <StatCard icon={ShieldCheck} label="کاربران غیرفعال" value={data.stats?.disabled ?? '—'} />
-          </div>
-
-          <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950/55 shadow-2xl backdrop-blur-xl">
-            <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <div>
-                <h2 className="text-lg font-extrabold text-white">کاربران موجود در دیتابیس</h2>
-                <p className="mt-1 text-sm text-slate-400">نمایش مستقیم کاربران ثبت‌شده و مدیریت سطح دسترسی آن‌ها</p>
-              </div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-xs font-bold text-sky-200">
-                <Users className="h-4 w-4" />
-                {visibleUsers.length} کاربر نمایش داده شده
-              </div>
+    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
+      <div className="flex min-h-screen">
+        <aside className="hidden w-64 flex-col border-l border-slate-800 bg-[#091426] p-4 text-white xl:flex">
+          <div className="mt-4 flex items-center gap-3 px-2">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-[#89f5e7]">
+              <Crown className="h-6 w-6" />
             </div>
-
-            {data.loading ? (
-              <div className="flex items-center justify-center gap-3 px-6 py-16 text-slate-300">
-                <LoaderCircle className="h-5 w-5 animate-spin text-sky-300" />
-                در حال بارگذاری کاربران...
-              </div>
-            ) : null}
-
-            {data.error ? <div className="p-6"><ServerError error={data.error} /></div> : null}
-
-            {!data.loading && !data.error ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-right">
-                  <thead className="bg-white/5 text-xs text-slate-400">
-                    <tr>
-                      <th className="px-6 py-4 font-bold">کاربر</th>
-                      <th className="px-6 py-4 font-bold">شماره موبایل</th>
-                      <th className="px-6 py-4 font-bold">کد ملی</th>
-                      <th className="px-6 py-4 font-bold">نقش</th>
-                      <th className="px-6 py-4 font-bold">وضعیت</th>
-                      <th className="px-6 py-4 font-bold">عملیات</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleUsers.map((user) => {
-                      const statusLoading = Boolean(actionState[`status-${user.id}`])
-                      const roleLoading = Boolean(actionState[`role-${user.id}`])
-                      const isSelf = authState.user.id === user.id
-                      const isAdmin = user.role === 'admin'
-                      return (
-                        <tr key={user.id} className="border-t border-white/5 text-sm text-slate-200">
-                          <td className="px-6 py-5">
-                            <div className="flex min-w-[220px] items-center gap-3">
-                              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/8 text-sky-200">
-                                {user.role === 'admin' ? <Crown className="h-5 w-5" /> : user.role === 'manager' ? <UserCog className="h-5 w-5" /> : <UserRound className="h-5 w-5" />}
-                              </div>
-                              <div>
-                                <div className="font-bold text-white">{user.full_name}</div>
-                                <div className="mt-1 text-xs text-slate-400">شناسه کاربر: {user.id}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5">{user.phone}</td>
-                          <td className="px-6 py-5">{user.national_id}</td>
-                          <td className="px-6 py-5">
-                            <RoleBadge role={user.role} />
-                          </td>
-                          <td className="px-6 py-5">
-                            <StatusBadge status={user.status} />
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex min-w-[260px] flex-wrap gap-2">
-                              <button
-                                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                                type="button"
-                                onClick={() => toggleStatus(user)}
-                                disabled={isSelf || statusLoading}
-                              >
-                                {statusLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                                {user.status === 'active' ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
-                              </button>
-
-                              {!isAdmin ? (
-                                <button
-                                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
-                                  type="button"
-                                  onClick={() => changeRole(user, user.role === 'resident' ? 'manager' : 'resident')}
-                                  disabled={roleLoading}
-                                >
-                                  {roleLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserCog className="h-4 w-4" />}
-                                  {user.role === 'resident' ? 'تبدیل به مدیر' : 'تبدیل به ساکن'}
-                                </button>
-                              ) : (
-                                <span className="inline-flex items-center gap-2 rounded-xl border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-2 text-xs font-bold text-fuchsia-100">
-                                  <Crown className="h-4 w-4" />
-                                  نقش ادمین ثابت است
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="space-y-6">
-          <div className="rounded-[2rem] border border-white/10 bg-slate-950/55 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="rounded-2xl bg-sky-500/15 p-3 text-sky-200">
-                <KeyRound className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-extrabold text-white">تغییر رمز عبور ادمین</h2>
-                <p className="mt-1 text-sm text-slate-400">رمز جدید باید حداقل 8 کاراکتر و شامل حرف انگلیسی و عدد باشد.</p>
-              </div>
-            </div>
-
-            <form className="space-y-5" onSubmit={passwordForm.handleSubmit}>
-              <InputField icon={KeyRound} label="رمز فعلی" name="current_password" type="password" value={passwordForm.values.current_password} onChange={passwordForm.handleChange} error={passwordForm.errors.current_password} placeholder="رمز فعلی" />
-              <InputField icon={KeyRound} label="رمز جدید" name="new_password" type="password" value={passwordForm.values.new_password} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password} placeholder="حداقل 8 کاراکتر شامل حرف و عدد" />
-              <InputField icon={KeyRound} label="تکرار رمز جدید" name="new_password_confirmation" type="password" value={passwordForm.values.new_password_confirmation} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password_confirmation} placeholder="تکرار رمز جدید" />
-              <ServerError error={passwordForm.serverError} />
-              <PrimaryButton loading={passwordForm.loading} text="ذخیره رمز جدید" loadingText="در حال ذخیره..." />
-            </form>
-          </div>
-
-          <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-sky-500/15 to-blue-700/10 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-white/10 p-3 text-white">
-                <Crown className="h-5 w-5" />
-              </div>
-              <div>
-                <h3 className="text-lg font-extrabold text-white">سطح دسترسی ادمین</h3>
-                <p className="mt-2 text-sm leading-7 text-slate-200">فقط ادمین مجاز است نقش کاربران را بین مدیر و ساکن عادی جابه‌جا کند. همچنین نقش ادمین قابل تغییر نیست.</p>
-              </div>
+            <div>
+              <div className="text-[28px] font-extrabold text-[#89f5e7]">سامانه ساکن</div>
+              <div className="text-xs text-slate-300">مدیریت هوشمند مجتمع</div>
             </div>
           </div>
-        </section>
-      </div>
-    </DashboardLayout>
-  )
-}
 
-function DashboardLayout({ title, subtitle, badge, user, onLogout, children }) {
-  return (
-    <div className="min-h-screen px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <header className="rounded-[2rem] border border-white/10 bg-slate-950/55 p-5 shadow-2xl backdrop-blur-xl sm:p-6 lg:p-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-500/10 px-4 py-2 text-xs font-bold text-sky-200">
-                <ShieldCheck className="h-4 w-4" />
-                {badge}
-              </div>
-              <h1 className="mt-4 text-3xl font-black leading-[1.6] text-white sm:text-4xl">{title}</h1>
-              <p className="mt-4 text-sm leading-8 text-slate-300 sm:text-base">{subtitle}</p>
-            </div>
+          <nav className="mt-8 flex flex-1 flex-col gap-2">
+            <SideNavItem icon={Users} label="مدیریت کاربران" active />
+            <SideNavItem icon={ShieldCheck} label="دسترسی‌ها" />
+            <SideNavItem icon={Settings} label="تنظیمات" />
+          </nav>
 
-            <div className="w-full max-w-sm rounded-[1.75rem] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white shadow-lg shadow-sky-900/40">
-                  {user.role === 'admin' ? <Crown className="h-6 w-6" /> : user.role === 'manager' ? <UserCog className="h-6 w-6" /> : <UserRound className="h-6 w-6" />}
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-base font-extrabold text-white">{user.full_name}</div>
-                  <div className="mt-1 text-xs text-slate-400">{user.phone}</div>
-                </div>
+          <div className="mt-auto border-t border-slate-700 pt-4">
+            <button className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-slate-300 transition hover:bg-slate-800 hover:text-white" type="button" onClick={handleLogout}>
+              <LogOut className="h-5 w-5" />
+              خروج
+            </button>
+          </div>
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-[#f8f9ff] px-8 shadow-sm">
+            <h1 className="text-[32px] font-bold text-[#091426]">مدیریت کاربران</h1>
+            <div className="flex items-center gap-4">
+              <div className="relative hidden md:block">
+                <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="h-11 w-72 rounded-full border border-slate-300 bg-[#eff4ff] pr-10 pl-4 text-sm outline-none transition focus:border-teal-700 focus:ring-1 focus:ring-teal-700"
+                  placeholder="جستجو..."
+                  type="text"
+                />
               </div>
-              <button
-                className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 text-sm font-bold text-white transition hover:bg-white/10"
-                type="button"
-                onClick={onLogout}
-              >
-                <LogOut className="h-4 w-4" />
-                خروج از حساب
+              <button className="relative rounded-full p-2 text-slate-600 transition hover:bg-slate-200/70">
+                <Bell className="h-5 w-5" />
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-600" />
+              </button>
+              <button className="rounded-full p-2 text-slate-600 transition hover:bg-slate-200/70">
+                <Settings className="h-5 w-5" />
               </button>
             </div>
+          </header>
+
+          <div className="space-y-6 p-8">
+            <div className="grid gap-6 md:grid-cols-3">
+              <SummaryCard title="کل کاربران" value={data.stats?.total ?? '—'} icon={Users} tone="teal" />
+              <SummaryCard title="کاربران فعال" value={data.stats?.active ?? '—'} icon={BadgeCheck} tone="navy" />
+              <SummaryCard title="کاربران غیرفعال" value={data.stats?.disabled ?? '—'} icon={ShieldCheck} tone="rose" />
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+              <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                  <h2 className="text-2xl font-semibold text-[#091426]">فهرست کاربران</h2>
+                  <div className="text-sm text-slate-500">{filteredUsers.length} کاربر</div>
+                </div>
+
+                {data.loading ? (
+                  <div className="flex items-center justify-center gap-3 px-6 py-16 text-slate-500">
+                    <LoaderCircle className="h-5 w-5 animate-spin text-teal-700" />
+                    در حال بارگذاری...
+                  </div>
+                ) : data.error ? (
+                  <div className="p-6">
+                    <ServerError error={data.error} />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[980px] text-right">
+                      <thead className="border-b border-slate-200 bg-[#eff4ff] text-sm text-slate-600">
+                        <tr>
+                          <th className="px-6 py-4 font-semibold">کاربر</th>
+                          <th className="px-6 py-4 font-semibold">شماره موبایل</th>
+                          <th className="px-6 py-4 font-semibold">کد ملی</th>
+                          <th className="px-6 py-4 font-semibold">نقش</th>
+                          <th className="px-6 py-4 font-semibold">وضعیت</th>
+                          <th className="px-6 py-4 font-semibold">عملیات</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 text-sm text-slate-900">
+                        {filteredUsers.map((user) => {
+                          const isSelf = user.id === authState.user.id
+                          const statusLoading = Boolean(actionState[`status-${user.id}`])
+                          const roleLoading = Boolean(actionState[`role-${user.id}`])
+                          const isAdmin = user.role === 'admin'
+                          return (
+                            <tr key={user.id} className="hover:bg-slate-50">
+                              <td className="px-6 py-4">
+                                <div className="font-semibold">{user.full_name}</div>
+                                <div className="mt-1 text-xs text-slate-500">شناسه: {user.id}</div>
+                              </td>
+                              <td className="px-6 py-4 font-medium">{user.phone}</td>
+                              <td className="px-6 py-4 font-medium">{user.national_id}</td>
+                              <td className="px-6 py-4">
+                                <RoleBadge role={user.role} />
+                              </td>
+                              <td className="px-6 py-4">
+                                <StatusBadge status={user.status} />
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleStatus(user)}
+                                    disabled={isSelf || statusLoading}
+                                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                                  >
+                                    {statusLoading ? '...' : user.status === 'active' ? 'غیرفعال‌سازی' : 'فعال‌سازی'}
+                                  </button>
+
+                                  {!isAdmin ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => changeRole(user, user.role === 'resident' ? 'manager' : 'resident')}
+                                      disabled={roleLoading}
+                                      className="rounded-lg bg-[#006a61] px-3 py-2 text-xs font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+                                    >
+                                      {roleLoading ? '...' : user.role === 'resident' ? 'تبدیل به مدیر' : 'تبدیل به ساکن'}
+                                    </button>
+                                  ) : (
+                                    <span className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-medium text-white">ادمین</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-6">
+                <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+                  <div className="border-b border-slate-200 px-6 py-5">
+                    <h2 className="text-2xl font-semibold text-[#091426]">تغییر رمز عبور ادمین</h2>
+                  </div>
+                  <form className="space-y-5 p-6" onSubmit={passwordForm.handleSubmit}>
+                    <InputField label="رمز فعلی" name="current_password" type="password" value={passwordForm.values.current_password} onChange={passwordForm.handleChange} error={passwordForm.errors.current_password} placeholder="رمز فعلی" />
+                    <InputField label="رمز جدید" name="new_password" type="password" value={passwordForm.values.new_password} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password} placeholder="رمز جدید" />
+                    <InputField label="تکرار رمز جدید" name="new_password_confirmation" type="password" value={passwordForm.values.new_password_confirmation} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password_confirmation} placeholder="تکرار رمز جدید" />
+                    <ServerError error={passwordForm.serverError} />
+                    <button className="flex h-12 w-full items-center justify-center rounded-lg bg-[#091426] text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-70" type="submit" disabled={passwordForm.loading}>
+                      {passwordForm.loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : 'ذخیره رمز جدید'}
+                    </button>
+                  </form>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#eff4ff] text-[#091426]">
+                      <UserCog className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-[#091426]">کاربر جاری</div>
+                      <div className="text-sm text-slate-500">{authState.user.full_name}</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
           </div>
-        </header>
-
-        {children}
+        </main>
       </div>
     </div>
   )
 }
 
-function StatCard({ icon: Icon, label, value }) {
+function SideNavItem({ icon: Icon, label, active = false }) {
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-5 shadow-xl backdrop-blur-xl">
-      <div className="flex items-center justify-between gap-4">
+    <div className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition ${active ? 'bg-slate-800 text-[#89f5e7]' : 'text-slate-300 hover:bg-slate-800 hover:text-white'}`}>
+      {active ? <div className="absolute inset-y-0 right-0 w-1 rounded-l-full bg-[#89f5e7]" /> : null}
+      <Icon className="h-5 w-5" />
+      <span>{label}</span>
+    </div>
+  )
+}
+
+function SummaryCard({ title, value, icon: Icon, tone }) {
+  const tones = {
+    teal: 'bg-[#86f2e4]/25 text-[#006a61]',
+    navy: 'bg-[#d8e3fb] text-[#091426]',
+    rose: 'bg-[#ffdad6] text-[#ba1a1a]',
+  }
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mb-5 flex items-start justify-between">
         <div>
-          <div className="text-sm text-slate-400">{label}</div>
-          <div className="mt-3 text-3xl font-black text-white">{value}</div>
+          <p className="mb-2 text-sm text-slate-500">{title}</p>
+          <h3 className="text-4xl font-bold text-[#091426]">{value}</h3>
         </div>
-        <div className="rounded-2xl bg-sky-500/15 p-3 text-sky-200">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${tones[tone]}`}>
           <Icon className="h-5 w-5" />
         </div>
       </div>
@@ -709,18 +608,14 @@ function StatCard({ icon: Icon, label, value }) {
   )
 }
 
-function InfoCard({ icon: Icon, label, value }) {
+function MiniInfoCard({ label, value, icon: Icon }) {
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-5 shadow-xl backdrop-blur-xl">
-      <div className="flex items-center gap-4">
-        <div className="rounded-2xl bg-white/5 p-3 text-sky-200">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <div className="text-sm text-slate-400">{label}</div>
-          <div className="mt-2 text-base font-extrabold text-white">{value}</div>
-        </div>
+    <div className="rounded-xl border border-slate-200 bg-[#f8f9ff] p-5">
+      <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-white text-[#091426] shadow-sm">
+        <Icon className="h-5 w-5" />
       </div>
+      <div className="text-sm text-slate-500">{label}</div>
+      <div className="mt-2 text-lg font-semibold text-[#091426]">{value}</div>
     </div>
   )
 }
@@ -728,21 +623,24 @@ function InfoCard({ icon: Icon, label, value }) {
 function StatusBadge({ status }) {
   const active = status === 'active'
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-bold ${active ? 'bg-emerald-500/15 text-emerald-100' : 'bg-rose-500/15 text-rose-100'}`}>
-      <span className={`h-2 w-2 rounded-full ${active ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+    <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-medium ${active ? 'border-teal-200 bg-teal-50 text-teal-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
       {active ? 'فعال' : 'غیرفعال'}
     </span>
   )
 }
 
 function RoleBadge({ role }) {
-  const config = {
-    resident: { label: 'ساکن', className: 'bg-slate-500/15 text-slate-100' },
-    manager: { label: 'مدیر', className: 'bg-amber-500/15 text-amber-100' },
-    admin: { label: 'ادمین', className: 'bg-fuchsia-500/15 text-fuchsia-100' },
+  const styles = {
+    admin: 'bg-slate-900 text-white',
+    manager: 'bg-[#d8e3fb] text-[#091426]',
+    resident: 'bg-slate-100 text-slate-700',
   }
-  const current = config[role]
-  return <span className={`inline-flex rounded-full px-3 py-2 text-xs font-bold ${current.className}`}>{current.label}</span>
+  const labels = {
+    admin: 'ادمین',
+    manager: 'مدیر',
+    resident: 'ساکن',
+  }
+  return <span className={`inline-flex rounded-md px-2.5 py-1 text-xs font-medium ${styles[role]}`}>{labels[role]}</span>
 }
 
 export default App
