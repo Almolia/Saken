@@ -7,6 +7,8 @@ import {
   Settings,
   Shield,
   ShieldCheck,
+  Eye,
+  EyeOff,
   UserCog,
   UserRound,
   Users,
@@ -17,7 +19,7 @@ import './App.css'
 import { ToastProvider, useToast } from './components/ToastProvider'
 import { useForm } from './hooks/useForm'
 import { authApi, managerApi } from './lib/api'
-import { validateAdminPasswordChange, validateLogin, validateRegister } from './lib/validators'
+import { getPasswordIssues, validateAdminProfile, validateLogin, validateRegister } from './lib/validators'
 
 const roleLabels = {
   admin: 'ادمین',
@@ -164,6 +166,8 @@ function LoginPage({ authState, setAuthState }) {
 function RegisterPage({ authState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
+  const [showPassword, setShowPassword] = useState(false)
+  const [showPasswordConfirmation, setShowPasswordConfirmation] = useState(false)
 
   const form = useForm({
     initialValues: {
@@ -186,15 +190,15 @@ function RegisterPage({ authState }) {
 
   return (
     <AuthPageShell>
-      <AuthCard title="ثبت‌نام" description="اطلاعات خود را وارد کنید. نام کاربری اختیاری است و در صورت خالی بودن، شماره موبایل جایگزین می‌شود." wide>
+      <AuthCard title="ثبت‌نام" description="اطلاعات حساب خود را وارد کنید تا دسترسی شما به سامانه ایجاد شود." wide>
         <form className="space-y-5" onSubmit={form.handleSubmit}>
           <div className="grid gap-5 md:grid-cols-2">
-            <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="مثلاً علی رضایی" />
-            <InputField label="نام کاربری" name="username" type="text" value={form.values.username} onChange={form.handleChange} error={form.errors.username} placeholder="اختیاری" />
+            <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={form.values.full_name} onChange={form.handleChange} error={form.errors.full_name} placeholder="علی رضایی" />
+            <InputField label="نام کاربری" optional name="username" type="text" value={form.values.username} onChange={form.handleChange} error={form.errors.username} placeholder="ali_rezaei" helper="اگر خالی بماند، شماره موبایل به عنوان نام کاربری ثبت می‌شود." />
             <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
-            <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="1234567890" />
-            <InputField label="گذرواژه" name="password" type="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="حداقل ۸ کاراکتر" />
-            <InputField label="تکرار گذرواژه" name="password_confirmation" type="password" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="تکرار گذرواژه" />
+            <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="0012345678" />
+            <PasswordField label="گذرواژه" name="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="Abcd1234" showPassword={showPassword} onToggle={() => setShowPassword((current) => !current)} showStrength />
+            <PasswordField label="تکرار گذرواژه" name="password_confirmation" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="Abcd1234" showPassword={showPasswordConfirmation} onToggle={() => setShowPasswordConfirmation((current) => !current)} />
           </div>
           <ServerError error={form.serverError} />
           <PrimaryButton loading={form.loading}>ایجاد حساب کاربری</PrimaryButton>
@@ -233,10 +237,13 @@ function AuthSwitch({ text, href, label }) {
   )
 }
 
-function InputField({ label, name, type, value, onChange, error, placeholder }) {
+function InputField({ label, name, type, value, onChange, error, placeholder, optional = false, helper = '' }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-bold text-slate-700">{label}</span>
+      <span className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-700">
+        {label}
+        {optional ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500">اختیاری</span> : null}
+      </span>
       <input
         name={name}
         type={type}
@@ -246,6 +253,39 @@ function InputField({ label, name, type, value, onChange, error, placeholder }) 
         autoComplete={type === 'password' ? 'current-password' : 'off'}
         className={`h-12 w-full rounded-2xl border bg-white px-4 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 ${error ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
       />
+      {helper && !error ? <small className="mt-2 block text-xs font-medium leading-6 text-slate-500">{helper}</small> : null}
+      {error ? <small className="mt-2 block text-xs font-medium text-rose-600">{error}</small> : null}
+    </label>
+  )
+}
+
+function PasswordField({ label, name, value, onChange, error, placeholder, showPassword, onToggle, showStrength = false }) {
+  const issues = getPasswordIssues(value)
+  const hasValue = value.length > 0
+  const isStrong = hasValue && issues.length === 0
+
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold text-slate-700">{label}</span>
+      <div className="relative">
+        <input
+          name={name}
+          type={showPassword ? 'text' : 'password'}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          autoComplete="new-password"
+          className={`h-12 w-full rounded-2xl border bg-white px-4 pl-12 text-sm font-medium text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 ${error ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
+        />
+        <button type="button" onClick={onToggle} className="absolute left-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700" aria-label={showPassword ? 'مخفی کردن گذرواژه' : 'نمایش گذرواژه'}>
+          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
+      {showStrength && hasValue ? (
+        <div className={`mt-3 rounded-2xl px-3 py-2 text-xs font-bold leading-6 ${isStrong ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+          {isStrong ? 'گذرواژه مناسب است.' : `هنوز کافی نیست؛ ${issues.join('، ')} لازم است.`}
+        </div>
+      ) : null}
       {error ? <small className="mt-2 block text-xs font-medium text-rose-600">{error}</small> : null}
     </label>
   )
@@ -317,12 +357,34 @@ function AdminDashboardPage({ authState, setAuthState }) {
   const [search, setSearch] = useState('')
   const [actionState, setActionState] = useState({})
 
-  const passwordForm = useForm({
-    initialValues: { current_password: '', new_password: '', new_password_confirmation: '' },
-    validate: validateAdminPasswordChange,
+  const profileForm = useForm({
+    initialValues: {
+      full_name: authState.user.full_name || '',
+      username: authState.user.username || '',
+      phone: authState.user.phone || '',
+      national_id: authState.user.national_id || '',
+      current_password: '',
+      new_password: '',
+      new_password_confirmation: '',
+    },
+    validate: validateAdminProfile,
     onSubmit: async (values) => {
-      await authApi.changeAdminPassword(values)
-      showToast('رمز عبور ادمین با موفقیت تغییر کرد.')
+      const response = await authApi.updateAdminProfile(values)
+      setAuthState({ loading: false, user: response.user })
+      setData((current) => ({
+        ...current,
+        users: current.users.map((item) => (item.id === response.user.id ? { ...item, ...response.user } : item)),
+      }))
+      profileForm.setValues({
+        full_name: response.user.full_name || '',
+        username: response.user.username || '',
+        phone: response.user.phone || '',
+        national_id: response.user.national_id || '',
+        current_password: '',
+        new_password: '',
+        new_password_confirmation: '',
+      })
+      showToast(response.message || 'اطلاعات حساب با موفقیت ذخیره شد.')
     },
   })
 
@@ -432,7 +494,7 @@ function AdminDashboardPage({ authState, setAuthState }) {
             {activeSection === 'roles' ? (
               <RolesSection data={data} filteredUsers={filteredUsers} search={search} setSearch={setSearch} authState={authState} actionState={actionState} changeRole={changeRole} />
             ) : (
-              <SettingsSection user={authState.user} passwordForm={passwordForm} />
+              <SettingsSection user={authState.user} profileForm={profileForm} />
             )}
           </div>
         </main>
@@ -525,30 +587,53 @@ function RolesSection({ data, filteredUsers, search, setSearch, authState, actio
   )
 }
 
-function SettingsSection({ user, passwordForm }) {
+function SettingsSection({ user, profileForm }) {
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showNewPasswordConfirmation, setShowNewPasswordConfirmation] = useState(false)
+
   return (
-    <section className="grid gap-6 xl:grid-cols-[430px_minmax(0,1fr)]">
+    <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_360px]">
       <div className="rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
         <div className="border-b border-slate-100 px-6 py-5">
-          <h2 className="text-xl font-black text-slate-950">تغییر رمز عبور ادمین</h2>
-          <p className="mt-1 text-sm text-slate-500">این بخش فقط در تنظیمات نمایش داده می‌شود.</p>
+          <h2 className="text-xl font-black text-slate-950">تنظیمات حساب ادمین</h2>
+          <p className="mt-1 text-sm leading-7 text-slate-500">اطلاعات حساب خود را ویرایش کنید. برای تغییر رمز، رمز فعلی و رمز جدید را وارد کنید؛ در غیر این صورت فیلدهای رمز را خالی بگذارید.</p>
         </div>
-        <form className="space-y-5 p-6" onSubmit={passwordForm.handleSubmit}>
-          <InputField label="رمز فعلی" name="current_password" type="password" value={passwordForm.values.current_password} onChange={passwordForm.handleChange} error={passwordForm.errors.current_password} placeholder="رمز فعلی" />
-          <InputField label="رمز جدید" name="new_password" type="password" value={passwordForm.values.new_password} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password} placeholder="رمز جدید" />
-          <InputField label="تکرار رمز جدید" name="new_password_confirmation" type="password" value={passwordForm.values.new_password_confirmation} onChange={passwordForm.handleChange} error={passwordForm.errors.new_password_confirmation} placeholder="تکرار رمز جدید" />
-          <ServerError error={passwordForm.serverError} />
-          <PrimaryButton loading={passwordForm.loading}>ذخیره رمز جدید</PrimaryButton>
+
+        <form className="space-y-6 p-6" onSubmit={profileForm.handleSubmit}>
+          <div className="grid gap-5 md:grid-cols-2">
+            <InputField label="نام و نام خانوادگی" name="full_name" type="text" value={profileForm.values.full_name} onChange={profileForm.handleChange} error={profileForm.errors.full_name} placeholder="علی رضایی" />
+            <InputField label="نام کاربری" name="username" type="text" value={profileForm.values.username} onChange={profileForm.handleChange} error={profileForm.errors.username} placeholder="admin" />
+            <InputField label="شماره موبایل" name="phone" type="tel" value={profileForm.values.phone} onChange={profileForm.handleChange} error={profileForm.errors.phone} placeholder="09123456789" />
+            <InputField label="کد ملی" name="national_id" type="text" value={profileForm.values.national_id} onChange={profileForm.handleChange} error={profileForm.errors.national_id} placeholder="0012345678" />
+          </div>
+
+          <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+            <div className="mb-5">
+              <h3 className="text-base font-black text-slate-950">تغییر رمز عبور</h3>
+              <p className="mt-1 text-sm leading-7 text-slate-500">اگر نمی‌خواهید رمز را تغییر دهید، این بخش را خالی بگذارید.</p>
+            </div>
+            <div className="grid gap-5 md:grid-cols-3">
+              <PasswordField label="رمز فعلی" name="current_password" value={profileForm.values.current_password} onChange={profileForm.handleChange} error={profileForm.errors.current_password} placeholder="رمز فعلی" showPassword={showCurrentPassword} onToggle={() => setShowCurrentPassword((current) => !current)} />
+              <PasswordField label="رمز جدید" name="new_password" value={profileForm.values.new_password} onChange={profileForm.handleChange} error={profileForm.errors.new_password} placeholder="Abcd1234" showPassword={showNewPassword} onToggle={() => setShowNewPassword((current) => !current)} showStrength />
+              <PasswordField label="تکرار رمز جدید" name="new_password_confirmation" value={profileForm.values.new_password_confirmation} onChange={profileForm.handleChange} error={profileForm.errors.new_password_confirmation} placeholder="Abcd1234" showPassword={showNewPasswordConfirmation} onToggle={() => setShowNewPasswordConfirmation((current) => !current)} />
+            </div>
+          </div>
+
+          <ServerError error={profileForm.serverError} />
+          <PrimaryButton loading={profileForm.loading}>ذخیره تغییرات</PrimaryButton>
         </form>
       </div>
 
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60">
-        <h2 className="text-xl font-black text-slate-950">اطلاعات حساب</h2>
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <MiniInfoCard label="نام" value={user.full_name} icon={UserRound} />
-          <MiniInfoCard label="نام کاربری" value={user.username || '—'} icon={UserCog} />
-          <MiniInfoCard label="شماره موبایل" value={user.phone} icon={Users} />
-          <MiniInfoCard label="نقش" value={roleLabels[user.role]} icon={ShieldCheck} />
+      <div className="space-y-6">
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60">
+          <h2 className="text-xl font-black text-slate-950">نمای کلی حساب</h2>
+          <div className="mt-6 grid gap-4">
+            <MiniInfoCard label="نام" value={user.full_name} icon={UserRound} />
+            <MiniInfoCard label="نام کاربری" value={user.username || '—'} icon={UserCog} />
+            <MiniInfoCard label="شماره موبایل" value={user.phone} icon={Users} />
+            <MiniInfoCard label="نقش" value={roleLabels[user.role]} icon={ShieldCheck} />
+          </div>
         </div>
       </div>
     </section>

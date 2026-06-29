@@ -106,6 +106,12 @@ export const authApi = {
   me() {
     return request('/auth/me/')
   },
+  updateAdminProfile(payload) {
+    return request('/auth/admin/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
   changeAdminPassword(payload) {
     return request('/auth/admin/change-password/', {
       method: 'POST',

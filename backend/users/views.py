@@ -10,6 +10,7 @@ from .models import User, UserRole
 from .permissions import IsManagerOrAdmin
 from .serializers import (
     AdminPasswordChangeSerializer,
+    AdminProfileUpdateSerializer,
     AuthUserSerializer,
     LoginSerializer,
     RegisterSerializer,
@@ -114,6 +115,26 @@ class UserRoleUpdateView(generics.UpdateAPIView):
                 'user': UserSerializer(user).data,
             }
         )
+
+
+class AdminProfileUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        if request.user.role != UserRole.ADMIN:
+            return Response({'detail': 'فقط ادمین می‌تواند تنظیمات ادمین را ویرایش کند.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = AdminProfileUpdateSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        access_token, refresh_token = create_token_pair_for_user(user)
+        response = Response(
+            {
+                'message': 'اطلاعات حساب با موفقیت ذخیره شد.',
+                'user': AuthUserSerializer(user).data,
+            }
+        )
+        return set_auth_cookies(response, request, access_token, refresh_token)
 
 
 class AdminPasswordChangeView(APIView):

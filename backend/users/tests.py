@@ -71,6 +71,23 @@ class AuthenticationTests(TestCase):
             self.assertEqual(response.data['user']['phone'], '09121111111')
             self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
 
+
+    def test_login_works_even_with_stale_access_cookie(self):
+        self.client.cookies[settings.JWT_ACCESS_COOKIE_NAME] = 'invalid-or-expired-token'
+        response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'resident', 'password': 'Resident123'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['user']['phone'], '09121111111')
+        self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
+
+    def test_me_with_stale_access_cookie_returns_plain_unauthorized(self):
+        self.client.cookies[settings.JWT_ACCESS_COOKIE_NAME] = 'invalid-or-expired-token'
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, 401)
+
     def test_current_user_requires_authentication(self):
         response = self.client.get('/api/auth/me/')
         self.assertEqual(response.status_code, 401)
@@ -162,3 +179,33 @@ class AuthenticationTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.admin.refresh_from_db()
         self.assertTrue(self.admin.check_password('Newadmin123'))
+
+
+    def test_admin_can_update_profile_and_password_from_settings(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'admin2', 'password': 'admin123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/admin/profile/',
+            {
+                'full_name': 'ادمین ویرایش شده',
+                'username': 'main-admin',
+                'phone': '09128888888',
+                'national_id': '1111111111',
+                'current_password': 'admin123',
+                'new_password': 'Admin12345',
+                'new_password_confirmation': 'Admin12345',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.full_name, 'ادمین ویرایش شده')
+        self.assertEqual(self.admin.username, 'main-admin')
+        self.assertEqual(self.admin.phone, '09128888888')
+        self.assertEqual(self.admin.national_id, '1111111111')
+        self.assertTrue(self.admin.check_password('Admin12345'))
+        self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
