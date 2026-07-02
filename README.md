@@ -13,7 +13,7 @@
 - Ali Hashemian (aho.hashemian@gmail.com)  
 - Matin Mahmoudi (matadysa@gmail.com)  
 - Mojtaba Faratin (mojtabafaratin1382@gmail.com)  
-- Seyed Hossein Seyed Mehdi Jasbi (shjasbi200@gmail.com)  
+- Seyed Hossein Seyed Mahdi Jasbi (shjasbi200@gmail.com)  
 
 ## Project Structure
 
