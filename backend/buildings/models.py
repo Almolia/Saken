@@ -2,9 +2,21 @@ from django.conf import settings
 from django.db import models
 
 
+class Building(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+
 class Unit(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="units",
+    )
+    building = models.ForeignKey(
+        Building,
         on_delete=models.PROTECT,
         related_name="units",
     )
