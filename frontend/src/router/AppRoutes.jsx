@@ -7,6 +7,7 @@ import { FullscreenLoader } from '../components/ui/FullscreenLoader'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
 import { RolePlaceholderPage } from '../pages/dashboard/RolePlaceholderPage'
+import { ResidentDashboardPage } from '../pages/dashboard/ResidentDashboardPage'
 import { AdminDashboardPage } from '../pages/dashboard/AdminDashboardPage'
 
 export function AppRoutes() {
@@ -34,7 +35,7 @@ export function AppRoutes() {
         path="/resident/dashboard"
         element={
           <ProtectedRoute user={authState.user} allowedRoles={['resident']}>
-            <RolePlaceholderPage authState={authState} setAuthState={setAuthState} />
+            <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
