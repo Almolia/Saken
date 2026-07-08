@@ -1,8 +1,10 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
+from common.constants import UnitMessages
+from users.permissions import IsManagerOrAdmin
 from .models import Unit
-from .serializers import UnitSerializer
+from .serializers import ManagerUnitSerializer, UnitSerializer
 
 
 class MyUnitView(APIView):
@@ -22,3 +24,23 @@ class MyUnitView(APIView):
             serializer = UnitSerializer(units, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ManagerUnitListCreateView(APIView):
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request):
+        units = Unit.objects.select_related("owner", "building").order_by("floor", "unit_number")
+        return Response({"units": ManagerUnitSerializer(units, many=True).data})
+
+    def post(self, request):
+        serializer = ManagerUnitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        unit = serializer.save()
+        return Response(
+            {
+                "message": UnitMessages.UNIT_CREATED,
+                "unit": ManagerUnitSerializer(unit).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )

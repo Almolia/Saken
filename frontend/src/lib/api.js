@@ -79,7 +79,9 @@ async function request(path, options = {}) {
       data?.message ||
       Object.values(data || {}).flat().join(' ') ||
       'خطایی در ارتباط با سرور رخ داد.'
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -132,4 +134,4 @@ export const managerApi = {
   },
 }
 
-export { API_BASE_URL }
+export { API_BASE_URL, request }

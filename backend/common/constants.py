@@ -34,6 +34,10 @@ class ValidationMessages:
     NEW_PASSWORD_CONFIRMATION_MISMATCH = "تکرار رمز جدید با رمز جدید مطابقت ندارد."
 
 
+class UnitMessages:
+    UNIT_CREATED = "واحد با موفقیت ایجاد شد."
+
+
 class ManagerMessages:
     PHONE_REQUIRED = "شماره موبایل الزامی است."
     SUPERUSER_STAFF_REQUIRED = "Superuser must have is_staff=True."

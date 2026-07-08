@@ -33,12 +33,21 @@ describe('useMyUnit', () => {
   })
 
   it('exposes the error message when the fetch fails', async () => {
-    const fetchUnit = vi.fn().mockRejectedValue(new Error('واحدی برای شما ثبت نشده است.'))
+    const fetchUnit = vi.fn().mockRejectedValue(Object.assign(new Error('خطایی در ارتباط با سرور رخ داد.'), { status: 500 }))
     const { result } = renderHook(() => useMyUnit(fetchUnit))
 
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(result.current.unit).toBeNull()
-    expect(result.current.error).toBe('واحدی برای شما ثبت نشده است.')
+    expect(result.current.error).toBe('خطایی در ارتباط با سرور رخ داد.')
+  })
+
+  it('treats a 404 as "no unit assigned" instead of an error', async () => {
+    const fetchUnit = vi.fn().mockRejectedValue(Object.assign(new Error('No unit assigned to this user.'), { status: 404 }))
+    const { result } = renderHook(() => useMyUnit(fetchUnit))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.unit).toBeNull()
+    expect(result.current.error).toBe('')
   })
 
   it('recovers after a failed fetch when retry succeeds', async () => {

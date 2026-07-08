@@ -18,7 +18,15 @@ export function useMyUnit(fetchUnit = unitApi.myUnit) {
     let active = true
     fetchUnit()
       .then((data) => active && setState({ unit: normalizeUnit(data), loading: false, error: '' }))
-      .catch((error) => active && setState({ unit: null, loading: false, error: error.message || 'خطایی در دریافت اطلاعات واحد رخ داد.' }))
+      .catch((error) => {
+        if (!active) return
+        // 404 = no unit assigned to this user; show the empty state, not an error.
+        if (error.status === 404) {
+          setState({ unit: null, loading: false, error: '' })
+          return
+        }
+        setState({ unit: null, loading: false, error: error.message || 'خطایی در دریافت اطلاعات واحد رخ داد.' })
+      })
     return () => {
       active = false
     }
