@@ -83,7 +83,9 @@ async function request(path, options = {}) {
       data?.message ||
       Object.values(data || {}).flat().join(' ') ||
       'خطایی در ارتباط با سرور رخ داد.'
-    throw new Error(message)
+    const error = new Error(message)
+    error.status = response.status
+    throw error
   }
 
   return data
@@ -134,6 +136,26 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  units() {
+    return request('/manager/units/')
+  },
+  createUnit(payload) {
+    return request('/manager/units/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  assignUnit(unitId, payload) {
+    return request(`/manager/units/${unitId}/assign/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  deleteUnit(unitId) {
+    return request(`/manager/units/${unitId}/`, {
+      method: 'DELETE',
+    })
+  },
 }
 
-export { API_BASE_URL }
+export { API_BASE_URL, request }

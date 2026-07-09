@@ -25,6 +25,25 @@ function validatePasswordStrength(password) {
   return ''
 }
 
+export function validateUnit(values) {
+  const errors = {}
+
+  if (!values.unit_number.trim()) {
+    errors.unit_number = 'شماره واحد الزامی است.'
+  }
+
+  if (!/^-?\d+$/.test(values.floor.trim())) {
+    errors.floor = 'طبقه باید یک عدد صحیح باشد.'
+  }
+
+  const area = Number.parseFloat(values.area)
+  if (Number.isNaN(area) || area <= 0) {
+    errors.area = 'متراژ باید یک عدد بزرگ‌تر از صفر باشد.'
+  }
+
+  return errors
+}
+
 export function validateRegister(values) {
   const errors = {}
 

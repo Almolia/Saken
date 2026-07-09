@@ -14,11 +14,15 @@ class Unit(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name="units",
+        null=True,
+        blank=True,
     )
     building = models.ForeignKey(
         Building,
         on_delete=models.PROTECT,
         related_name="units",
+        null=True,
+        blank=True,
     )
     unit_number = models.CharField(max_length=20)
     floor = models.IntegerField()
