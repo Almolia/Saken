@@ -132,6 +132,21 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  units() {
+    return request('/manager/units/')
+  },
+  createUnit(payload) {
+    return request('/manager/units/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  assignUnit(unitId, payload) {
+    return request(`/manager/units/${unitId}/assign/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 export { API_BASE_URL, request }

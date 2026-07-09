@@ -4,7 +4,7 @@ from rest_framework import status, permissions
 from common.constants import UnitMessages
 from users.permissions import IsManagerOrAdmin
 from .models import Unit
-from .serializers import ManagerUnitSerializer, UnitSerializer
+from .serializers import ManagerUnitSerializer, UnitAssignSerializer, UnitSerializer
 
 
 class MyUnitView(APIView):
@@ -43,4 +43,27 @@ class ManagerUnitListCreateView(APIView):
                 "unit": ManagerUnitSerializer(unit).data,
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ManagerUnitAssignView(APIView):
+    permission_classes = [IsManagerOrAdmin]
+
+    def patch(self, request, pk):
+        try:
+            unit = Unit.objects.select_related("owner", "building").get(pk=pk)
+        except Unit.DoesNotExist:
+            return Response(
+                {"detail": UnitMessages.UNIT_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = UnitAssignSerializer(unit, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        unit = serializer.save()
+        return Response(
+            {
+                "message": UnitMessages.UNIT_ASSIGNED,
+                "unit": ManagerUnitSerializer(unit).data,
+            }
         )

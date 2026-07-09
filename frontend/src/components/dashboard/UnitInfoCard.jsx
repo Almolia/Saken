@@ -1,10 +1,5 @@
 import { Building2, CircleAlert, Home, Layers, RotateCcw, Ruler } from 'lucide-react'
-
-function formatArea(area) {
-  const value = Number.parseFloat(area)
-  if (Number.isNaN(value)) return String(area ?? '')
-  return `${value % 1 === 0 ? value.toFixed(0) : value} متر مربع`
-}
+import { formatArea } from '../../utils/helpers'
 
 function UnitField({ label, value, icon: Icon }) {
   return (
