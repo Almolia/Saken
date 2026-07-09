@@ -30,6 +30,7 @@ class UnitAssignSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
         source='owner',
+        allow_null=True,
         error_messages={
             'does_not_exist': UnitMessages.USER_NOT_FOUND,
             'incorrect_type': UnitMessages.USER_NOT_FOUND,

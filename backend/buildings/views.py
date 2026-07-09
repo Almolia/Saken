@@ -61,9 +61,10 @@ class ManagerUnitAssignView(APIView):
         serializer = UnitAssignSerializer(unit, data=request.data)
         serializer.is_valid(raise_exception=True)
         unit = serializer.save()
+        message = UnitMessages.UNIT_ASSIGNED if unit.owner else UnitMessages.UNIT_UNASSIGNED
         return Response(
             {
-                "message": UnitMessages.UNIT_ASSIGNED,
+                "message": message,
                 "unit": ManagerUnitSerializer(unit).data,
             }
         )

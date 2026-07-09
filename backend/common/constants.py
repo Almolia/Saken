@@ -37,6 +37,7 @@ class ValidationMessages:
 class UnitMessages:
     UNIT_CREATED = "واحد با موفقیت ایجاد شد."
     UNIT_ASSIGNED = "واحد با موفقیت به کاربر اختصاص یافت."
+    UNIT_UNASSIGNED = "واحد با موفقیت تخلیه شد."
     UNIT_NOT_FOUND = "واحد مورد نظر یافت نشد."
     USER_NOT_FOUND = "کاربر مورد نظر یافت نشد."
 

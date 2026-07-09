@@ -1,4 +1,4 @@
-import { Building2, Home, Plus, UserPlus, UserRound, Users } from 'lucide-react'
+import { Building2, Home, LoaderCircle, Plus, UserCog, UserMinus, UserPlus, UserRound, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { useForm } from '../../../hooks/useForm'
@@ -23,6 +23,7 @@ export function UnitsSection({ users }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignState, setAssignState] = useState({ userId: '', loading: false, error: '' })
+  const [evictingId, setEvictingId] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -85,6 +86,24 @@ export function UnitsSection({ users }) {
       showToast(response.message || 'واحد با موفقیت به کاربر اختصاص یافت.')
     } catch (error) {
       setAssignState((current) => ({ ...current, loading: false, error: error.message }))
+    }
+  }
+
+  async function handleEvict(unit) {
+    const confirmed = window.confirm(`ساکن فعلی واحد ${unit.unit_number} (${unit.owner.full_name}) حذف شود؟`)
+    if (!confirmed) return
+    setEvictingId(unit.id)
+    try {
+      const response = await managerApi.assignUnit(unit.id, { user_id: null })
+      setData((current) => ({
+        ...current,
+        units: current.units.map((item) => (item.id === response.unit.id ? response.unit : item)),
+      }))
+      showToast(response.message || 'واحد با موفقیت تخلیه شد.')
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setEvictingId(null)
     }
   }
 
@@ -188,7 +207,26 @@ export function UnitsSection({ users }) {
                           تعیین ساکن
                         </button>
                       ) : (
-                        <span className="text-xs font-medium text-slate-400">—</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openAssign(unit)}
+                            disabled={evictingId === unit.id}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <UserCog className="h-4 w-4" />
+                            تغییر ساکن
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEvict(unit)}
+                            disabled={evictingId === unit.id}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {evictingId === unit.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
+                            تخلیه واحد
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
@@ -211,8 +249,12 @@ export function UnitsSection({ users }) {
 
       <Modal
         open={Boolean(assignTarget)}
-        title={`تعیین ساکن برای واحد ${assignTarget?.unit_number ?? ''}`}
-        description="یکی از کاربران بدون واحد را انتخاب کنید."
+        title={`${assignTarget?.owner ? 'تغییر ساکن' : 'تعیین ساکن'} واحد ${assignTarget?.unit_number ?? ''}`}
+        description={
+          assignTarget?.owner
+            ? `ساکن فعلی «${assignTarget.owner.full_name}» با کاربر انتخابی جایگزین می‌شود.`
+            : 'یکی از کاربران بدون واحد را انتخاب کنید.'
+        }
         onClose={() => setAssignTarget(null)}
       >
         {unassignedResidents.length === 0 ? (
