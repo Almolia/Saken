@@ -46,6 +46,22 @@ class ManagerUnitListCreateView(APIView):
         )
 
 
+class ManagerUnitDetailView(APIView):
+    permission_classes = [IsManagerOrAdmin]
+
+    def delete(self, request, pk):
+        try:
+            unit = Unit.objects.get(pk=pk)
+        except Unit.DoesNotExist:
+            return Response(
+                {"detail": UnitMessages.UNIT_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        unit.delete()
+        return Response({"message": UnitMessages.UNIT_DELETED})
+
+
 class ManagerUnitAssignView(APIView):
     permission_classes = [IsManagerOrAdmin]
 

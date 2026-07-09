@@ -147,6 +147,11 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  deleteUnit(unitId) {
+    return request(`/manager/units/${unitId}/`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 export { API_BASE_URL, request }

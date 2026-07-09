@@ -1,4 +1,4 @@
-import { Building2, Home, LoaderCircle, Plus, UserCog, UserMinus, UserPlus, UserRound, Users } from 'lucide-react'
+import { Building2, Home, Plus, UserPlus, UserRound, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { useForm } from '../../../hooks/useForm'
@@ -24,6 +24,7 @@ export function UnitsSection({ users }) {
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignState, setAssignState] = useState({ userId: '', loading: false, error: '' })
   const [evictingId, setEvictingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -104,6 +105,23 @@ export function UnitsSection({ users }) {
       showToast(error.message, 'error')
     } finally {
       setEvictingId(null)
+    }
+  }
+
+  async function handleDelete(unit) {
+    if (!window.confirm('آیا از حذف این واحد اطمینان دارید؟')) return
+    setDeletingId(unit.id)
+    try {
+      const response = await managerApi.deleteUnit(unit.id)
+      setData((current) => ({
+        ...current,
+        units: current.units.filter((item) => item.id !== unit.id),
+      }))
+      showToast(response?.message || 'واحد با موفقیت حذف شد.')
+    } catch (error) {
+      showToast(error.message, 'error')
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -197,37 +215,46 @@ export function UnitsSection({ users }) {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      {!unit.owner ? (
-                        <button
-                          type="button"
-                          onClick={() => openAssign(unit)}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700"
-                        >
-                          <UserPlus className="h-4 w-4" />
-                          تعیین ساکن
-                        </button>
-                      ) : (
-                        <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!unit.owner ? (
                           <button
                             type="button"
                             onClick={() => openAssign(unit)}
-                            disabled={evictingId === unit.id}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={deletingId === unit.id}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            <UserCog className="h-4 w-4" />
-                            تغییر ساکن
+                            <UserPlus className="h-4 w-4" />
+                            تعیین ساکن
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleEvict(unit)}
-                            disabled={evictingId === unit.id}
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {evictingId === unit.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <UserMinus className="h-4 w-4" />}
-                            تخلیه واحد
-                          </button>
-                        </div>
-                      )}
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openAssign(unit)}
+                              disabled={evictingId === unit.id || deletingId === unit.id}
+                              className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              تغییر ساکن
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleEvict(unit)}
+                              disabled={evictingId === unit.id || deletingId === unit.id}
+                              className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              تخلیه واحد
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(unit)}
+                          disabled={evictingId === unit.id || deletingId === unit.id}
+                          className="inline-flex h-10 items-center justify-center rounded-2xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          حذف واحد
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
