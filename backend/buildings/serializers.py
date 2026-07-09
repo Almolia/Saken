@@ -5,18 +5,15 @@ from .models import Unit
 
 User = get_user_model()
 
-
 class UnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
         fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details']
 
-
 class UnitOwnerSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'full_name', 'username', 'phone']
-
 
 class ManagerUnitSerializer(serializers.ModelSerializer):
     owner = UnitOwnerSerializer(read_only=True)
@@ -24,7 +21,6 @@ class ManagerUnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
         fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'owner']
-
 
 class UnitAssignSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(

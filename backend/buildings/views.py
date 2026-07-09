@@ -6,7 +6,6 @@ from users.permissions import IsManagerOrAdmin
 from .models import Unit
 from .serializers import ManagerUnitSerializer, UnitAssignSerializer, UnitSerializer
 
-
 class MyUnitView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -24,7 +23,6 @@ class MyUnitView(APIView):
             serializer = UnitSerializer(units, many=True)
 
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class ManagerUnitListCreateView(APIView):
     permission_classes = [IsManagerOrAdmin]
@@ -45,7 +43,6 @@ class ManagerUnitListCreateView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-
 class ManagerUnitDetailView(APIView):
     permission_classes = [IsManagerOrAdmin]
 
@@ -60,7 +57,6 @@ class ManagerUnitDetailView(APIView):
 
         unit.delete()
         return Response({"message": UnitMessages.UNIT_DELETED})
-
 
 class ManagerUnitAssignView(APIView):
     permission_classes = [IsManagerOrAdmin]
