@@ -6,20 +6,15 @@ import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 def get_env_list(name, default=""):
     return [item.strip() for item in os.getenv(name, default).split(",") if item.strip()]
-
 
 def build_codespaces_origin(port):
     codespace_name = os.getenv("CODESPACE_NAME", "").strip()
     forwarding_domain = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "").strip()
-
     if not codespace_name or not forwarding_domain:
         return ""
-
     return f"https://{codespace_name}-{port}.{forwarding_domain}"
-
 
 def unique(values):
     seen = set()
@@ -30,13 +25,12 @@ def unique(values):
             result.append(value)
     return result
 
-
 SECRET_KEY = os.getenv(
     "DJANGO_SECRET_KEY",
     "django-insecure-@y6s=5q57-ign@rp70hkf34y1yu4tt!esk6-!b+fmwgu1410*)",
 )
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = get_env_list("DJANGO_ALLOWED_HOSTS", "*")
+ALLOWED_HOSTS = ["*"]
 
 frontend_local_origins = [
     "http://localhost:5173",
@@ -46,7 +40,7 @@ frontend_codespaces_origin = build_codespaces_origin(5173)
 frontend_extra_origins = get_env_list("FRONTEND_EXTRA_ORIGINS")
 frontend_origins = unique(frontend_local_origins + [frontend_codespaces_origin] + frontend_extra_origins)
 
-CORS_ALLOWED_ORIGINS = unique(get_env_list("CORS_ALLOWED_ORIGINS") + frontend_origins)
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -59,7 +53,11 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
-CSRF_TRUSTED_ORIGINS = unique(get_env_list("CSRF_TRUSTED_ORIGINS") + frontend_origins)
+CSRF_TRUSTED_ORIGINS = unique(
+    get_env_list("CSRF_TRUSTED_ORIGINS")
+    + frontend_origins
+    + ["https://*.vercel.app", "https://*.onrender.com"]
+)
 
 DJANGO_APPS = [
     "django.contrib.admin",
@@ -85,8 +83,8 @@ LOCAL_APPS = [
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",

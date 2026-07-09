@@ -1,5 +1,9 @@
 function normalizeBaseUrl(url) {
-  return url.replace(/\/+$/, '')
+  let clean = url.trim().replace(/\/+$/, '')
+  if (!clean.endsWith('/api')) {
+    clean = clean + '/api'
+  }
+  return clean
 }
 
 function inferApiBaseUrl() {
@@ -15,18 +19,18 @@ function inferApiBaseUrl() {
   const { origin, hostname, port } = window.location
 
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return normalizeBaseUrl(`${window.location.protocol}//${hostname}:8000/api`)
+    return normalizeBaseUrl(`${window.location.protocol}//${hostname}:8000`)
   }
 
   if (origin.includes('-5173.app.github.dev')) {
-    return normalizeBaseUrl(origin.replace('-5173.app.github.dev', '-8000.app.github.dev') + '/api')
+    return normalizeBaseUrl(origin.replace('-5173.app.github.dev', '-8000.app.github.dev'))
   }
 
   if (port === '5173') {
-    return normalizeBaseUrl(origin.replace(/:5173$/, ':8000') + '/api')
+    return normalizeBaseUrl(origin.replace(/:5173$/, ':8000'))
   }
 
-  return normalizeBaseUrl(`${origin}/api`)
+  return normalizeBaseUrl(origin)
 }
 
 const API_BASE_URL = inferApiBaseUrl()
