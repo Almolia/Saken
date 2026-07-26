@@ -8,6 +8,7 @@ class UserRole(models.TextChoices):
     RESIDENT = "resident", "Resident"
     MANAGER = "manager", "Manager"
     ADMIN = "admin", "Admin"
+    SERVICE_STAFF = "service_staff", "Service Staff"
 
 
 class User(AbstractUser):
