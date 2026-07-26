@@ -9,10 +9,10 @@ User = get_user_model()
 class ResidentUnitAPITests(APITestCase):
     
     def setUp(self):
-        # 1. Create a mock Building
+        # Create a mock Building
         self.building = Building.objects.create(name="Saken Tower A")
 
-        # 2. Create User A and assign them a Unit
+        # Create User A and assign them a Unit
         self.user_a = User.objects.create_user(username='userA', password='passwordA')
         self.unit_a = Unit.objects.create(
             owner=self.user_a, 
@@ -22,7 +22,7 @@ class ResidentUnitAPITests(APITestCase):
             area=75.50
         )
         
-        # 3. Create User B and assign them a Unit (for our isolation test)
+        # Create User B and assign them a Unit (for our isolation test)
         self.user_b = User.objects.create_user(username='userB', password='passwordB')
         self.unit_b = Unit.objects.create(
             owner=self.user_b, 
@@ -32,7 +32,7 @@ class ResidentUnitAPITests(APITestCase):
             area=85.00
         )
 
-        # 4. Define the resident URL
+        # Define the resident URL
         self.my_unit_url = reverse('my-unit')
 
     def test_logged_in_resident_can_fetch_own_unit_data(self):
@@ -54,4 +54,17 @@ class ResidentUnitAPITests(APITestCase):
         
         self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
 
-    
+    def test_system_strictly_filters_by_authenticated_user(self):
+        """Proves User A only receives their own data and cannot access User B's unit."""
+        self.client.force_authenticate(user=self.user_a)
+        
+        response = self.client.get(self.my_unit_url)
+        
+        # Verify it successfully fetched a unit
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Prove strict filtering: the returned unit MUST be unit_a (101) 
+        self.assertEqual(response.data['unit_number'], "101")
+        
+        # Explicitly prove it is NOT User B's unit (102)
+        self.assertNotEqual(response.data['unit_number'], "102")
