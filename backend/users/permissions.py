@@ -26,3 +26,14 @@ class IsAdminUserRole(BasePermission):
             and user.is_active
             and user.role == UserRole.ADMIN
         )
+
+class IsResident(BasePermission):
+    """Allows access only to authenticated, active users with the 'resident' role."""
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user
+            and user.is_authenticated
+            and user.is_active
+            and user.role == UserRole.RESIDENT
+        )

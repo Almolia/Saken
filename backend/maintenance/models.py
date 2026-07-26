@@ -17,14 +17,14 @@ class ServiceRequest(models.Model):
         default=RequestStatus.PENDING
     )
     resident = models.ForeignKey(
-        User, 
-        on_delete=models.CASCADE, 
+        User,
+        on_delete=models.CASCADE,
         related_name='service_requests')
     assigned_staff = models.ForeignKey(
-        User, 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True, 
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='assigned_tasks')
     work_report = models.TextField(null=True, blank=True)
 
