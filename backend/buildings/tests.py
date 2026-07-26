@@ -11,7 +11,6 @@ class ResidentUnitAPITests(APITestCase):
     def setUp(self):
         self.building = Building.objects.create(name="Saken Tower A")
 
-        # 1. Create User A with the required custom fields
         self.user_a = User.objects.create_user(
             phone='09121111111', 
             password='passwordA',
@@ -25,8 +24,7 @@ class ResidentUnitAPITests(APITestCase):
             floor=1,
             area=75.50
         )
-        
-        # 2. Create User B with distinct custom fields
+
         self.user_b = User.objects.create_user(
             phone='09122222222', 
             password='passwordB',
