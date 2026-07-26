@@ -9,11 +9,15 @@ User = get_user_model()
 class ResidentUnitAPITests(APITestCase):
     
     def setUp(self):
-        # Create a mock Building
         self.building = Building.objects.create(name="Saken Tower A")
 
-        # Create User A and assign them a Unit
-        self.user_a = User.objects.create_user(username='userA', password='passwordA')
+        # 1. Create User A with the required custom fields
+        self.user_a = User.objects.create_user(
+            phone='09121111111', 
+            password='passwordA',
+            full_name='Resident A',
+            national_id='1111111111'
+        )
         self.unit_a = Unit.objects.create(
             owner=self.user_a, 
             building=self.building,
@@ -22,8 +26,13 @@ class ResidentUnitAPITests(APITestCase):
             area=75.50
         )
         
-        # Create User B and assign them a Unit (for our isolation test)
-        self.user_b = User.objects.create_user(username='userB', password='passwordB')
+        # 2. Create User B with distinct custom fields
+        self.user_b = User.objects.create_user(
+            phone='09122222222', 
+            password='passwordB',
+            full_name='Resident B',
+            national_id='2222222222'
+        )
         self.unit_b = Unit.objects.create(
             owner=self.user_b, 
             building=self.building,
@@ -32,7 +41,6 @@ class ResidentUnitAPITests(APITestCase):
             area=85.00
         )
 
-        # Define the resident URL
         self.my_unit_url = reverse('my-unit')
 
     def test_logged_in_resident_can_fetch_own_unit_data(self):
