@@ -46,4 +46,12 @@ class ResidentUnitAPITests(APITestCase):
         self.assertEqual(response.data['unit_number'], "101")
         self.assertEqual(response.data['floor'], 1)
 
+    def test_unauthenticated_request_fails(self):
+        """Unauthenticated requests are rejected with a 401 or 403."""
+        self.client.force_authenticate(user=None) 
+        
+        response = self.client.get(self.my_unit_url)
+        
+        self.assertIn(response.status_code, [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN])
+
     
