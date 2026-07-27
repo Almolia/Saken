@@ -7,7 +7,7 @@ import { RegisterPage } from '../pages/auth/RegisterPage'
 import { AdminDashboardPage } from '../pages/dashboard/AdminDashboardPage'
 import { ManagerDashboardPage } from '../pages/dashboard/ManagerDashboardPage'
 import { ResidentDashboardPage } from '../pages/dashboard/ResidentDashboardPage'
-import { RolePlaceholderPage } from '../pages/dashboard/RolePlaceholderPage'
+import { ServiceDashboardPage } from '../pages/dashboard/ServiceDashboardPage'
 import { UserRole } from '../utils/constants'
 import { resolveHomePath } from '../utils/helpers'
 import { ProtectedRoute } from './ProtectedRoute'
@@ -61,7 +61,7 @@ export function AppRoutes() {
         path="/service/dashboard"
         element={
           <ProtectedRoute user={authState.user} allowedRoles={[UserRole.SERVICE_STAFF]}>
-            <RolePlaceholderPage authState={authState} setAuthState={setAuthState} />
+            <ServiceDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
       />
