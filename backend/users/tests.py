@@ -146,7 +146,7 @@ class AuthenticationTests(TestCase):
         self.assertEqual(self.resident.role, 'manager')
         self.assertTrue(self.resident.is_staff)
 
-    def test_manager_cannot_change_roles(self):
+    def test_manager_can_change_roles(self):
         login_response = self.client.post(
             '/api/auth/login/',
             {'login': 'manager', 'password': 'Manager123'},
@@ -155,10 +155,12 @@ class AuthenticationTests(TestCase):
         self.client.cookies = login_response.cookies
         response = self.client.patch(
             f'/api/manager/users/{self.resident.id}/role/',
-            {'role': 'manager'},
+            {'role': 'service_staff'},
             format='json',
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.role, 'service_staff')
 
     def test_admin_can_change_own_password(self):
         login_response = self.client.post(

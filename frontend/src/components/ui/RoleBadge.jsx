@@ -5,6 +5,7 @@ export function RoleBadge({ role }) {
     admin: 'bg-slate-950 text-white',
     manager: 'bg-blue-50 text-blue-700 ring-1 ring-blue-100',
     resident: 'bg-slate-100 text-slate-700 ring-1 ring-slate-200',
+    service_staff: 'bg-teal-50 text-teal-700 ring-1 ring-teal-100',
   }
   return <span className={`inline-flex rounded-full px-3 py-1.5 text-xs font-black ${styles[role]}`}>{roleLabels[role]}</span>
 }

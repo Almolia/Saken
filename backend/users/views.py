@@ -80,13 +80,19 @@ class UserListView(APIView):
 class UserRoleUpdateView(generics.UpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserRoleUpdateSerializer
-    permission_classes = [IsAdminUserRole]
+    permission_classes = [IsManagerOrAdmin]
 
     def patch(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.role == UserRole.ADMIN:
             return Response(
                 {"detail": UserMessages.ADMIN_ROLE_IMMUTABLE},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if instance.pk == request.user.pk:
+            return Response(
+                {"detail": UserMessages.SELF_ROLE_IMMUTABLE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

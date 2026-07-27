@@ -1,9 +1,10 @@
 import { Crown, LogOut, Search, Settings, Users } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
 import { useForm } from '../../hooks/useForm'
-import { authApi, managerApi } from '../../lib/api'
+import { useUserDirectory } from '../../hooks/useUserDirectory'
+import { authApi } from '../../lib/api'
 import { validateAdminProfile } from '../../lib/validators'
 import { roleLabels } from '../../utils/constants'
 import { BrandMark } from '../../components/ui/BrandMark'
@@ -17,9 +18,8 @@ export function AdminDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('roles')
-  const [data, setData] = useState({ users: [], stats: null, loading: true, error: '' })
   const [search, setSearch] = useState('')
-  const [actionState, setActionState] = useState({})
+  const { data, setData, actionState, changeRole } = useUserDirectory()
 
   const profileForm = useForm({
     initialValues: {
@@ -52,17 +52,6 @@ export function AdminDashboardPage({ authState, setAuthState }) {
     },
   })
 
-  useEffect(() => {
-    let active = true
-    managerApi
-      .users()
-      .then((response) => active && setData({ users: response.users, stats: response.stats, loading: false, error: '' }))
-      .catch((error) => active && setData((current) => ({ ...current, loading: false, error: error.message })))
-    return () => {
-      active = false
-    }
-  }, [])
-
   const filteredUsers = useMemo(() => {
     const value = search.trim().toLowerCase()
     if (!value) return data.users
@@ -76,27 +65,6 @@ export function AdminDashboardPage({ authState, setAuthState }) {
     setAuthState({ loading: false, user: null })
     showToast('از حساب خارج شدید.')
     navigate('/login', { replace: true })
-  }
-
-  async function changeRole(user, role) {
-    setActionState((current) => ({ ...current, [`role-${user.id}`]: true }))
-    try {
-      const response = await managerApi.updateUserRole(user.id, { role })
-      setData((current) => ({
-        ...current,
-        users: current.users.map((item) => (item.id === user.id ? response.user : item)),
-        stats: {
-          total: current.users.length,
-          managers: current.users.map((item) => (item.id === user.id ? response.user : item)).filter((item) => item.role === 'manager').length,
-          residents: current.users.map((item) => (item.id === user.id ? response.user : item)).filter((item) => item.role === 'resident').length,
-        },
-      }))
-      showToast(response.message)
-    } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
-      setActionState((current) => ({ ...current, [`role-${user.id}`]: false }))
-    }
   }
 
   const pageTitle = activeSection === 'roles' ? 'تغییر نقش‌ها' : 'تنظیمات'

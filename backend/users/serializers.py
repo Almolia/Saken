@@ -83,7 +83,7 @@ class LoginSerializer(serializers.Serializer):
 
 
 class UserRoleUpdateSerializer(serializers.ModelSerializer):
-    role = serializers.ChoiceField(choices=[UserRole.RESIDENT, UserRole.MANAGER])
+    role = serializers.ChoiceField(choices=[UserRole.RESIDENT, UserRole.MANAGER, UserRole.SERVICE_STAFF])
 
     class Meta:
         model = User
