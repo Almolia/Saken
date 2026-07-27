@@ -11,6 +11,17 @@ vi.mock('../../lib/unitApi', () => ({
   },
 }))
 
+vi.mock('../../hooks/useServiceRequests', () => ({
+  useServiceRequests: () => ({
+    requests: [],
+    loading: false,
+    refreshing: false,
+    error: '',
+    refresh: vi.fn(),
+    addRequest: vi.fn(),
+  }),
+}))
+
 const sampleUnit = { id: 1, unit_number: '102', floor: 1, area: '85.00', building: 1, details: '' }
 
 const authState = {
@@ -33,7 +44,7 @@ describe('ResidentDashboardPage', () => {
     unitApi.myUnit.mockReset()
   })
 
-  it('renders the resident profile info from auth state', () => {
+  it('renders the resident profile info from auth state', async () => {
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     renderPage()
 
@@ -41,6 +52,7 @@ describe('ResidentDashboardPage', () => {
     expect(screen.getByText('علی محمدزاده')).toBeInTheDocument()
     expect(screen.getByText('09120000000')).toBeInTheDocument()
     expect(screen.getByText('ساکن')).toBeInTheDocument()
+    await screen.findByText('102')
   })
 
   it('shows the unit loading state first, then the unit details', async () => {

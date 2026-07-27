@@ -55,6 +55,8 @@ export function ToastProvider({ children }) {
   )
 }
 
+// The hook is intentionally exported next to its provider for a small shared context module.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast() {
   const context = useContext(ToastContext)
   if (!context) {

@@ -1,17 +1,28 @@
 import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { authApi } from '../../lib/api'
-import { roleLabels } from '../../utils/constants'
-import { useMyUnit } from '../../hooks/useMyUnit'
+import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
+import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
+import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
-import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
+import { useMyUnit } from '../../hooks/useMyUnit'
+import { useServiceRequests } from '../../hooks/useServiceRequests'
+import { authApi } from '../../lib/api'
+import { roleLabels } from '../../utils/constants'
 
 export function ResidentDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { unit, loading, error, retry } = useMyUnit()
+  const {
+    requests,
+    loading: requestsLoading,
+    refreshing: requestsRefreshing,
+    error: requestsError,
+    refresh: refreshRequests,
+    addRequest,
+  } = useServiceRequests()
 
   async function handleLogout() {
     await authApi.logout()
@@ -26,10 +37,10 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
         <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
           <div className="panel-hero p-6 text-slate-900 sm:p-8">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <BrandMark /> 
-              <button 
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-200" 
-                type="button" 
+              <BrandMark />
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-200"
+                type="button"
                 onClick={handleLogout}
               >
                 <LogOut className="h-4 w-4" />
@@ -39,7 +50,7 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
             <div className="mt-10 max-w-2xl">
               <h1 className="text-3xl font-black tracking-tight sm:text-4xl">پنل ساکن</h1>
               <p className="mt-3 text-sm leading-8 text-slate-600">
-                خوش آمدید؛ اطلاعات حساب و واحد مسکونی شما در این بخش نمایش داده می‌شود.
+                خوش آمدید؛ اطلاعات حساب، واحد مسکونی و درخواست‌های خدمات شما در این بخش نمایش داده می‌شود.
               </p>
             </div>
           </div>
@@ -52,6 +63,17 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
         </div>
 
         <UnitInfoCard unit={unit} loading={loading} error={error} onRetry={retry} />
+
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+          <ServiceRequestForm onRequestCreated={addRequest} />
+          <ServiceRequestList
+            requests={requests}
+            loading={requestsLoading}
+            refreshing={requestsRefreshing}
+            error={requestsError}
+            onRetry={refreshRequests}
+          />
+        </div>
       </div>
     </div>
   )

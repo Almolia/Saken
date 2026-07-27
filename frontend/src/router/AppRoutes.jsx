@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { authApi } from '../lib/api'
-import { resolveHomePath } from '../utils/helpers'
-import { ProtectedRoute } from './ProtectedRoute'
 import { FullscreenLoader } from '../components/ui/FullscreenLoader'
+import { authApi } from '../lib/api'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
-import { ResidentDashboardPage } from '../pages/dashboard/ResidentDashboardPage'
-import { ManagerDashboardPage } from '../pages/dashboard/ManagerDashboardPage'
 import { AdminDashboardPage } from '../pages/dashboard/AdminDashboardPage'
+import { ManagerDashboardPage } from '../pages/dashboard/ManagerDashboardPage'
+import { ResidentDashboardPage } from '../pages/dashboard/ResidentDashboardPage'
+import { RolePlaceholderPage } from '../pages/dashboard/RolePlaceholderPage'
+import { UserRole } from '../utils/constants'
+import { resolveHomePath } from '../utils/helpers'
+import { ProtectedRoute } from './ProtectedRoute'
 
 export function AppRoutes() {
   const [authState, setAuthState] = useState({ loading: true, user: null })
@@ -34,7 +36,7 @@ export function AppRoutes() {
       <Route
         path="/resident/dashboard"
         element={
-          <ProtectedRoute user={authState.user} allowedRoles={['resident']}>
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.RESIDENT]}>
             <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
@@ -42,7 +44,7 @@ export function AppRoutes() {
       <Route
         path="/manager/dashboard"
         element={
-          <ProtectedRoute user={authState.user} allowedRoles={['manager']}>
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.MANAGER]}>
             <ManagerDashboardPage authState={authState} setAuthState={setAuthState} />
           </ProtectedRoute>
         }
@@ -50,8 +52,32 @@ export function AppRoutes() {
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute user={authState.user} allowedRoles={['admin']}>
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.ADMIN]}>
             <AdminDashboardPage authState={authState} setAuthState={setAuthState} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/service/dashboard"
+        element={
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.SERVICE_STAFF]}>
+            <RolePlaceholderPage authState={authState} setAuthState={setAuthState} />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/service"
+        element={
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.SERVICE_STAFF]}>
+            <Navigate to="/service/dashboard" replace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/service/*"
+        element={
+          <ProtectedRoute user={authState.user} allowedRoles={[UserRole.SERVICE_STAFF]}>
+            <Navigate to="/service/dashboard" replace />
           </ProtectedRoute>
         }
       />

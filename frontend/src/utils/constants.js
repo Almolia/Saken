@@ -1,5 +1,13 @@
+export const UserRole = {
+  ADMIN: 'admin',
+  MANAGER: 'manager',
+  RESIDENT: 'resident',
+  SERVICE_STAFF: 'service_staff',
+}
+
 export const roleLabels = {
-  admin: 'ادمین',
-  manager: 'مدیر',
-  resident: 'ساکن',
+  [UserRole.ADMIN]: 'ادمین',
+  [UserRole.MANAGER]: 'مدیر',
+  [UserRole.RESIDENT]: 'ساکن',
+  [UserRole.SERVICE_STAFF]: 'کارکنان خدمات',
 }
