@@ -45,4 +45,5 @@ def get_user_stats():
         "total": users.count(),
         "managers": users.filter(role=UserRole.MANAGER).count(),
         "residents": users.filter(role=UserRole.RESIDENT).count(),
+        "service_staff": users.filter(role=UserRole.SERVICE_STAFF).count(),
     }

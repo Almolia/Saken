@@ -11,3 +11,7 @@ export const roleLabels = {
   [UserRole.RESIDENT]: 'ساکن',
   [UserRole.SERVICE_STAFF]: 'کارکنان خدمات',
 }
+
+// Roles an admin or manager may grant. Admin is intentionally excluded: the
+// backend rejects it and refuses to change an existing admin's role.
+export const assignableRoles = [UserRole.RESIDENT, UserRole.MANAGER, UserRole.SERVICE_STAFF]

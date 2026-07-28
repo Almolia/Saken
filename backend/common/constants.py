@@ -5,6 +5,7 @@ class UserMessages:
     INACTIVE_ACCOUNT = "حساب کاربری شما فعال نیست."
     ADMIN_ONLY_ROLE_CHANGE = "فقط ادمین می‌تواند نقش کاربران را تغییر دهد."
     ADMIN_ROLE_IMMUTABLE = "نقش ادمین قابل تغییر نیست."
+    SELF_ROLE_IMMUTABLE = "امکان تغییر نقش حساب جاری وجود ندارد."
     ROLE_UPDATED = "نقش کاربر با موفقیت به‌روزرسانی شد."
     ADMIN_ONLY_PROFILE_UPDATE = "فقط ادمین می‌تواند تنظیمات ادمین را ویرایش کند."
     ADMIN_PROFILE_UPDATED = "اطلاعات حساب با موفقیت ذخیره شد."

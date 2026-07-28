@@ -1,8 +1,9 @@
 import { Building2, LogOut, ShieldCheck, Users } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
-import { authApi, managerApi } from '../../lib/api'
+import { useUserDirectory } from '../../hooks/useUserDirectory'
+import { authApi } from '../../lib/api'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
@@ -14,18 +15,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('units')
-  const [userData, setUserData] = useState({ users: [], stats: null, loading: true, error: '' })
-
-  useEffect(() => {
-    let active = true
-    managerApi
-      .users()
-      .then((response) => active && setUserData({ users: response.users, stats: response.stats, loading: false, error: '' }))
-      .catch((error) => active && setUserData((current) => ({ ...current, loading: false, error: error.message })))
-    return () => {
-      active = false
-    }
-  }, [])
+  const { data: userData, actionState, changeRole } = useUserDirectory()
 
   async function handleLogout() {
     await authApi.logout()
@@ -78,7 +68,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
             {activeSection === 'units' ? (
               <UnitsSection users={userData.users} />
             ) : (
-              <UsersSection data={userData} authState={authState} />
+              <UsersSection data={userData} authState={authState} actionState={actionState} changeRole={changeRole} />
             )}
           </div>
         </main>

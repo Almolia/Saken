@@ -1,6 +1,7 @@
-import { BadgeCheck, LoaderCircle, ShieldCheck, Users } from 'lucide-react'
+import { BadgeCheck, ShieldCheck, Users, Wrench } from 'lucide-react'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
 import { RoleBadge } from '../../../components/ui/RoleBadge'
+import { RoleSelect } from '../../../components/ui/RoleSelect'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import { UserCell } from '../../../components/ui/UserCell'
@@ -13,14 +14,15 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
         <div className="relative z-10 max-w-3xl">
           <p className="text-sm font-bold text-teal-200">مدیریت نقش‌ها</p>
           <h2 className="mt-3 text-3xl font-black leading-tight tracking-tight sm:text-4xl">تعیین نقش کاربران سامانه</h2>
-          <p className="mt-4 text-sm leading-8 text-slate-300">در این بخش فقط نقش کاربران غیرادمین بین «ساکن» و «مدیر» تغییر می‌کند.</p>
+          <p className="mt-4 text-sm leading-8 text-slate-300">نقش کاربران غیرادمین را می‌توانید بین «ساکن»، «مدیر» و «کارکنان خدمات» تغییر دهید.</p>
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard title="کل کاربران" value={data.stats?.total ?? '—'} icon={Users} tone="teal" />
         <SummaryCard title="مدیرها" value={data.stats?.managers ?? '—'} icon={ShieldCheck} tone="emerald" />
         <SummaryCard title="ساکن‌ها" value={data.stats?.residents ?? '—'} icon={BadgeCheck} tone="blue" />
+        <SummaryCard title="کارکنان خدمات" value={data.stats?.service_staff ?? '—'} icon={Wrench} tone="teal" />
       </section>
 
       <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
@@ -48,7 +50,7 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                   <th className="px-6 py-4">شماره موبایل</th>
                   <th className="px-6 py-4">کد ملی</th>
                   <th className="px-6 py-4">نقش فعلی</th>
-                  <th className="px-6 py-4">عملیات</th>
+                  <th className="px-6 py-4">تغییر نقش</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
@@ -65,15 +67,14 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                       <td className="px-6 py-4"><RoleBadge role={user.role} /></td>
                       <td className="px-6 py-4">
                         {!isAdmin ? (
-                          <button
-                            type="button"
-                            onClick={() => changeRole(user, user.role === 'resident' ? 'manager' : 'resident')}
-                            disabled={roleLoading || isSelf}
+                          <RoleSelect
+                            value={user.role}
+                            onChange={(role) => changeRole(user, role)}
+                            disabled={isSelf}
+                            loading={roleLoading}
+                            label={`نقش ${user.full_name}`}
                             title={isSelf ? 'امکان تغییر نقش حساب جاری وجود ندارد.' : undefined}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl bg-teal-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {roleLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : user.role === 'resident' ? 'تبدیل به مدیر' : 'تبدیل به ساکن'}
-                          </button>
+                          />
                         ) : (
                           <span className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-4 text-xs font-bold text-white">ادمین</span>
                         )}
