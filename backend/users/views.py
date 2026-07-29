@@ -133,3 +133,14 @@ class AdminPasswordChangeView(APIView):
             user=user,
             message=UserMessages.ADMIN_PASSWORD_CHANGED,
         )
+
+
+class ServiceStaffListView(APIView):
+    """Returns all active users with the service_staff role for assignment dropdowns."""
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request):
+        staff = User.objects.filter(role=UserRole.SERVICE_STAFF, is_active=True).order_by('full_name')
+        return Response({
+            'staff': UserSerializer(staff, many=True).data,
+        })

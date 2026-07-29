@@ -48,3 +48,12 @@ class ManagerMessages:
     PHONE_REQUIRED = "شماره موبایل الزامی است."
     SUPERUSER_STAFF_REQUIRED = "Superuser must have is_staff=True."
     SUPERUSER_SUPERUSER_REQUIRED = "Superuser must have is_superuser=True."
+
+
+class ServiceRequestMessages:
+    REQUEST_ASSIGNED = "درخواست خدمات با موفقیت ارجاع شد."
+    REQUEST_NOT_FOUND = "درخواست خدمات مورد نظر یافت نشد."
+    INVALID_STATUS_FOR_ASSIGNMENT = "فقط درخواست‌های در انتظار بررسی قابل ارجاع هستند."
+    STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
+    STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
+    ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."

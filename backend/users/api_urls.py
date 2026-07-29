@@ -7,6 +7,7 @@ from .views import (
     LoginView,
     LogoutView,
     RegisterView,
+    ServiceStaffListView,
     UserListView,
     UserRoleUpdateView,
 )
@@ -22,4 +23,5 @@ urlpatterns = [
     path("auth/admin/change-password/", AdminPasswordChangeView.as_view(), name="admin-change-password"),
     path("manager/users/", UserListView.as_view(), name="user-list"),
     path("manager/users/<int:pk>/role/", UserRoleUpdateView.as_view(), name="user-role-update"),
+    path("manager/service-staff/", ServiceStaffListView.as_view(), name="service-staff-list"),
 ]
