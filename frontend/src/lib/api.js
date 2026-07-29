@@ -156,6 +156,9 @@ export const managerApi = {
       method: 'DELETE',
     })
   },
+  serviceStaff() {
+    return request('/manager/service-staff/')
+  },
 }
 
 export { API_BASE_URL, request }

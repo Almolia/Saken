@@ -1,4 +1,4 @@
-import { Building2, LogOut, ShieldCheck, Users } from 'lucide-react'
+import { Building2, ClipboardList, LogOut, ShieldCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -8,13 +8,20 @@ import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
 import { AdminProfile } from './admin/AdminProfile'
+import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
 import { UsersSection } from './manager/UsersSection'
+
+const sectionTitles = {
+  requests: 'درخواست‌های خدمات',
+  units: 'مدیریت واحدها',
+  users: 'کاربران',
+}
 
 export function ManagerDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
-  const [activeSection, setActiveSection] = useState('units')
+  const [activeSection, setActiveSection] = useState('requests')
   const { data: userData, actionState, changeRole } = useUserDirectory()
 
   async function handleLogout() {
@@ -24,7 +31,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
     navigate('/login', { replace: true })
   }
 
-  const pageTitle = activeSection === 'units' ? 'مدیریت واحدها' : 'کاربران'
+  const pageTitle = sectionTitles[activeSection]
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -35,6 +42,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
           </div>
 
           <nav className="mt-7 flex flex-1 flex-col gap-2">
+            <SideNavItem icon={ClipboardList} label="درخواست‌های خدمات" active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} />
             <SideNavItem icon={Building2} label="مدیریت واحدها" active={activeSection === 'units'} onClick={() => setActiveSection('units')} />
             <SideNavItem icon={Users} label="کاربران" active={activeSection === 'users'} onClick={() => setActiveSection('users')} />
           </nav>
@@ -58,14 +66,17 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               </button>
             </div>
 
-            <div className="mt-4 flex gap-2 xl:hidden">
-              <MobileTab active={activeSection === 'units'} onClick={() => setActiveSection('units')} label="مدیریت واحدها" />
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
+              <MobileTab active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} label="درخواست‌ها" />
+              <MobileTab active={activeSection === 'units'} onClick={() => setActiveSection('units')} label="واحدها" />
               <MobileTab active={activeSection === 'users'} onClick={() => setActiveSection('users')} label="کاربران" />
             </div>
           </header>
 
           <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
-            {activeSection === 'units' ? (
+            {activeSection === 'requests' ? (
+              <ServiceRequestsSection />
+            ) : activeSection === 'units' ? (
               <UnitsSection users={userData.users} />
             ) : (
               <UsersSection data={userData} authState={authState} actionState={actionState} changeRole={changeRole} />

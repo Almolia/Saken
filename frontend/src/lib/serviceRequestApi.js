@@ -13,3 +13,16 @@ export const serviceRequestApi = {
     })
   },
 }
+
+// Manager-facing service request endpoints for viewing and assigning requests.
+export const managerServiceRequestApi = {
+  listAll() {
+    return request('/manager/requests/')
+  },
+  assignStaff(requestId, payload) {
+    return request(`/manager/requests/${requestId}/assign/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+}
