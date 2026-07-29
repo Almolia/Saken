@@ -191,7 +191,7 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
   )
 }
 
-export function ManagerServiceRequestsSection() {
+export function ServiceRequestsSection() {
   const { requests, loading, refreshing, error, refresh, updateRequest } = useManagerServiceRequests()
   const { staff, loading: staffLoading } = useServiceStaff()
 
