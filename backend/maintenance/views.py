@@ -43,6 +43,36 @@ class ManagerServiceRequestListView(APIView):
         })
 
 
+class ManagerServiceRequestDetailView(APIView):
+    """Allows managers to update a specific service request."""
+    permission_classes = [IsManagerOrAdmin]
+
+    def patch(self, request, pk):
+        try:
+            service_request = ServiceRequest.objects.select_related(
+                'resident', 'assigned_staff'
+            ).get(pk=pk)
+        except ServiceRequest.DoesNotExist:
+            return Response(
+                {'detail': ServiceRequestMessages.REQUEST_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = ManagerServiceRequestUpdateSerializer(
+            service_request,
+            data=request.data,
+            partial=True,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_request = serializer.save()
+
+        return Response({
+            'message': ServiceRequestMessages.REQUEST_UPDATED,
+            'request': ManagerServiceRequestSerializer(updated_request).data,
+        })
+
+
 class ManagerServiceRequestAssignView(APIView):
     """Assigns a service staff member to a pending service request."""
     permission_classes = [IsManagerOrAdmin]
