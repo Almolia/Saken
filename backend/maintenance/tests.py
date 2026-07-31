@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from maintenance.models import ServiceRequest, RequestStatus
 from users.models import UserRole
+from common.constants import ServiceRequestMessages
 
 User = get_user_model()
 

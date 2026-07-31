@@ -57,3 +57,5 @@ class ServiceRequestMessages:
     STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
     STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
     ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."
+    REQUEST_UPDATED = "درخواست خدمات با موفقیت به‌روزرسانی شد."
+    INVALID_STAFF_ROLE = "فقط کاربران با نقش کارکنان خدمات می‌توانند به درخواست‌ها ارجاع شوند."
