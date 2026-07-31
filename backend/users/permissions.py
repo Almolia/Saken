@@ -1,6 +1,6 @@
+from common.constants import UserMessages
 from rest_framework.permissions import BasePermission
 
-from common.constants import UserMessages
 from .models import UserRole
 
 
@@ -27,15 +27,17 @@ class IsAdminUserRole(BasePermission):
             and user.role == UserRole.ADMIN
         )
 
-class IsServiceStaffOrAdmin(BasePermission):
+
+class IsServiceStaff(BasePermission):
     def has_permission(self, request, view):
         user = request.user
         return bool(
             user
             and user.is_authenticated
             and user.is_active
-            and user.role in {UserRole.SERVICE_STAFF, UserRole.ADMIN}
+            and user.role == UserRole.SERVICE_STAFF
         )
+
 
 class IsResident(BasePermission):
     def has_permission(self, request, view):

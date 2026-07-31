@@ -35,6 +35,14 @@ class AuthenticationTests(TestCase):
             national_id='1234567891',
             password='Resident123',
         )
+        self.service_staff = User.objects.create_user(
+            phone='09122222222',
+            username='service_staff',
+            full_name='نیروی خدمات',
+            national_id='1234567893',
+            password='Service123',
+            role='service_staff',
+        )
 
     def test_register_user_successfully(self):
         payload = {
@@ -71,7 +79,6 @@ class AuthenticationTests(TestCase):
             self.assertEqual(response.data['user']['phone'], '09121111111')
             self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
 
-
     def test_login_works_even_with_stale_access_cookie(self):
         self.client.cookies[settings.JWT_ACCESS_COOKIE_NAME] = 'invalid-or-expired-token'
         response = self.client.post(
@@ -101,7 +108,7 @@ class AuthenticationTests(TestCase):
         self.client.cookies = login_response.cookies
         response = self.client.get('/api/manager/users/')
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data['users']), 4)
+        self.assertEqual(len(response.data['users']), User.objects.count())
         self.assertIn('managers', response.data['stats'])
         self.assertIn('residents', response.data['stats'])
 
@@ -182,7 +189,6 @@ class AuthenticationTests(TestCase):
         self.admin.refresh_from_db()
         self.assertTrue(self.admin.check_password('Newadmin123'))
 
-
     def test_admin_can_update_profile_and_password_from_settings(self):
         login_response = self.client.post(
             '/api/auth/login/',
@@ -211,3 +217,17 @@ class AuthenticationTests(TestCase):
         self.assertEqual(self.admin.national_id, '1111111111')
         self.assertTrue(self.admin.check_password('Admin12345'))
         self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
+
+    def test_service_staff_cannot_access_manager_protected_endpoints(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'service_staff', 'password': 'Service123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+
+        sample_manager_endpoint = '/api/manager/users/'
+
+        response = self.client.get(sample_manager_endpoint)
+
+        self.assertEqual(response.status_code, 403)
