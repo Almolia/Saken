@@ -37,9 +37,7 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
 class ManagerServiceRequestUpdateSerializer(serializers.ModelSerializer):
     """Serializer for managers to update service requests with validation."""
 
-    assigned_staff_id = serializers.PrimaryKeyRelatedField(
-        source='assigned_staff',
-        queryset=None,
+    assigned_staff_id = serializers.IntegerField(
         required=False,
         allow_null=True,
         help_text="ID of the service staff member to assign to this request"
@@ -48,41 +46,41 @@ class ManagerServiceRequestUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceRequest
         fields = ['title', 'description', 'work_report', 'assigned_staff_id', 'status']
-        read_only_fields = ['status']  # Status is managed by the system
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        self.fields['assigned_staff_id'].queryset = User.objects.filter(
-            is_active=True,
-            role=UserRole.SERVICE_STAFF
-        )
+        read_only_fields = ['status']
 
     def validate_assigned_staff_id(self, value):
-        """
-        Validate that the assigned user has the service_staff role.
-        This validation runs automatically if the field is provided.
-        """
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
         if value is None:
             return value
 
-        if value.role != UserRole.SERVICE_STAFF:
+        try:
+            user = User.objects.get(pk=value, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found or inactive.")
+
+        if user.role != UserRole.SERVICE_STAFF:
             raise serializers.ValidationError(
                 "Only users with service staff role can be assigned to requests."
             )
+
+        # Store the user instance for later use
+        self._assigned_staff_user = user
         return value
 
     def validate(self, attrs):
-        """
-        Additional cross-field validation.
-        If assigned_staff is provided, update status to ASSIGNED.
-        """
         from .models import RequestStatus
 
-        assigned_staff = attrs.get('assigned_staff')
+        # Get the user instance from the validated data
+        assigned_staff_id = attrs.get('assigned_staff_id')
 
-        if assigned_staff is not None:
+        if assigned_staff_id is not None:
+            # Retrieve the user from validation
+            assigned_staff = getattr(self, '_assigned_staff_user', None)
+            if assigned_staff:
+                attrs['assigned_staff'] = assigned_staff
+
             instance = self.instance
             if instance and instance.status != RequestStatus.PENDING:
                 raise serializers.ValidationError({
@@ -93,8 +91,10 @@ class ManagerServiceRequestUpdateSerializer(serializers.ModelSerializer):
         return attrs
 
     def update(self, instance, validated_data):
-        """Update the request and handle status changes."""
         from .models import RequestStatus
+
+        # Remove assigned_staff_id from validated_data
+        validated_data.pop('assigned_staff_id', None)
 
         assigned_staff = validated_data.get('assigned_staff')
 
