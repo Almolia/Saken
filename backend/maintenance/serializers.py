@@ -53,3 +53,9 @@ class AssignServiceRequestSerializer(serializers.Serializer):
             raise serializers.ValidationError("کاربر انتخابی جزو کارکنان خدمات نیست.")
 
         return value
+
+class StaffServiceRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceRequest
+        fields = ['id', 'title', 'description', 'status', 'resident', 'assigned_staff', 'work_report']
+        read_only_fields = ['id', 'title', 'description', 'resident', 'assigned_staff']

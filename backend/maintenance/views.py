@@ -5,12 +5,13 @@ from rest_framework.views import APIView
 
 from common.constants import ServiceRequestMessages
 from users.models import UserRole
-from users.permissions import IsManagerOrAdmin, IsResident
+from users.permissions import IsManagerOrAdmin, IsResident, IsServiceStaff
 from .models import RequestStatus, ServiceRequest
 from .serializers import (
     AssignServiceRequestSerializer,
     ManagerServiceRequestSerializer,
     ServiceRequestSerializer,
+    StaffServiceRequestSerializer,
 )
 
 User = get_user_model()
@@ -78,3 +79,30 @@ class ManagerServiceRequestAssignView(APIView):
             'message': ServiceRequestMessages.REQUEST_ASSIGNED,
             'request': ManagerServiceRequestSerializer(service_request).data,
         })
+
+class StaffServiceRequestListView(generics.ListAPIView):
+    serializer_class = StaffServiceRequestSerializer
+    permission_classes = [IsServiceStaff]
+
+    def get_queryset(self):
+        """Strictly filter to only return records assigned to the logged-in staff member."""
+        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+
+
+class StaffServiceRequestUpdateView(generics.UpdateAPIView):
+    serializer_class = StaffServiceRequestSerializer
+    permission_classes = [IsServiceStaff]
+    http_method_names = ['patch', 'options']
+
+    def get_queryset(self):
+        """Ensure a staff member can only update requests assigned to them."""
+        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+
+    def perform_update(self, serializer):
+        """Automatically transition status to 'Completed' when a work report is submitted."""
+        work_report = serializer.validated_data.get('work_report', None)
+
+        if work_report:
+            serializer.save(status=RequestStatus.COMPLETED)
+        else:
+            serializer.save()
