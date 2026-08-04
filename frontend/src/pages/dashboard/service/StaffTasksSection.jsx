@@ -1,12 +1,15 @@
 import {
   CheckCircle2,
   ClipboardList,
+  FileText,
   MapPin,
   Phone,
   RefreshCw,
   UserRound,
   Wrench,
 } from 'lucide-react'
+import { useState } from 'react'
+import { WorkReportModal } from '../../../components/dashboard/WorkReportModal'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
 import { StatusBadge } from '../../../components/ui/StatusBadge'
@@ -14,7 +17,7 @@ import { SummaryCard } from '../../../components/ui/SummaryCard'
 import { useStaffServiceRequests } from '../../../hooks/useStaffServiceRequests'
 import { isCompleted as isRequestCompleted } from '../../../utils/serviceRequests'
 
-function TaskCard({ serviceRequest }) {
+function TaskCard({ serviceRequest, onStartReport }) {
   const isCompleted = isRequestCompleted(serviceRequest)
   const report = serviceRequest.work_report?.trim()
   const resident = serviceRequest.resident
@@ -59,12 +62,24 @@ function TaskCard({ serviceRequest }) {
           <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-7 text-emerald-950">{report}</p>
         </div>
       ) : null}
+
+      {!isCompleted ? (
+        <button
+          type="button"
+          onClick={() => onStartReport(serviceRequest)}
+          className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"
+        >
+          <FileText className="h-4 w-4" />
+          ثبت گزارش کار
+        </button>
+      ) : null}
     </article>
   )
 }
 
 export function StaffTasksSection({ user }) {
-  const { requests, loading, refreshing, error, refresh } = useStaffServiceRequests()
+  const { requests, loading, refreshing, error, refresh, updateRequest } = useStaffServiceRequests()
+  const [reportingTask, setReportingTask] = useState(null)
 
   const completedCount = requests.filter((item) => isRequestCompleted(item)).length
   const openCount = requests.length - completedCount
@@ -134,11 +149,24 @@ export function StaffTasksSection({ user }) {
         ) : (
           <div className="space-y-3 p-5 sm:p-6" aria-live="polite">
             {requests.map((serviceRequest) => (
-              <TaskCard key={serviceRequest.id} serviceRequest={serviceRequest} />
+              <TaskCard
+                key={serviceRequest.id}
+                serviceRequest={serviceRequest}
+                onStartReport={setReportingTask}
+              />
             ))}
           </div>
         )}
       </section>
+
+      {reportingTask ? (
+        <WorkReportModal
+          open
+          serviceRequest={reportingTask}
+          onClose={() => setReportingTask(null)}
+          onSubmitted={updateRequest}
+        />
+      ) : null}
     </>
   )
 }

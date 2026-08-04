@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '../../../components/ToastProvider'
 import { useStaffServiceRequests } from '../../../hooks/useStaffServiceRequests'
+import { staffServiceRequestApi } from '../../../lib/serviceRequestApi'
 import { StaffTasksSection } from './StaffTasksSection'
 
 vi.mock('../../../hooks/useStaffServiceRequests', () => ({
   useStaffServiceRequests: vi.fn(),
+}))
+
+vi.mock('../../../lib/serviceRequestApi', () => ({
+  staffServiceRequestApi: {
+    submitWorkReport: vi.fn(),
+  },
 }))
 
 const user = { id: 12, full_name: 'متین محمودی', phone: '09120000001', role: 'service_staff' }
@@ -31,15 +39,17 @@ const completedTask = {
 }
 
 function mockHook(overrides = {}) {
+  const updateRequest = vi.fn()
   useStaffServiceRequests.mockReturnValue({
     requests: [],
     loading: false,
     refreshing: false,
     error: '',
     refresh: vi.fn(),
-    updateRequest: vi.fn(),
+    updateRequest,
     ...overrides,
   })
+  return { updateRequest }
 }
 
 function renderSection() {
@@ -53,6 +63,7 @@ function renderSection() {
 describe('StaffTasksSection', () => {
   beforeEach(() => {
     useStaffServiceRequests.mockReset()
+    staffServiceRequestApi.submitWorkReport.mockReset()
   })
 
   it('renders the key details of an assigned task', () => {
@@ -104,6 +115,33 @@ describe('StaffTasksSection', () => {
     renderSection()
 
     expect(screen.getByText('هنوز وظیفه‌ای به شما ارجاع نشده است')).toBeInTheDocument()
+  })
+
+  it('offers the report action only on tasks that are still open', () => {
+    mockHook({ requests: [assignedTask, completedTask] })
+    renderSection()
+
+    const articles = screen.getAllByRole('article')
+    expect(within(articles[0]).getByRole('button', { name: /ثبت گزارش کار/ })).toBeInTheDocument()
+    expect(within(articles[1]).queryByRole('button', { name: /ثبت گزارش کار/ })).not.toBeInTheDocument()
+  })
+
+  it('submits a report and pushes the completed task straight into local state', async () => {
+    const user = userEvent.setup()
+    const completed = { ...assignedTask, status: 'Completed', work_report: 'شیر تعویض شد.' }
+    staffServiceRequestApi.submitWorkReport.mockResolvedValue(completed)
+    const { updateRequest } = mockHook({ requests: [assignedTask] })
+    renderSection()
+
+    await user.click(screen.getByRole('button', { name: /ثبت گزارش کار/ }))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('شرح کار انجام‌شده'), 'شیر تعویض شد.')
+    await user.click(screen.getByRole('button', { name: /ثبت و تکمیل وظیفه/ }))
+
+    await waitFor(() => expect(updateRequest).toHaveBeenCalledWith(completed))
+    expect(staffServiceRequestApi.submitWorkReport).toHaveBeenCalledWith(assignedTask.id, 'شیر تعویض شد.')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
   it('surfaces a server error with a retry action', () => {
