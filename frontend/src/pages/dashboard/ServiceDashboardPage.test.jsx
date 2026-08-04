@@ -19,6 +19,18 @@ vi.mock('../../lib/api', () => ({
   },
 }))
 
+// The task list has its own test file; here it only needs to render quietly.
+vi.mock('../../hooks/useStaffServiceRequests', () => ({
+  useStaffServiceRequests: () => ({
+    requests: [],
+    loading: false,
+    refreshing: false,
+    error: '',
+    refresh: vi.fn(),
+    updateRequest: vi.fn(),
+  }),
+}))
+
 const authState = {
   loading: false,
   user: { id: 12, full_name: 'متین محمودی', phone: '09120000001', role: 'service_staff' },
@@ -41,13 +53,13 @@ describe('ServiceDashboardPage', () => {
     authApi.logout.mockReset()
   })
 
-  it('renders the service staff shell with the placeholder message', () => {
+  it('renders the service staff shell with the task list', () => {
     renderPage()
 
     expect(screen.getByText('پنل کارکنان خدمات')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'وظایف من' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'وظایف من', level: 1 })).toBeInTheDocument()
     expect(screen.getByText('خوش آمدید، متین محمودی')).toBeInTheDocument()
-    expect(screen.getByText('این بخش به‌زودی فعال می‌شود')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'فهرست وظایف' })).toBeInTheDocument()
   })
 
   it('switches to the account section and shows the user details', async () => {
