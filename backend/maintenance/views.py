@@ -109,13 +109,26 @@ class StaffServiceRequestUpdateView(generics.UpdateAPIView):
 
     def get_queryset(self):
         """Ensure a staff member can only update requests assigned to them."""
-        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+        return (
+            ServiceRequest.objects.filter(assigned_staff=self.request.user)
+            .select_related('resident')
+            .prefetch_related('resident__units')
+        )
 
     def perform_update(self, serializer):
-        """Automatically transition status to 'Completed' when a work report is submitted."""
-        work_report = serializer.validated_data.get('work_report', None)
+        """Writing a report completes the request; clearing it reopens the request.
+
+        A report can be rewritten freely while it stands. Removing it has to move
+        the status back to Assigned, because "Completed" with nothing to show for
+        it is a state the resident and manager views cannot render meaningfully.
+        """
+        if 'work_report' not in serializer.validated_data:
+            serializer.save()
+            return
+
+        work_report = (serializer.validated_data.get('work_report') or '').strip()
 
         if work_report:
-            serializer.save(status=RequestStatus.COMPLETED)
+            serializer.save(work_report=work_report, status=RequestStatus.COMPLETED)
         else:
-            serializer.save()
+            serializer.save(work_report=None, status=RequestStatus.ASSIGNED)

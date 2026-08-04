@@ -34,11 +34,19 @@ export const staffServiceRequestApi = {
     return request('/staff/requests/')
   },
   // Submitting a work_report is what flips the request to "Completed"; the
-  // backend applies that transition itself.
+  // backend applies that transition itself. Sending the same call with new text
+  // rewrites the report and leaves the request completed.
   submitWorkReport(requestId, workReport) {
     return request(`/staff/requests/${requestId}/`, {
       method: 'PATCH',
       body: JSON.stringify({ work_report: workReport }),
+    })
+  },
+  // Clearing the report reopens the request, so it returns to the open list.
+  clearWorkReport(requestId) {
+    return request(`/staff/requests/${requestId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ work_report: '' }),
     })
   },
 }

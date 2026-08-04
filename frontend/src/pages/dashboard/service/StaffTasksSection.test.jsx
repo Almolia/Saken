@@ -13,6 +13,7 @@ vi.mock('../../../hooks/useStaffServiceRequests', () => ({
 vi.mock('../../../lib/serviceRequestApi', () => ({
   staffServiceRequestApi: {
     submitWorkReport: vi.fn(),
+    clearWorkReport: vi.fn(),
   },
 }))
 
@@ -117,13 +118,26 @@ describe('StaffTasksSection', () => {
     expect(screen.getByText('هنوز وظیفه‌ای به شما ارجاع نشده است')).toBeInTheDocument()
   })
 
-  it('offers the report action only on tasks that are still open', () => {
+  it('offers submit on open tasks and edit on completed ones', () => {
     mockHook({ requests: [assignedTask, completedTask] })
     renderSection()
 
     const articles = screen.getAllByRole('article')
     expect(within(articles[0]).getByRole('button', { name: /ثبت گزارش کار/ })).toBeInTheDocument()
+    expect(within(articles[0]).queryByRole('button', { name: /ویرایش گزارش/ })).not.toBeInTheDocument()
+    expect(within(articles[1]).getByRole('button', { name: /ویرایش گزارش/ })).toBeInTheDocument()
     expect(within(articles[1]).queryByRole('button', { name: /ثبت گزارش کار/ })).not.toBeInTheDocument()
+  })
+
+  it('opens the editor prefilled with the existing report', async () => {
+    const user = userEvent.setup()
+    mockHook({ requests: [completedTask] })
+    renderSection()
+
+    await user.click(screen.getByRole('button', { name: /ویرایش گزارش/ }))
+
+    expect(screen.getByRole('heading', { name: 'ویرایش گزارش کار' })).toBeInTheDocument()
+    expect(screen.getByLabelText('شرح کار انجام‌شده')).toHaveValue(completedTask.work_report)
   })
 
   it('submits a report and pushes the completed task straight into local state', async () => {

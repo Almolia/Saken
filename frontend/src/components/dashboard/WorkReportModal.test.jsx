@@ -8,6 +8,7 @@ import { WorkReportModal } from './WorkReportModal'
 vi.mock('../../lib/serviceRequestApi', () => ({
   staffServiceRequestApi: {
     submitWorkReport: vi.fn(),
+    clearWorkReport: vi.fn(),
   },
 }))
 
@@ -38,9 +39,16 @@ function renderModal(overrides = {}) {
   return { onClose, onSubmitted }
 }
 
+const completedRequest = {
+  ...serviceRequest,
+  status: 'Completed',
+  work_report: 'واشر شیر تعویض شد.',
+}
+
 describe('WorkReportModal', () => {
   beforeEach(() => {
     staffServiceRequestApi.submitWorkReport.mockReset()
+    staffServiceRequestApi.clearWorkReport.mockReset()
   })
 
   it('shows the task title it is reporting on', () => {
@@ -86,6 +94,77 @@ describe('WorkReportModal', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('ارتباط با سرور برقرار نشد.')
     expect(onSubmitted).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  describe('editing an existing report', () => {
+    it('prefills the current report and offers a remove action', () => {
+      renderModal({ serviceRequest: completedRequest })
+
+      expect(screen.getByRole('heading', { name: 'ویرایش گزارش کار' })).toBeInTheDocument()
+      expect(screen.getByLabelText('شرح کار انجام‌شده')).toHaveValue('واشر شیر تعویض شد.')
+      expect(screen.getByRole('button', { name: /ذخیره تغییرات/ })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /حذف گزارش/ })).toBeInTheDocument()
+    })
+
+    it('saves rewritten text without reopening the task', async () => {
+      const user = userEvent.setup()
+      const updated = { ...completedRequest, work_report: 'واشر و شیلنگ تعویض شد.' }
+      staffServiceRequestApi.submitWorkReport.mockResolvedValue(updated)
+      const { onSubmitted } = renderModal({ serviceRequest: completedRequest })
+
+      const textarea = screen.getByLabelText('شرح کار انجام‌شده')
+      await user.clear(textarea)
+      await user.type(textarea, 'واشر و شیلنگ تعویض شد.')
+      await user.click(screen.getByRole('button', { name: /ذخیره تغییرات/ }))
+
+      await waitFor(() =>
+        expect(staffServiceRequestApi.submitWorkReport).toHaveBeenCalledWith(7, 'واشر و شیلنگ تعویض شد.'),
+      )
+      expect(onSubmitted).toHaveBeenCalledWith(updated)
+      expect(await screen.findByText('گزارش کار به‌روزرسانی شد.')).toBeInTheDocument()
+    })
+
+    it('asks for confirmation before removing the report', async () => {
+      const user = userEvent.setup()
+      renderModal({ serviceRequest: completedRequest })
+
+      await user.click(screen.getByRole('button', { name: /حذف گزارش/ }))
+
+      expect(staffServiceRequestApi.clearWorkReport).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: /بله، حذف کن/ })).toBeInTheDocument()
+    })
+
+    it('removes the report once confirmed and reports the task as reopened', async () => {
+      const user = userEvent.setup()
+      const reopened = { ...completedRequest, status: 'Assigned', work_report: null }
+      staffServiceRequestApi.clearWorkReport.mockResolvedValue(reopened)
+      const { onSubmitted, onClose } = renderModal({ serviceRequest: completedRequest })
+
+      await user.click(screen.getByRole('button', { name: /حذف گزارش/ }))
+      await user.click(screen.getByRole('button', { name: /بله، حذف کن/ }))
+
+      await waitFor(() => expect(staffServiceRequestApi.clearWorkReport).toHaveBeenCalledWith(7))
+      expect(onSubmitted).toHaveBeenCalledWith(reopened)
+      expect(onClose).toHaveBeenCalled()
+      expect(await screen.findByText('گزارش کار حذف شد و وظیفه دوباره باز شد.')).toBeInTheDocument()
+    })
+
+    it('lets the user back out of the removal confirmation', async () => {
+      const user = userEvent.setup()
+      renderModal({ serviceRequest: completedRequest })
+
+      await user.click(screen.getByRole('button', { name: /حذف گزارش/ }))
+      await user.click(screen.getByRole('button', { name: 'بازگشت' }))
+
+      expect(screen.getByRole('button', { name: /حذف گزارش/ })).toBeInTheDocument()
+      expect(staffServiceRequestApi.clearWorkReport).not.toHaveBeenCalled()
+    })
+
+    it('does not offer removal while the report is still being written', () => {
+      renderModal()
+
+      expect(screen.queryByRole('button', { name: /حذف گزارش/ })).not.toBeInTheDocument()
+    })
   })
 
   it('renders nothing without a selected task', () => {

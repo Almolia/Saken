@@ -3,6 +3,7 @@ import {
   ClipboardList,
   FileText,
   MapPin,
+  PencilLine,
   Phone,
   RefreshCw,
   UserRound,
@@ -63,16 +64,18 @@ function TaskCard({ serviceRequest, onStartReport }) {
         </div>
       ) : null}
 
-      {!isCompleted ? (
-        <button
-          type="button"
-          onClick={() => onStartReport(serviceRequest)}
-          className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"
-        >
-          <FileText className="h-4 w-4" />
-          ثبت گزارش کار
-        </button>
-      ) : null}
+      <button
+        type="button"
+        onClick={() => onStartReport(serviceRequest)}
+        className={`mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-bold shadow-sm transition ${
+          isCompleted
+            ? 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            : 'bg-teal-600 text-white hover:bg-teal-700'
+        }`}
+      >
+        {isCompleted ? <PencilLine className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+        {isCompleted ? 'ویرایش گزارش' : 'ثبت گزارش کار'}
+      </button>
     </article>
   )
 }
