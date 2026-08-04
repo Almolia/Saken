@@ -21,11 +21,18 @@ import { managerServiceRequestApi } from '../../../lib/serviceRequestApi'
 
 function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
   const { showToast } = useToast()
-  const [selectedStaffId, setSelectedStaffId] = useState('')
+  // null means "untouched", so the select falls back to whoever currently owns
+  // the request and resets to the new owner after a successful reassignment.
+  const [draftStaffId, setDraftStaffId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const isPending = normalizeStatus(serviceRequest.status) === RequestStatus.PENDING
+  const currentStaffId = serviceRequest.assigned_staff?.id
+    ? String(serviceRequest.assigned_staff.id)
+    : ''
+  const selectedStaffId = draftStaffId ?? currentStaffId
+  const isReassignment = Boolean(currentStaffId)
+  const isUnchanged = selectedStaffId === currentStaffId
 
   async function handleAssign() {
     if (!selectedStaffId) {
@@ -42,7 +49,7 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
       })
       onUpdate(response.request)
       showToast(response.message || 'درخواست با موفقیت ارجاع شد.')
-      setSelectedStaffId('')
+      setDraftStaffId(null)
     } catch (err) {
       const message = err.message || 'ارجاع درخواست ناموفق بود.'
       setError(message)
@@ -52,17 +59,16 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
     }
   }
 
-  if (!isPending) return null
-
   return (
     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
       <select
         value={selectedStaffId}
         onChange={(e) => {
-          setSelectedStaffId(e.target.value)
+          setDraftStaffId(e.target.value)
           setError('')
         }}
         disabled={loading || staffLoading}
+        aria-label={`مسئول درخواست ${serviceRequest.title}`}
         className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-50"
       >
         <option value="">انتخاب کارمند خدمات...</option>
@@ -75,7 +81,8 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
       <button
         type="button"
         onClick={handleAssign}
-        disabled={loading || staffLoading || !selectedStaffId}
+        disabled={loading || staffLoading || !selectedStaffId || isUnchanged}
+        title={isUnchanged && isReassignment ? 'برای تغییر مسئول، کارمند دیگری انتخاب کنید.' : undefined}
         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? (
@@ -83,7 +90,7 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
         ) : (
           <UserCheck className="h-4 w-4" />
         )}
-        {loading ? 'در حال ارجاع...' : 'ارجاع'}
+        {loading ? 'در حال ثبت...' : isReassignment ? 'تغییر مسئول' : 'ارجاع'}
       </button>
       {error ? (
         <small className="text-xs font-medium text-rose-600 sm:ml-2">{error}</small>
@@ -93,7 +100,6 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
 }
 
 function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
-  const isPending = normalizeStatus(serviceRequest.status) === RequestStatus.PENDING
   const isCompleted = normalizeStatus(serviceRequest.status) === RequestStatus.COMPLETED
   const report = serviceRequest.work_report?.trim()
 
@@ -130,7 +136,7 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
         </div>
       ) : null}
 
-      {isPending ? (
+      {!isCompleted ? (
         staffLoading ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-slate-500">
             <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -176,7 +182,7 @@ export function ServiceRequestsSection() {
             مدیریت و ارجاع درخواست‌ها
           </h2>
           <p className="mt-4 text-sm leading-8 text-slate-300">
-            در این بخش می‌توانید درخواست‌های خدمات ثبت‌شده توسط ساکنان را مشاهده کرده و به کارکنان خدمات ارجاع دهید.
+            در این بخش می‌توانید درخواست‌های خدمات ثبت‌شده توسط ساکنان را مشاهده کرده، به کارکنان خدمات ارجاع دهید و تا پیش از تکمیل شدن، مسئول آن‌ها را تغییر دهید.
           </p>
         </div>
       </section>

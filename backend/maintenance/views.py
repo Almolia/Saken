@@ -45,7 +45,7 @@ class ManagerServiceRequestListView(APIView):
 
 
 class ManagerServiceRequestAssignView(APIView):
-    """Assigns a service staff member to a pending service request."""
+    """Assigns, or reassigns, a service staff member to a service request."""
     permission_classes = [IsManagerOrAdmin]
 
     def patch(self, request, pk):
@@ -59,9 +59,11 @@ class ManagerServiceRequestAssignView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if service_request.status != RequestStatus.PENDING:
+        # A finished job has a work report tied to whoever did it, so its owner
+        # is frozen. Anything still open can be handed to a different member.
+        if service_request.status == RequestStatus.COMPLETED:
             return Response(
-                {'detail': ServiceRequestMessages.INVALID_STATUS_FOR_ASSIGNMENT},
+                {'detail': ServiceRequestMessages.COMPLETED_REQUEST_NOT_ASSIGNABLE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -71,12 +73,18 @@ class ManagerServiceRequestAssignView(APIView):
         staff_id = serializer.validated_data['staff_id']
         staff_user = User.objects.get(pk=staff_id)
 
+        was_assigned = service_request.assigned_staff_id is not None
+
         service_request.assigned_staff = staff_user
         service_request.status = RequestStatus.ASSIGNED
         service_request.save(update_fields=['assigned_staff', 'status'])
 
         return Response({
-            'message': ServiceRequestMessages.REQUEST_ASSIGNED,
+            'message': (
+                ServiceRequestMessages.REQUEST_REASSIGNED
+                if was_assigned
+                else ServiceRequestMessages.REQUEST_ASSIGNED
+            ),
             'request': ManagerServiceRequestSerializer(service_request).data,
         })
 

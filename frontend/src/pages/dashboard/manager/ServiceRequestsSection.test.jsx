@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '../../../components/ToastProvider'
 import { useManagerServiceRequests } from '../../../hooks/useManagerServiceRequests'
 import { useServiceStaff } from '../../../hooks/useServiceStaff'
+import { managerServiceRequestApi } from '../../../lib/serviceRequestApi'
 import { ServiceRequestsSection } from './ServiceRequestsSection'
 
 vi.mock('../../../hooks/useManagerServiceRequests', () => ({
@@ -13,8 +15,15 @@ vi.mock('../../../hooks/useServiceStaff', () => ({
   useServiceStaff: vi.fn(),
 }))
 
+vi.mock('../../../lib/serviceRequestApi', () => ({
+  managerServiceRequestApi: {
+    assignStaff: vi.fn(),
+  },
+}))
+
 const resident = { id: 5, full_name: 'سارا احمدی', phone: '09121111111' }
 const staffMember = { id: 9, full_name: 'متین محمودی', phone: '09120000009' }
+const otherStaffMember = { id: 10, full_name: 'رضا کریمی', phone: '09120000010' }
 
 const pendingRequest = {
   id: 1,
@@ -46,31 +55,34 @@ const completedRequest = {
   work_report: 'لامپ تعویض و روشنایی بررسی شد.',
 }
 
-function mockHooks(requests) {
+function renderSection(requests) {
+  const updateRequest = vi.fn()
   useManagerServiceRequests.mockReturnValue({
     requests,
     loading: false,
     refreshing: false,
     error: '',
     refresh: vi.fn(),
-    updateRequest: vi.fn(),
+    updateRequest,
   })
-  useServiceStaff.mockReturnValue({ staff: [staffMember], loading: false, error: '' })
-}
-
-function renderSection(requests) {
-  mockHooks(requests)
+  useServiceStaff.mockReturnValue({
+    staff: [staffMember, otherStaffMember],
+    loading: false,
+    error: '',
+  })
   render(
     <ToastProvider>
       <ServiceRequestsSection />
     </ToastProvider>,
   )
+  return { updateRequest }
 }
 
 describe('ServiceRequestsSection', () => {
   beforeEach(() => {
     useManagerServiceRequests.mockReset()
     useServiceStaff.mockReset()
+    managerServiceRequestApi.assignStaff.mockReset()
   })
 
   it('shows the work report of a completed request', () => {
@@ -101,11 +113,80 @@ describe('ServiceRequestsSection', () => {
     expect(within(articles[2]).getByText('تکمیل‌شده')).toBeInTheDocument()
   })
 
-  it('offers the assign control only on pending requests', () => {
-    renderSection([pendingRequest, completedRequest])
+  it('offers the assign control on open requests but never on completed ones', () => {
+    renderSection([pendingRequest, assignedRequest, completedRequest])
 
     const articles = screen.getAllByRole('article')
     expect(within(articles[0]).getByRole('button', { name: 'ارجاع' })).toBeInTheDocument()
-    expect(within(articles[1]).queryByRole('button', { name: 'ارجاع' })).not.toBeInTheDocument()
+    expect(within(articles[1]).getByRole('button', { name: 'تغییر مسئول' })).toBeInTheDocument()
+    expect(within(articles[2]).queryByRole('button', { name: /ارجاع|تغییر مسئول/ })).not.toBeInTheDocument()
+  })
+
+  it('preselects the current owner of an assigned request', () => {
+    renderSection([assignedRequest])
+
+    expect(screen.getByRole('combobox', { name: 'مسئول درخواست تعمیر آسانسور' })).toHaveValue(
+      String(staffMember.id),
+    )
+  })
+
+  it('keeps the reassign button disabled until a different member is picked', async () => {
+    const user = userEvent.setup()
+    renderSection([assignedRequest])
+
+    const reassignButton = screen.getByRole('button', { name: 'تغییر مسئول' })
+    expect(reassignButton).toBeDisabled()
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'مسئول درخواست تعمیر آسانسور' }),
+      String(otherStaffMember.id),
+    )
+
+    expect(reassignButton).toBeEnabled()
+  })
+
+  it('sends the newly chosen staff member and updates the list', async () => {
+    const user = userEvent.setup()
+    const reassigned = { ...assignedRequest, assigned_staff: otherStaffMember }
+    managerServiceRequestApi.assignStaff.mockResolvedValue({
+      message: 'مسئول درخواست با موفقیت تغییر کرد.',
+      request: reassigned,
+    })
+    const { updateRequest } = renderSection([assignedRequest])
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'مسئول درخواست تعمیر آسانسور' }),
+      String(otherStaffMember.id),
+    )
+    await user.click(screen.getByRole('button', { name: 'تغییر مسئول' }))
+
+    await waitFor(() =>
+      expect(managerServiceRequestApi.assignStaff).toHaveBeenCalledWith(assignedRequest.id, {
+        staff_id: otherStaffMember.id,
+      }),
+    )
+    expect(updateRequest).toHaveBeenCalledWith(reassigned)
+    expect(await screen.findByText('مسئول درخواست با موفقیت تغییر کرد.')).toBeInTheDocument()
+  })
+
+  it('surfaces a failed reassignment without changing the list', async () => {
+    const user = userEvent.setup()
+    managerServiceRequestApi.assignStaff.mockRejectedValue(
+      new Error('درخواست‌های تکمیل‌شده قابل ارجاع مجدد نیستند.'),
+    )
+    const { updateRequest } = renderSection([assignedRequest])
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'مسئول درخواست تعمیر آسانسور' }),
+      String(otherStaffMember.id),
+    )
+    await user.click(screen.getByRole('button', { name: 'تغییر مسئول' }))
+
+    // Reported both inline on the card and as a toast, so scope to the card.
+    const card = screen.getByRole('article')
+    expect(
+      await within(card).findByText('درخواست‌های تکمیل‌شده قابل ارجاع مجدد نیستند.'),
+    ).toBeInTheDocument()
+    expect(updateRequest).not.toHaveBeenCalled()
   })
 })
