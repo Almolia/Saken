@@ -45,7 +45,7 @@ class ManagerServiceRequestListView(APIView):
 
 
 class ManagerServiceRequestAssignView(APIView):
-    """Assigns a service staff member to a pending service request."""
+    """Assigns, or reassigns, a service staff member to a service request."""
     permission_classes = [IsManagerOrAdmin]
 
     def patch(self, request, pk):
@@ -59,9 +59,11 @@ class ManagerServiceRequestAssignView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if service_request.status != RequestStatus.PENDING:
+        # A finished job has a work report tied to whoever did it, so its owner
+        # is frozen. Anything still open can be handed to a different member.
+        if service_request.status == RequestStatus.COMPLETED:
             return Response(
-                {'detail': ServiceRequestMessages.INVALID_STATUS_FOR_ASSIGNMENT},
+                {'detail': ServiceRequestMessages.COMPLETED_REQUEST_NOT_ASSIGNABLE},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -71,12 +73,18 @@ class ManagerServiceRequestAssignView(APIView):
         staff_id = serializer.validated_data['staff_id']
         staff_user = User.objects.get(pk=staff_id)
 
+        was_assigned = service_request.assigned_staff_id is not None
+
         service_request.assigned_staff = staff_user
         service_request.status = RequestStatus.ASSIGNED
         service_request.save(update_fields=['assigned_staff', 'status'])
 
         return Response({
-            'message': ServiceRequestMessages.REQUEST_ASSIGNED,
+            'message': (
+                ServiceRequestMessages.REQUEST_REASSIGNED
+                if was_assigned
+                else ServiceRequestMessages.REQUEST_ASSIGNED
+            ),
             'request': ManagerServiceRequestSerializer(service_request).data,
         })
 
@@ -86,7 +94,12 @@ class StaffServiceRequestListView(generics.ListAPIView):
 
     def get_queryset(self):
         """Strictly filter to only return records assigned to the logged-in staff member."""
-        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+        return (
+            ServiceRequest.objects.filter(assigned_staff=self.request.user)
+            .select_related('resident')
+            .prefetch_related('resident__units')
+            .order_by('status', 'id')
+        )
 
 
 class StaffServiceRequestUpdateView(generics.UpdateAPIView):
@@ -96,13 +109,26 @@ class StaffServiceRequestUpdateView(generics.UpdateAPIView):
 
     def get_queryset(self):
         """Ensure a staff member can only update requests assigned to them."""
-        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+        return (
+            ServiceRequest.objects.filter(assigned_staff=self.request.user)
+            .select_related('resident')
+            .prefetch_related('resident__units')
+        )
 
     def perform_update(self, serializer):
-        """Automatically transition status to 'Completed' when a work report is submitted."""
-        work_report = serializer.validated_data.get('work_report', None)
+        """Writing a report completes the request; clearing it reopens the request.
+
+        A report can be rewritten freely while it stands. Removing it has to move
+        the status back to Assigned, because "Completed" with nothing to show for
+        it is a state the resident and manager views cannot render meaningfully.
+        """
+        if 'work_report' not in serializer.validated_data:
+            serializer.save()
+            return
+
+        work_report = (serializer.validated_data.get('work_report') or '').strip()
 
         if work_report:
-            serializer.save(status=RequestStatus.COMPLETED)
+            serializer.save(work_report=work_report, status=RequestStatus.COMPLETED)
         else:
-            serializer.save()
+            serializer.save(work_report=None, status=RequestStatus.ASSIGNED)

@@ -52,8 +52,9 @@ class ManagerMessages:
 
 class ServiceRequestMessages:
     REQUEST_ASSIGNED = "درخواست خدمات با موفقیت ارجاع شد."
+    REQUEST_REASSIGNED = "مسئول درخواست با موفقیت تغییر کرد."
     REQUEST_NOT_FOUND = "درخواست خدمات مورد نظر یافت نشد."
-    INVALID_STATUS_FOR_ASSIGNMENT = "فقط درخواست‌های در انتظار بررسی قابل ارجاع هستند."
+    COMPLETED_REQUEST_NOT_ASSIGNABLE = "درخواست‌های تکمیل‌شده قابل ارجاع مجدد نیستند."
     STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
     STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
     ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."

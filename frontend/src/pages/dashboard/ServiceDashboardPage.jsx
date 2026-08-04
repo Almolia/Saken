@@ -9,6 +9,7 @@ import { SideNavItem } from '../../components/ui/SideNavItem'
 import { authApi } from '../../lib/api'
 import { roleLabels } from '../../utils/constants'
 import { AdminProfile } from './admin/AdminProfile'
+import { StaffTasksSection } from './service/StaffTasksSection'
 
 const sectionTitles = {
   tasks: 'وظایف من',
@@ -71,36 +72,11 @@ export function ServiceDashboardPage({ authState, setAuthState }) {
           </header>
 
           <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
-            {activeSection === 'tasks' ? <TasksSection user={authState.user} /> : <AccountSection user={authState.user} />}
+            {activeSection === 'tasks' ? <StaffTasksSection user={authState.user} /> : <AccountSection user={authState.user} />}
           </div>
         </main>
       </div>
     </div>
-  )
-}
-
-function TasksSection({ user }) {
-  return (
-    <>
-      <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/60">
-        <div className="panel-hero p-6 sm:p-8">
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">خوش آمدید، {user.full_name}</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-8 text-slate-600">
-            این پنل مخصوص کارکنان خدمات است. وظایف نگهداری ارجاع‌شده به شما از این بخش قابل پیگیری خواهد بود.
-          </p>
-        </div>
-      </div>
-
-      <div className="rounded-[2rem] border border-slate-200 bg-white px-6 py-16 text-center shadow-xl shadow-slate-200/60 sm:py-20">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-700 ring-1 ring-teal-100">
-          <ClipboardList className="h-6 w-6" />
-        </div>
-        <h3 className="mt-4 text-lg font-black text-slate-900">این بخش به‌زودی فعال می‌شود</h3>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-8 text-slate-500">
-          فهرست وظایف نگهداری محول‌شده به شما در نسخه‌های بعدی در همین صفحه نمایش داده می‌شود.
-        </p>
-      </div>
-    </>
   )
 }
 
