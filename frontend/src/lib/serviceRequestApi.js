@@ -26,3 +26,19 @@ export const managerServiceRequestApi = {
     })
   },
 }
+
+// Service-staff-facing endpoints. The list is already scoped server-side to the
+// requests assigned to the signed-in staff member.
+export const staffServiceRequestApi = {
+  listAssigned() {
+    return request('/staff/requests/')
+  },
+  // Submitting a work_report is what flips the request to "Completed"; the
+  // backend applies that transition itself.
+  submitWorkReport(requestId, workReport) {
+    return request(`/staff/requests/${requestId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ work_report: workReport }),
+    })
+  },
+}

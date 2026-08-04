@@ -1,6 +1,5 @@
 import {
   CheckCircle2,
-  CircleAlert,
   ClipboardList,
   Clock3,
   LoaderCircle,
@@ -13,49 +12,12 @@ import { useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
+import { StatusBadge } from '../../../components/ui/StatusBadge'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
+import { normalizeStatus, RequestStatus } from '../../../utils/serviceRequests'
 import { useManagerServiceRequests } from '../../../hooks/useManagerServiceRequests'
 import { useServiceStaff } from '../../../hooks/useServiceStaff'
 import { managerServiceRequestApi } from '../../../lib/serviceRequestApi'
-
-const statusConfig = {
-  pending: {
-    label: 'در انتظار بررسی',
-    className: 'border-amber-200 bg-amber-50 text-amber-800',
-    icon: Clock3,
-  },
-  assigned: {
-    label: 'ارجاع‌شده',
-    className: 'border-sky-200 bg-sky-50 text-sky-800',
-    icon: Wrench,
-  },
-  completed: {
-    label: 'تکمیل‌شده',
-    className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-    icon: CheckCircle2,
-  },
-}
-
-function getStatusDetails(status) {
-  const normalized = String(status || '').trim().toLowerCase()
-  return (
-    statusConfig[normalized] || {
-      label: status || 'نامشخص',
-      className: 'border-slate-200 bg-slate-50 text-slate-700',
-      icon: CircleAlert,
-    }
-  )
-}
-
-function StatusBadge({ status }) {
-  const { label, className, icon: Icon } = getStatusDetails(status)
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-black ${className}`}>
-      <Icon className="h-3.5 w-3.5" />
-      {label}
-    </span>
-  )
-}
 
 function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
   const { showToast } = useToast()
@@ -63,7 +25,7 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const isPending = String(serviceRequest.status || '').trim().toLowerCase() === 'pending'
+  const isPending = normalizeStatus(serviceRequest.status) === RequestStatus.PENDING
 
   async function handleAssign() {
     if (!selectedStaffId) {
@@ -131,8 +93,8 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
 }
 
 function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
-  const isPending = String(serviceRequest.status || '').trim().toLowerCase() === 'pending'
-  const isCompleted = String(serviceRequest.status || '').trim().toLowerCase() === 'completed'
+  const isPending = normalizeStatus(serviceRequest.status) === RequestStatus.PENDING
+  const isCompleted = normalizeStatus(serviceRequest.status) === RequestStatus.COMPLETED
   const report = serviceRequest.work_report?.trim()
 
   return (
@@ -196,13 +158,13 @@ export function ServiceRequestsSection() {
   const { staff, loading: staffLoading } = useServiceStaff()
 
   const pendingCount = requests.filter(
-    (r) => String(r.status || '').trim().toLowerCase() === 'pending',
+    (r) => normalizeStatus(r.status) === RequestStatus.PENDING,
   ).length
   const assignedCount = requests.filter(
-    (r) => String(r.status || '').trim().toLowerCase() === 'assigned',
+    (r) => normalizeStatus(r.status) === RequestStatus.ASSIGNED,
   ).length
   const completedCount = requests.filter(
-    (r) => String(r.status || '').trim().toLowerCase() === 'completed',
+    (r) => normalizeStatus(r.status) === RequestStatus.COMPLETED,
   ).length
 
   return (
