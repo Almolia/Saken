@@ -55,7 +55,27 @@ class AssignServiceRequestSerializer(serializers.Serializer):
         return value
 
 class StaffServiceRequestSerializer(serializers.ModelSerializer):
+    resident = NestedUserSerializer(read_only=True)
+    unit_number = serializers.SerializerMethodField()
+
     class Meta:
         model = ServiceRequest
-        fields = ['id', 'title', 'description', 'status', 'resident', 'assigned_staff', 'work_report']
-        read_only_fields = ['id', 'title', 'description', 'resident', 'assigned_staff']
+        fields = [
+            'id',
+            'title',
+            'description',
+            'status',
+            'resident',
+            'unit_number',
+            'assigned_staff',
+            'work_report',
+        ]
+        read_only_fields = ['id', 'title', 'description', 'resident', 'unit_number', 'assigned_staff']
+
+    def get_unit_number(self, obj):
+        """Staff need to know which unit to visit; the unit hangs off the resident."""
+        if not obj.resident_id:
+            return None
+        # Sorted in Python so the prefetched units cache is reused.
+        units = sorted(obj.resident.units.all(), key=lambda unit: unit.unit_number)
+        return units[0].unit_number if units else None

@@ -86,7 +86,12 @@ class StaffServiceRequestListView(generics.ListAPIView):
 
     def get_queryset(self):
         """Strictly filter to only return records assigned to the logged-in staff member."""
-        return ServiceRequest.objects.filter(assigned_staff=self.request.user)
+        return (
+            ServiceRequest.objects.filter(assigned_staff=self.request.user)
+            .select_related('resident')
+            .prefetch_related('resident__units')
+            .order_by('status', 'id')
+        )
 
 
 class StaffServiceRequestUpdateView(generics.UpdateAPIView):
