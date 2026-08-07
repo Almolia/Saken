@@ -1,13 +1,14 @@
-"""Financial settlement of completed service requests.
+"""Financial settlement of completed service requests and periodic charges.
 
 Money is handled entirely in Decimal. Every routing rule runs inside a single
-transaction so a partially applied settlement can never be committed.
+transaction so a partially applied settlement or charge issue can never be committed.
 """
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
 from django.db import transaction
 from django.db.models import F
 
+from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 from buildings.models import Building, Unit
 from common.constants import ServiceRequestMessages, SettlementMessages
 from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
@@ -16,7 +17,7 @@ CENT = Decimal("0.01")
 
 
 class SettlementError(Exception):
-    """Raised when a settlement cannot be applied. Message is user-facing."""
+    """Raised when a settlement or billing action cannot be applied. Message is user-facing."""
 
 
 def _clean_cost(cost):
@@ -123,3 +124,59 @@ def process_request_settlement(request_id, cost, method):
     service_request.save(update_fields=["cost", "payment_method", "is_settled"])
 
     return service_request
+
+
+@transaction.atomic
+def create_periodic_charge(
+    manager_user,
+    title,
+    amount_per_unit,
+    due_date,
+    description="",
+    apply_to_all=True,
+    unit_ids=None,
+):
+    """Issues a master periodic charge, creates unit charge invoices, and increments unit debt.
+
+    All mutations execute in a single atomic transaction.
+    """
+    amount = _clean_cost(amount_per_unit)
+    title = (title or "").strip()
+    if not title:
+        raise SettlementError("عنوان شارژ الزامی است.")
+    if not due_date:
+        raise SettlementError("مهلت پرداخت الزامی است.")
+
+    if apply_to_all:
+        targeted_units = list(Unit.objects.order_by("floor", "unit_number").all())
+    else:
+        unit_ids = unit_ids or []
+        targeted_units = list(Unit.objects.filter(pk__in=unit_ids).order_by("floor", "unit_number"))
+
+    if not targeted_units:
+        raise SettlementError("هیچ واحدی برای اعمال شارژ یافت نشد.")
+
+    master_charge = MasterCharge.objects.create(
+        title=title,
+        description=(description or "").strip(),
+        amount_per_unit=amount,
+        due_date=due_date,
+        apply_to_all=bool(apply_to_all),
+        created_by=manager_user,
+    )
+
+    unit_charges = [
+        UnitCharge(
+            master_charge=master_charge,
+            unit=unit,
+            amount=amount,
+            status=UnitChargeStatus.PENDING,
+        )
+        for unit in targeted_units
+    ]
+    UnitCharge.objects.bulk_create(unit_charges)
+
+    target_pks = [u.pk for u in targeted_units]
+    Unit.objects.filter(pk__in=target_pks).update(debt=F("debt") + amount)
+
+    return master_charge
