@@ -18,6 +18,7 @@ vi.mock('../../../hooks/useServiceStaff', () => ({
 vi.mock('../../../lib/serviceRequestApi', () => ({
   managerServiceRequestApi: {
     assignStaff: vi.fn(),
+    settleRequest: vi.fn(),
   },
 }))
 
@@ -53,6 +54,18 @@ const completedRequest = {
   resident,
   assigned_staff: staffMember,
   work_report: 'لامپ تعویض و روشنایی بررسی شد.',
+  cost: null,
+  payment_method: null,
+  is_settled: false,
+}
+
+const settledRequest = {
+  ...completedRequest,
+  id: 4,
+  title: 'تعمیر پمپ آب',
+  cost: '250000.00',
+  payment_method: 'EQUAL_SPLIT',
+  is_settled: true,
 }
 
 function renderSection(requests) {
@@ -83,6 +96,62 @@ describe('ServiceRequestsSection', () => {
     useManagerServiceRequests.mockReset()
     useServiceStaff.mockReset()
     managerServiceRequestApi.assignStaff.mockReset()
+    managerServiceRequestApi.settleRequest.mockReset()
+  })
+
+  describe('settlement', () => {
+    it('offers settlement only on a completed request that is not settled yet', () => {
+      renderSection([pendingRequest, assignedRequest, completedRequest, settledRequest])
+
+      const articles = screen.getAllByRole('article')
+      expect(within(articles[0]).queryByRole('button', { name: /تسویه هزینه/ })).not.toBeInTheDocument()
+      expect(within(articles[1]).queryByRole('button', { name: /تسویه هزینه/ })).not.toBeInTheDocument()
+      expect(within(articles[2]).getByRole('button', { name: /تسویه هزینه/ })).toBeInTheDocument()
+      expect(within(articles[3]).queryByRole('button', { name: /تسویه هزینه/ })).not.toBeInTheDocument()
+    })
+
+    it('marks an already settled request with its cost and method', () => {
+      renderSection([settledRequest])
+
+      const card = screen.getByRole('article')
+      expect(within(card).getByText('تسویه‌شده')).toBeInTheDocument()
+      expect(within(card).getByText('250,000 تومان')).toBeInTheDocument()
+      expect(within(card).getByText('تقسیم مساوی بین واحدها')).toBeInTheDocument()
+    })
+
+    it('opens the settlement form from the card', async () => {
+      const user = userEvent.setup()
+      renderSection([completedRequest])
+
+      await user.click(screen.getByRole('button', { name: /تسویه هزینه/ }))
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByLabelText('مبلغ کل هزینه (تومان)')).toBeInTheDocument()
+    })
+
+    it('pushes the settled request straight into local state', async () => {
+      const user = userEvent.setup()
+      const settled = { ...completedRequest, cost: '120000.00', payment_method: 'REQUESTER_ONLY', is_settled: true }
+      managerServiceRequestApi.settleRequest.mockResolvedValue({
+        message: 'تسویه هزینه با موفقیت انجام شد.',
+        request: settled,
+      })
+      const { updateRequest } = renderSection([completedRequest])
+
+      await user.click(screen.getByRole('button', { name: /تسویه هزینه/ }))
+      await user.type(screen.getByLabelText('مبلغ کل هزینه (تومان)'), '120000')
+      await user.click(screen.getByRole('radio', { name: /بر عهده درخواست‌دهنده/ }))
+      await user.click(screen.getByRole('button', { name: /ثبت تسویه/ }))
+
+      await waitFor(() =>
+        expect(managerServiceRequestApi.settleRequest).toHaveBeenCalledWith(3, {
+          cost: '120000.00',
+          payment_method: 'REQUESTER_ONLY',
+        }),
+      )
+      expect(updateRequest).toHaveBeenCalledWith(settled)
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    })
   })
 
   it('shows the work report of a completed request', () => {

@@ -25,6 +25,14 @@ export const managerServiceRequestApi = {
       body: JSON.stringify(payload),
     })
   },
+  // Routes the cost of a completed request. The backend applies the balance
+  // changes and marks the request settled in one transaction.
+  settleRequest(requestId, payload) {
+    return request(`/manager/requests/${requestId}/settle/`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 // Service-staff-facing endpoints. The list is already scoped server-side to the

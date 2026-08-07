@@ -6,6 +6,14 @@ export function formatArea(area) {
   return `${value % 1 === 0 ? value.toFixed(0) : value} متر مربع`
 }
 
+export function formatCurrency(amount) {
+  const value = Number.parseFloat(amount)
+  if (Number.isNaN(value)) return String(amount ?? '')
+  // Latin digits with thousands grouping, matching how the rest of the app
+  // renders numbers (areas, phone numbers, national ids).
+  return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} تومان`
+}
+
 const homePaths = {
   [UserRole.RESIDENT]: '/resident/dashboard',
   [UserRole.MANAGER]: '/manager/dashboard',
