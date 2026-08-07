@@ -14,6 +14,21 @@ export function formatCurrency(amount) {
   return `${value.toLocaleString('en-US', { maximumFractionDigits: 2 })} تومان`
 }
 
+export function formatDate(dateString) {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return String(dateString)
+    return new Intl.DateTimeFormat('fa-IR', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(date)
+  } catch {
+    return String(dateString)
+  }
+}
+
 const homePaths = {
   [UserRole.RESIDENT]: '/resident/dashboard',
   [UserRole.MANAGER]: '/manager/dashboard',

@@ -159,6 +159,15 @@ export const managerApi = {
   serviceStaff() {
     return request('/manager/service-staff/')
   },
+  charges() {
+    return request('/manager/charges/')
+  },
+  createCharge(payload) {
+    return request('/manager/charges/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 export { API_BASE_URL, request }

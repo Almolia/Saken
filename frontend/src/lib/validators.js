@@ -28,11 +28,11 @@ function validatePasswordStrength(password) {
 export function validateUnit(values) {
   const errors = {}
 
-  if (!values.unit_number.trim()) {
+  if (!values.unit_number?.trim()) {
     errors.unit_number = 'شماره واحد الزامی است.'
   }
 
-  if (!/^-?\d+$/.test(values.floor.trim())) {
+  if (!/^-?\d+$/.test(values.floor?.trim?.() ?? String(values.floor ?? ''))) {
     errors.floor = 'طبقه باید یک عدد صحیح باشد.'
   }
 
@@ -44,10 +44,41 @@ export function validateUnit(values) {
   return errors
 }
 
+export function validateCharge(values) {
+  const errors = {}
+
+  if (!values.title?.trim()) {
+    errors.title = 'عنوان شارژ الزامی است.'
+  }
+
+  const amountStr = String(values.amount ?? '').trim()
+  if (!amountStr) {
+    errors.amount = 'مبلغ به ازای هر واحد الزامی است.'
+  } else {
+    const amount = Number.parseFloat(amountStr)
+    if (Number.isNaN(amount) || amount <= 0) {
+      errors.amount = 'مبلغ شارژ باید یک عدد بزرگ‌تر از صفر باشد.'
+    }
+  }
+
+  if (!values.due_date?.trim()) {
+    errors.due_date = 'مهلت پرداخت الزامی است.'
+  }
+
+  if (values.apply_to_all === false) {
+    const selectedUnits = values.unit_ids || []
+    if (!Array.isArray(selectedUnits) || selectedUnits.length === 0) {
+      errors.unit_ids = 'حداقل یک واحد باید انتخاب شود.'
+    }
+  }
+
+  return errors
+}
+
 export function validateRegister(values) {
   const errors = {}
 
-  if (!values.full_name.trim()) {
+  if (!values.full_name?.trim()) {
     errors.full_name = 'نام و نام خانوادگی الزامی است.'
   }
 
@@ -92,11 +123,11 @@ export function validateLogin(values) {
 export function validateAdminProfile(values) {
   const errors = {}
 
-  if (!values.full_name.trim()) {
+  if (!values.full_name?.trim()) {
     errors.full_name = 'نام و نام خانوادگی الزامی است.'
   }
 
-  if (!values.username.trim()) {
+  if (!values.username?.trim()) {
     errors.username = 'نام کاربری الزامی است.'
   } else if (values.username.trim().length < 3) {
     errors.username = 'نام کاربری باید حداقل 3 کاراکتر باشد.'
