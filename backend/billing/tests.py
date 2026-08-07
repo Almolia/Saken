@@ -322,12 +322,22 @@ class ResidentPendingChargesTests(APITestCase):
         self.assertNotIn("شارژ پرداخت‌شده", titles)
 
     def test_resident_does_not_see_other_residents_pending_charges(self):
-        """No cross-resident data leak."""
+        """Data isolation: Resident A must never receive Resident B's charges."""
         self.client.force_authenticate(user=self.resident)
         response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         charges = response.data["charges"]
         # Only one pending charge exists for this resident.
         self.assertEqual(len(charges), 1)
+
+        # None of the returned charges may belong to the other resident's unit.
+        leaked_units = set(
+            UnitCharge.objects.filter(id__in=[c["id"] for c in charges]).values_list("unit_id", flat=True)
+        )
+        self.assertNotIn(self.unit2.id, leaked_units)
+        # And the single returned charge must be for the resident's own unit.
+        self.assertEqual(set(leaked_units), {self.unit1.id})
 
     def test_manager_cannot_access_resident_pending_endpoint(self):
         """Managers are rejected by the IsResident permission."""

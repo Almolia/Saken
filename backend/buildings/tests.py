@@ -53,7 +53,7 @@ class ResidentUnitAPITests(APITestCase):
         self.assertEqual(response.data['floor'], 1)
 
     def test_resident_unit_response_includes_read_only_unit_debt(self):
-        """Issue #77 — /my-unit/ exposes unit_debt and it cannot be modified."""
+        """Issue #77 — /my-unit/ exposes unit_debt as a read-only field."""
         from decimal import Decimal
         self.unit_a.debt = Decimal("125000.00")
         self.unit_a.save(update_fields=["debt"])
@@ -65,12 +65,50 @@ class ResidentUnitAPITests(APITestCase):
         self.assertEqual(response.data["unit_number"], "101")
         self.assertEqual(response.data["unit_debt"], "125000.00")
 
-        # A resident cannot tamper with their balance: a PUT attempt to change
-        # unit_debt must be ignored. MyUnitView only supports GET, so verify the
-        # serializer marks the field as read-only (no writable `unit_debt` attr).
+        # The read-only guard lives on the serializer: the field must never be
+        # writable by a resident via PUT/PATCH.
         from buildings.serializers import UnitSerializer
         field = UnitSerializer().fields["unit_debt"]
         self.assertTrue(field.read_only)
+
+    def test_resident_cannot_modify_unit_debt_via_patch(self):
+        """Residents cannot alter their own balance — the read-only constraint holds.
+
+        Two layers are verified:
+        1. The resident-facing unit endpoint only exposes GET, so a PATCH to
+           change unit_debt is rejected outright (405).
+        2. Even through the serializer (the actual read-only guard), supplying a
+           unit_debt value is silently ignored: it never reaches validated_data
+           and the stored balance is unchanged.
+        """
+        from decimal import Decimal
+        from buildings.serializers import UnitSerializer
+
+        self.unit_a.debt = Decimal("125000.00")
+        self.unit_a.save(update_fields=["debt"])
+
+        # Layer 1 — PATCH on the resident unit endpoint is not allowed.
+        self.client.force_authenticate(user=self.user_a)
+        patch_response = self.client.patch(
+            self.my_unit_url,
+            {"unit_debt": "0.00"},
+            format="json",
+        )
+        self.assertEqual(patch_response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Layer 2 — even if a serializer update were attempted, unit_debt is
+        # read-only: it is ignored from validated_data and the balance persists.
+        serializer = UnitSerializer(
+            self.unit_a,
+            data={"unit_debt": "0.00"},
+            partial=True,
+        )
+        self.assertTrue(serializer.is_valid())
+        self.assertNotIn("unit_debt", serializer.validated_data)
+        serializer.save()
+
+        self.unit_a.refresh_from_db()
+        self.assertEqual(self.unit_a.debt, Decimal("125000.00"))
 
     def test_unauthenticated_request_fails(self):
         """Unauthenticated requests are rejected with a 401 or 403."""
