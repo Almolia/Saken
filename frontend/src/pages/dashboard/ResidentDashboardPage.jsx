@@ -1,12 +1,15 @@
 import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
+import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
+import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
 import { useMyUnit } from '../../hooks/useMyUnit'
+import { usePendingCharges } from '../../hooks/usePendingCharges'
 import { useServiceRequests } from '../../hooks/useServiceRequests'
 import { authApi } from '../../lib/api'
 import { roleLabels } from '../../utils/constants'
@@ -15,6 +18,12 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
   const { unit, loading, error, retry } = useMyUnit()
+  const {
+    charges: pendingCharges,
+    loading: chargesLoading,
+    error: chargesError,
+    refresh: refreshPendingCharges,
+  } = usePendingCharges()
   const {
     requests,
     loading: requestsLoading,
@@ -62,7 +71,16 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
           </div>
         </div>
 
+        <DebtSummaryCard unit={unit} loading={loading} />
+
         <UnitInfoCard unit={unit} loading={loading} error={error} onRetry={retry} />
+
+        <PendingChargesList
+          charges={pendingCharges}
+          loading={chargesLoading}
+          error={chargesError}
+          onRetry={refreshPendingCharges}
+        />
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
           <ServiceRequestForm onRequestCreated={addRequest} />

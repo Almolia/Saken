@@ -52,6 +52,26 @@ class ResidentUnitAPITests(APITestCase):
         self.assertEqual(response.data['unit_number'], "101")
         self.assertEqual(response.data['floor'], 1)
 
+    def test_resident_unit_response_includes_read_only_unit_debt(self):
+        """Issue #77 — /my-unit/ exposes unit_debt and it cannot be modified."""
+        from decimal import Decimal
+        self.unit_a.debt = Decimal("125000.00")
+        self.unit_a.save(update_fields=["debt"])
+
+        self.client.force_authenticate(user=self.user_a)
+        response = self.client.get(self.my_unit_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["unit_number"], "101")
+        self.assertEqual(response.data["unit_debt"], "125000.00")
+
+        # A resident cannot tamper with their balance: a PUT attempt to change
+        # unit_debt must be ignored. MyUnitView only supports GET, so verify the
+        # serializer marks the field as read-only (no writable `unit_debt` attr).
+        from buildings.serializers import UnitSerializer
+        field = UnitSerializer().fields["unit_debt"]
+        self.assertTrue(field.read_only)
+
     def test_unauthenticated_request_fails(self):
         """Unauthenticated requests are rejected with a 401 or 403."""
         self.client.force_authenticate(user=None) 

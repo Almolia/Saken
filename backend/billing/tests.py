@@ -213,3 +213,133 @@ class FinancialIsolationAndAutomationTests(APITestCase):
         self.assertEqual(charges[1]["title"], "شارژ تیر")
         self.assertEqual(charges[1]["units_count"], 3)
         self.assertEqual(charges[1]["total_amount"], "1200000.00")
+
+
+class ResidentPendingChargesTests(APITestCase):
+    """Issue #77 — a resident can view only their own pending bills."""
+
+    def setUp(self):
+        self.building = Building.objects.create(name="Saken Tower A")
+        self.manager = User.objects.create_user(
+            phone="09120001001",
+            password="ManagerPassword1",
+            full_name="مدیر ساختمان",
+            national_id="1000000001",
+            role=UserRole.MANAGER,
+        )
+        self.resident = User.objects.create_user(
+            phone="09120001002",
+            password="ResidentPassword1",
+            full_name="ساکن اول",
+            national_id="1000000002",
+            role=UserRole.RESIDENT,
+        )
+        self.other_resident = User.objects.create_user(
+            phone="09120001003",
+            password="ResidentPassword2",
+            full_name="ساکن دوم",
+            national_id="1000000003",
+            role=UserRole.RESIDENT,
+        )
+        self.unit1 = Unit.objects.create(
+            owner=self.resident,
+            building=self.building,
+            unit_number="101",
+            floor=1,
+            area=80.00,
+            debt=Decimal("500000.00"),
+        )
+        self.unit2 = Unit.objects.create(
+            owner=self.other_resident,
+            building=self.building,
+            unit_number="102",
+            floor=1,
+            area=90.00,
+            debt=Decimal("0.00"),
+        )
+
+        # One pending + one paid charge for the resident's unit.
+        self.pending_master = MasterCharge.objects.create(
+            title="شارژ شهریور",
+            description="نظافت مشاعات",
+            amount_per_unit=Decimal("500000.00"),
+            due_date="2026-09-20",
+            apply_to_all=True,
+            created_by=self.manager,
+        )
+        self.pending_charge = UnitCharge.objects.create(
+            master_charge=self.pending_master,
+            unit=self.unit1,
+            amount=Decimal("500000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+        self.paid_master = MasterCharge.objects.create(
+            title="شارژ پرداخت‌شده",
+            description="شارژ قدیمی",
+            amount_per_unit=Decimal("100000.00"),
+            due_date="2026-06-20",
+            apply_to_all=True,
+            created_by=self.manager,
+        )
+        UnitCharge.objects.create(
+            master_charge=self.paid_master,
+            unit=self.unit1,
+            amount=Decimal("100000.00"),
+            status=UnitChargeStatus.PAID,
+        )
+
+        # Another resident's pending charge (must not leak).
+        UnitCharge.objects.create(
+            master_charge=self.pending_master,
+            unit=self.unit2,
+            amount=Decimal("500000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+        self.url = reverse("resident-pending-charges")
+
+    def test_resident_sees_only_own_pending_charges_with_master_data(self):
+        """Resident gets their pending bill with title/description/due_date/amount."""
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        charges = response.data["charges"]
+        self.assertEqual(len(charges), 1)
+
+        item = charges[0]
+        self.assertEqual(item["title"], "شارژ شهریور")
+        self.assertEqual(item["description"], "نظافت مشاعات")
+        self.assertEqual(item["amount"], "500000.00")
+        self.assertEqual(item["due_date"], "2026-09-20")
+        self.assertEqual(item["status"], UnitChargeStatus.PENDING)
+
+    def test_resident_does_not_see_paid_charges(self):
+        """Paid bills are excluded from the pending list."""
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+        titles = [item["title"] for item in response.data["charges"]]
+        self.assertNotIn("شارژ پرداخت‌شده", titles)
+
+    def test_resident_does_not_see_other_residents_pending_charges(self):
+        """No cross-resident data leak."""
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+        charges = response.data["charges"]
+        # Only one pending charge exists for this resident.
+        self.assertEqual(len(charges), 1)
+
+    def test_manager_cannot_access_resident_pending_endpoint(self):
+        """Managers are rejected by the IsResident permission."""
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_request_is_rejected(self):
+        """Anonymous requests are not allowed."""
+        self.client.force_authenticate(user=None)
+        response = self.client.get(self.url)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )

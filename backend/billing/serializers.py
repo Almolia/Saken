@@ -4,6 +4,33 @@ from buildings.models import Unit
 from .models import MasterCharge, UnitCharge
 
 
+class ResidentPendingChargeSerializer(serializers.ModelSerializer):
+    """Payload for a resident's own pending bill.
+
+    Flattens the related MasterCharge (title, description, due_date) together
+    with the specific amount this unit owes. Exposed on a read-only, resident
+    scoped endpoint only; residents can never create or edit their bills here.
+    """
+
+    title = serializers.CharField(source="master_charge.title", read_only=True)
+    description = serializers.CharField(source="master_charge.description", read_only=True)
+    due_date = serializers.DateField(source="master_charge.due_date", read_only=True)
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = UnitCharge
+        fields = [
+            "id",
+            "title",
+            "description",
+            "amount",
+            "due_date",
+            "status",
+            "created_at",
+        ]
+        read_only_fields = ["id", "status", "created_at"]
+
+
 class UnitChargeSerializer(serializers.ModelSerializer):
     unit_number = serializers.CharField(source='unit.unit_number', read_only=True)
     floor = serializers.IntegerField(source='unit.floor', read_only=True)

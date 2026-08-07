@@ -1,10 +1,31 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from users.permissions import IsManagerOrAdmin
-from .models import MasterCharge
-from .serializers import MasterChargeSerializer
+from users.permissions import IsManagerOrAdmin, IsResident
+from .models import MasterCharge, UnitCharge, UnitChargeStatus
+from .serializers import MasterChargeSerializer, ResidentPendingChargeSerializer
 from .services import SettlementError, create_periodic_charge
+
+
+class ResidentPendingChargesView(APIView):
+    """GET the current resident's pending (unpaid) charges only.
+
+    Strictly scoped to the authenticated resident: only UnitCharge records
+    linked to one of the user's own units and still in the Pending state are
+    returned. Uses the IsResident permission so managers/staff cannot access it.
+    """
+
+    permission_classes = [IsResident]
+
+    def get(self, request):
+        charges = (
+            UnitCharge.objects.select_related("master_charge", "unit")
+            .filter(unit__owner=request.user, status=UnitChargeStatus.PENDING)
+            .order_by("master_charge__due_date", "-id")
+        )
+        return Response(
+            {"charges": ResidentPendingChargeSerializer(charges, many=True).data}
+        )
 
 
 class ManagerPeriodicChargeListView(APIView):

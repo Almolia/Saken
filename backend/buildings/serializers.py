@@ -6,9 +6,18 @@ from .models import Unit
 User = get_user_model()
 
 class UnitSerializer(serializers.ModelSerializer):
+    # Outstanding charges for this unit. Read-only on purpose: a resident must
+    # never be able to alter their own balance via PUT/PATCH.
+    unit_debt = serializers.DecimalField(
+        source='debt',
+        max_digits=12,
+        decimal_places=2,
+        read_only=True,
+    )
+
     class Meta:
         model = Unit
-        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details']
+        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'unit_debt']
 
 class UnitOwnerSerializer(serializers.ModelSerializer):
     class Meta:

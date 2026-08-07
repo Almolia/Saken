@@ -20,3 +20,11 @@ export const billingApi = {
     return managerChargeApi.create(payload)
   },
 }
+
+// Resident-facing billing endpoints. Auth rides on the JWT cookie; request()
+// always sends credentials: 'include'.
+export const residentChargeApi = {
+  pending() {
+    return request('/resident/charges/pending/')
+  },
+}
