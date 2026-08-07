@@ -3,7 +3,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from common.constants import ServiceRequestMessages
+from billing.services import SettlementError, process_request_settlement
+from common.constants import ServiceRequestMessages, SettlementMessages
 from users.models import UserRole
 from users.permissions import IsManagerOrAdmin, IsResident, IsServiceStaff
 from .models import RequestStatus, ServiceRequest
@@ -11,6 +12,7 @@ from .serializers import (
     AssignServiceRequestSerializer,
     ManagerServiceRequestSerializer,
     ServiceRequestSerializer,
+    SettleServiceRequestSerializer,
     StaffServiceRequestSerializer,
 )
 
@@ -87,6 +89,55 @@ class ManagerServiceRequestAssignView(APIView):
             ),
             'request': ManagerServiceRequestSerializer(service_request).data,
         })
+
+class ManagerServiceRequestSettleView(APIView):
+    """Settles the cost of a completed service request."""
+    permission_classes = [IsManagerOrAdmin]
+
+    def post(self, request, pk):
+        try:
+            service_request = ServiceRequest.objects.get(pk=pk)
+        except ServiceRequest.DoesNotExist:
+            return Response(
+                {'detail': ServiceRequestMessages.REQUEST_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if service_request.status != RequestStatus.COMPLETED:
+            return Response(
+                {'detail': SettlementMessages.REQUEST_NOT_COMPLETED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if service_request.is_settled:
+            return Response(
+                {'detail': SettlementMessages.ALREADY_SETTLED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = SettleServiceRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            # The service re-checks these guards under a row lock, so two
+            # concurrent calls cannot both get past the checks above.
+            settled_request = process_request_settlement(
+                service_request.pk,
+                serializer.validated_data['cost'],
+                serializer.validated_data['payment_method'],
+            )
+        except SettlementError as error:
+            return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
+
+        settled_request = ServiceRequest.objects.select_related(
+            'resident', 'assigned_staff'
+        ).get(pk=settled_request.pk)
+
+        return Response({
+            'message': SettlementMessages.SETTLEMENT_SUCCESS,
+            'request': ManagerServiceRequestSerializer(settled_request).data,
+        })
+
 
 class StaffServiceRequestListView(generics.ListAPIView):
     serializer_class = StaffServiceRequestSerializer

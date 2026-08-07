@@ -1,5 +1,9 @@
+from decimal import Decimal
+
 from rest_framework import serializers
-from .models import ServiceRequest
+
+from common.constants import SettlementMessages
+from .models import PaymentMethod, ServiceRequest
 from users.models import UserRole
 
 
@@ -30,8 +34,26 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
             'resident',
             'assigned_staff',
             'work_report',
+            'cost',
+            'payment_method',
+            'is_settled',
         ]
         read_only_fields = fields
+
+
+class SettleServiceRequestSerializer(serializers.Serializer):
+    """Validates the settlement payload before any balance is touched."""
+
+    cost = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        min_value=Decimal('0.01'),
+        error_messages={'min_value': SettlementMessages.COST_MUST_BE_POSITIVE},
+    )
+    payment_method = serializers.ChoiceField(
+        choices=PaymentMethod.choices,
+        error_messages={'invalid_choice': SettlementMessages.INVALID_PAYMENT_METHOD},
+    )
 
 
 class AssignServiceRequestSerializer(serializers.Serializer):

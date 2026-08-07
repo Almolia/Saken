@@ -1,4 +1,5 @@
 import {
+  BadgeCheck,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -6,15 +7,23 @@ import {
   RefreshCw,
   UserCheck,
   UserRound,
+  Wallet,
   Wrench,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
+import { SettlementModal } from '../../../components/dashboard/SettlementModal'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
 import { StatusBadge } from '../../../components/ui/StatusBadge'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
-import { normalizeStatus, RequestStatus } from '../../../utils/serviceRequests'
+import { formatCurrency } from '../../../utils/helpers'
+import {
+  isSettleable,
+  normalizeStatus,
+  paymentMethodLabels,
+  RequestStatus,
+} from '../../../utils/serviceRequests'
 import { useManagerServiceRequests } from '../../../hooks/useManagerServiceRequests'
 import { useServiceStaff } from '../../../hooks/useServiceStaff'
 import { managerServiceRequestApi } from '../../../lib/serviceRequestApi'
@@ -99,7 +108,26 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
   )
 }
 
-function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
+function SettlementSummary({ serviceRequest }) {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+      <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-800">
+        <BadgeCheck className="h-4 w-4" />
+        تسویه‌شده
+      </span>
+      {serviceRequest.cost != null ? (
+        <span className="text-xs font-bold text-emerald-900">{formatCurrency(serviceRequest.cost)}</span>
+      ) : null}
+      {serviceRequest.payment_method ? (
+        <span className="text-xs text-emerald-700">
+          {paymentMethodLabels[serviceRequest.payment_method] || serviceRequest.payment_method}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate, onStartSettlement }) {
   const isCompleted = normalizeStatus(serviceRequest.status) === RequestStatus.COMPLETED
   const report = serviceRequest.work_report?.trim()
 
@@ -155,6 +183,19 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
           </div>
         )
       ) : null}
+
+      {serviceRequest.is_settled ? <SettlementSummary serviceRequest={serviceRequest} /> : null}
+
+      {isSettleable(serviceRequest) ? (
+        <button
+          type="button"
+          onClick={() => onStartSettlement(serviceRequest)}
+          className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800"
+        >
+          <Wallet className="h-4 w-4" />
+          تسویه هزینه
+        </button>
+      ) : null}
     </article>
   )
 }
@@ -162,6 +203,7 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate }) {
 export function ServiceRequestsSection() {
   const { requests, loading, refreshing, error, refresh, updateRequest } = useManagerServiceRequests()
   const { staff, loading: staffLoading } = useServiceStaff()
+  const [settlingRequest, setSettlingRequest] = useState(null)
 
   const pendingCount = requests.filter(
     (r) => normalizeStatus(r.status) === RequestStatus.PENDING,
@@ -259,11 +301,21 @@ export function ServiceRequestsSection() {
                 staff={staff}
                 staffLoading={staffLoading}
                 onUpdate={updateRequest}
+                onStartSettlement={setSettlingRequest}
               />
             ))}
           </div>
         )}
       </section>
+
+      {settlingRequest ? (
+        <SettlementModal
+          open
+          serviceRequest={settlingRequest}
+          onClose={() => setSettlingRequest(null)}
+          onSettled={updateRequest}
+        />
+      ) : null}
     </>
   )
 }
