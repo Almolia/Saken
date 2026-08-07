@@ -58,3 +58,15 @@ class ServiceRequestMessages:
     STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
     STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
     ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."
+
+
+class SettlementMessages:
+    SETTLEMENT_SUCCESS = "تسویه هزینه با موفقیت انجام شد."
+    COST_MUST_BE_POSITIVE = "مبلغ هزینه باید بزرگ‌تر از صفر باشد."
+    INVALID_PAYMENT_METHOD = "روش پرداخت انتخاب‌شده معتبر نیست."
+    REQUEST_NOT_COMPLETED = "فقط درخواست‌های تکمیل‌شده قابل تسویه هستند."
+    ALREADY_SETTLED = "هزینه این درخواست قبلاً تسویه شده است."
+    NO_UNITS_TO_SPLIT = "هیچ واحدی برای تقسیم هزینه ثبت نشده است."
+    REQUESTER_HAS_NO_UNIT = "برای ثبت‌کننده این درخواست واحدی ثبت نشده است."
+    BUILDING_NOT_RESOLVED = "ساختمان مربوط به این درخواست مشخص نیست."
+    INSUFFICIENT_WALLET_BALANCE = "موجودی صندوق ساختمان برای پرداخت این هزینه کافی نیست."
