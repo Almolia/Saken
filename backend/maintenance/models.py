@@ -8,6 +8,12 @@ class RequestStatus(models.TextChoices):
     ASSIGNED = "Assigned", "Assigned"
     COMPLETED = "Completed", "Completed"
 
+class PaymentMethod(models.TextChoices):
+    """How a manager routes the cost of a completed service request."""
+    EQUAL_SPLIT = "EQUAL_SPLIT", "Equal Split"
+    REQUESTER_ONLY = "REQUESTER_ONLY", "Requester Only"
+    BUILDING_WALLET = "BUILDING_WALLET", "Building Wallet"
+
 class ServiceRequest(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
@@ -27,6 +33,21 @@ class ServiceRequest(models.Model):
         blank=True,
         related_name='assigned_tasks')
     work_report = models.TextField(null=True, blank=True)
+
+    # Settlement: filled in once a manager routes the cost of a completed job.
+    cost = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        null=True,
+        blank=True,
+    )
+    is_settled = models.BooleanField(default=False)
 
     def __str__(self):
         return self.title

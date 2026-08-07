@@ -1,9 +1,17 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 
 
 class Building(models.Model):
     name = models.CharField(max_length=100)
+    # Shared fund a manager can settle service request costs against.
+    building_wallet_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
 
     def __str__(self):
         return self.name
@@ -28,6 +36,12 @@ class Unit(models.Model):
     floor = models.IntegerField()
     area = models.DecimalField(max_digits=8, decimal_places=2)
     details = models.TextField(blank=True)
+    # Outstanding charges billed to this unit, in the building's currency.
+    debt = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
 
     def __str__(self):
         owner_name = self.owner.full_name if self.owner else "No owner"
