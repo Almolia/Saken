@@ -66,6 +66,42 @@ class SettlementServiceTests(TestCase):
         self.assertEqual(self.requester_unit.debt, Decimal('50.01'))
         self.assertEqual(self.neighbour_unit.debt, Decimal('50.00'))
 
+    def test_equal_split_never_loses_or_invents_money(self):
+        """Across awkward unit counts the debt created must still total the cost.
+
+        A naive round-half divide leaks cents: 100.00 over 3 units as 33.33 each
+        only accounts for 99.99.
+        """
+        cases = [
+            (3, '100.00'),
+            (7, '100.00'),
+            (6, '0.05'),
+            (3, '1000000.00'),
+            (11, '99.99'),
+        ]
+
+        for unit_count, cost in cases:
+            with self.subTest(units=unit_count, cost=cost):
+                Unit.objects.all().delete()
+                for index in range(unit_count):
+                    Unit.objects.create(
+                        building=self.building, unit_number=f'{index:03d}',
+                        floor=1, area='70.00',
+                    )
+                self.service_request.is_settled = False
+                self.service_request.cost = None
+                self.service_request.payment_method = None
+                self.service_request.save()
+
+                self.settle(cost, PaymentMethod.EQUAL_SPLIT)
+
+                charged = sum(Unit.objects.values_list('debt', flat=True))
+                self.assertEqual(charged, Decimal(cost))
+
+                # The spread stays within a cent, so nobody is unfairly loaded.
+                debts = sorted(Unit.objects.values_list('debt', flat=True))
+                self.assertLessEqual(debts[-1] - debts[0], Decimal('0.01'))
+
     def test_equal_split_adds_to_existing_debt(self):
         Unit.objects.update(debt=Decimal('25.00'))
 

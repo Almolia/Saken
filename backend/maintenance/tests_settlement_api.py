@@ -8,6 +8,8 @@ from rest_framework.test import APITestCase
 from buildings.models import Building, Unit
 from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 
+__all__ = ['SettlementEndpointTests']
+
 User = get_user_model()
 
 
@@ -83,14 +85,32 @@ class SettlementEndpointTests(APITestCase):
         self.assertFalse(self.service_request.is_settled)
 
     def test_an_unfinished_request_cannot_be_settled(self):
-        self.service_request.status = RequestStatus.ASSIGNED
-        self.service_request.save(update_fields=['status'])
+        """Only Completed work may be settled; Pending and Assigned are refused."""
         self.client.force_authenticate(user=self.manager)
 
-        response = self.settle(cost='120.00', payment_method=PaymentMethod.EQUAL_SPLIT)
+        for unfinished_status in (RequestStatus.PENDING, RequestStatus.ASSIGNED):
+            with self.subTest(status=unfinished_status):
+                self.service_request.status = unfinished_status
+                self.service_request.is_settled = False
+                self.service_request.save(update_fields=['status', 'is_settled'])
+                Unit.objects.update(debt=Decimal('0.00'))
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(response.data['detail'], 'فقط درخواست‌های تکمیل‌شده قابل تسویه هستند.')
+                response = self.settle(cost='120.00', payment_method=PaymentMethod.EQUAL_SPLIT)
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    response.data['detail'],
+                    'فقط درخواست‌های تکمیل‌شده قابل تسویه هستند.',
+                )
+
+                # Nothing may have moved on a refused settlement.
+                self.service_request.refresh_from_db()
+                self.assertFalse(self.service_request.is_settled)
+                self.assertIsNone(self.service_request.cost)
+                self.unit.refresh_from_db()
+                self.assertEqual(self.unit.debt, Decimal('0.00'))
+                self.building.refresh_from_db()
+                self.assertEqual(self.building.building_wallet_balance, Decimal('500.00'))
 
     def test_a_request_cannot_be_settled_twice(self):
         self.client.force_authenticate(user=self.manager)

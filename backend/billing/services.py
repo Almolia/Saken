@@ -45,19 +45,24 @@ def _resolve_requester_unit(service_request):
 def _charge_every_unit(cost):
     """Split the cost across every registered unit.
 
-    The per-unit share is rounded down and the leftover cents land on the first
-    unit, so the debt actually created always adds up to the cost exactly.
+    The per-unit share is rounded down, then the leftover cents are handed out
+    one each to the first units. That keeps the total charged exactly equal to
+    the cost while never putting more than a single cent between any two units,
+    so no one unit absorbs the whole rounding remainder.
     """
     unit_ids = list(Unit.objects.order_by("unit_number", "id").values_list("id", flat=True))
     if not unit_ids:
         raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
 
-    share = (cost / Decimal(len(unit_ids))).quantize(CENT, rounding=ROUND_DOWN)
-    Unit.objects.update(debt=F("debt") + share)
+    unit_count = len(unit_ids)
+    share = (cost / Decimal(unit_count)).quantize(CENT, rounding=ROUND_DOWN)
+    if share > 0:
+        Unit.objects.update(debt=F("debt") + share)
 
-    remainder = cost - (share * len(unit_ids))
-    if remainder > 0:
-        Unit.objects.filter(pk=unit_ids[0]).update(debt=F("debt") + remainder)
+    # Always fewer leftover cents than units, since share is the floor.
+    leftover_cents = int((cost - share * unit_count) / CENT)
+    if leftover_cents:
+        Unit.objects.filter(pk__in=unit_ids[:leftover_cents]).update(debt=F("debt") + CENT)
 
 
 def _charge_requester(service_request, cost):
