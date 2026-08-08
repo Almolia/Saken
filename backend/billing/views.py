@@ -1,10 +1,12 @@
+from common.constants import PaymentMessages
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsManagerOrAdmin, IsResident
+
 from .models import MasterCharge, UnitCharge, UnitChargeStatus
-from .serializers import MasterChargeSerializer, ResidentPendingChargeSerializer
-from .services import SettlementError, create_periodic_charge
+from .serializers import MasterChargeSerializer, ResidentPendingChargeSerializer, ResidentPaymentSerializer
+from .services import SettlementError, create_periodic_charge, process_resident_payment
 
 
 class ResidentPendingChargesView(APIView):
@@ -25,6 +27,32 @@ class ResidentPendingChargesView(APIView):
         )
         return Response(
             {"charges": ResidentPendingChargeSerializer(charges, many=True).data}
+        )
+
+
+class ResidentPaymentView(APIView):
+    permission_classes = [IsResident]
+
+    def post(self, request):
+        serializer = ResidentPaymentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated = serializer.validated_data
+
+        try:
+            process_resident_payment(
+                user=request.user,
+                charge_ids=validated["charge_ids"],
+            )
+        except SettlementError as error:
+            return Response(
+                {"detail": str(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(
+            {"message": PaymentMessages.PAYMENT_SUCCESS},
+            status=status.HTTP_200_OK,
         )
 
 

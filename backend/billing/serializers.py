@@ -1,6 +1,7 @@
 from decimal import Decimal
+
 from rest_framework import serializers
-from buildings.models import Unit
+
 from .models import MasterCharge, UnitCharge
 
 
@@ -139,3 +140,10 @@ class MasterChargeSerializer(serializers.ModelSerializer):
 
 
 PeriodicChargeSerializer = MasterChargeSerializer
+
+
+class ResidentPaymentSerializer(serializers.Serializer):
+    charge_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False,
+    )

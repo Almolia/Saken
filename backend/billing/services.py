@@ -5,12 +5,11 @@ transaction so a partially applied settlement or charge issue can never be commi
 """
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
-from django.db import transaction
-from django.db.models import F
-
 from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 from buildings.models import Building, Unit
-from common.constants import ServiceRequestMessages, SettlementMessages
+from common.constants import ServiceRequestMessages, SettlementMessages, PaymentMessages
+from django.db import transaction
+from django.db.models import F
 from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 
 CENT = Decimal("0.01")
@@ -128,13 +127,13 @@ def process_request_settlement(request_id, cost, method):
 
 @transaction.atomic
 def create_periodic_charge(
-    manager_user,
-    title,
-    amount_per_unit,
-    due_date,
-    description="",
-    apply_to_all=True,
-    unit_ids=None,
+        manager_user,
+        title,
+        amount_per_unit,
+        due_date,
+        description="",
+        apply_to_all=True,
+        unit_ids=None,
 ):
     """Issues a master periodic charge, creates unit charge invoices, and increments unit debt.
 
@@ -180,3 +179,30 @@ def create_periodic_charge(
     Unit.objects.filter(pk__in=target_pks).update(debt=F("debt") + amount)
 
     return master_charge
+
+
+@transaction.atomic
+def process_resident_payment(user, charge_ids):
+    charges = UnitCharge.objects.select_related("unit").filter(
+        id__in=charge_ids,
+    )
+
+    if charges.count() != len(charge_ids):
+        raise SettlementError(PaymentMessages.INVALID_CHARGE_IDS)
+
+    if charges.filter(unit__owner=user).count() != len(charge_ids):
+        raise SettlementError(PaymentMessages.CHARGE_NOT_OWNED)
+
+    if charges.filter(status=UnitChargeStatus.PENDING).count() != len(charge_ids):
+        raise SettlementError(PaymentMessages.CHARGE_ALREADY_PAID)
+
+    charges.update(status=UnitChargeStatus.PAID)
+
+    for charge in charges:
+        Unit.objects.filter(pk=charge.unit_id).update(
+            debt=F("debt") - charge.amount
+        )
+
+        Building.objects.filter(pk=charge.unit.building_id).update(
+            building_wallet_balance=F("building_wallet_balance") + charge.amount
+        )

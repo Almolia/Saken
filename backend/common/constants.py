@@ -70,3 +70,10 @@ class SettlementMessages:
     REQUESTER_HAS_NO_UNIT = "برای ثبت‌کننده این درخواست واحدی ثبت نشده است."
     BUILDING_NOT_RESOLVED = "ساختمان مربوط به این درخواست مشخص نیست."
     INSUFFICIENT_WALLET_BALANCE = "موجودی صندوق ساختمان برای پرداخت این هزینه کافی نیست."
+
+
+class PaymentMessages:
+    PAYMENT_SUCCESS = "پرداخت با موفقیت انجام شد."
+    INVALID_CHARGE_IDS = "برخی از شارژهای انتخاب‌شده وجود ندارند."
+    CHARGE_NOT_OWNED = "برخی از شارژهای انتخاب‌شده متعلق به شما نیستند."
+    CHARGE_ALREADY_PAID = "برخی از شارژهای انتخاب‌شده قبلاً پرداخت شده‌اند."
