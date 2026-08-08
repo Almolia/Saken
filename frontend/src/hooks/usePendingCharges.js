@@ -63,5 +63,15 @@ export function usePendingCharges() {
     setReloadKey((current) => current + 1)
   }, [])
 
-  return { ...state, refresh }
+  // Drops charges the server has just marked paid, so the list updates the
+  // moment the payment succeeds instead of waiting on a round trip.
+  const removeCharges = useCallback((chargeIds) => {
+    const removed = new Set(chargeIds)
+    setState((current) => ({
+      ...current,
+      charges: current.charges.filter((charge) => !removed.has(charge.id)),
+    }))
+  }, [])
+
+  return { ...state, refresh, removeCharges }
 }

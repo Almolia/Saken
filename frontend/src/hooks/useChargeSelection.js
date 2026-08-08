@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 // Amounts arrive as decimal strings ("500000.00"). Summing them as floats can
 // drift by a fraction of a cent, so the running total is snapped back to two
 // decimals before it ever reaches the UI or the payment modal.
-function sumAmounts(charges) {
+export function sumChargeAmounts(charges) {
   const total = charges.reduce((sum, charge) => {
     const amount = Number.parseFloat(charge.amount)
     return Number.isFinite(amount) ? sum + amount : sum
@@ -14,47 +14,46 @@ function sumAmounts(charges) {
 /**
  * Tracks which pending charges the resident has ticked.
  *
- * `charges` is the live list from usePendingCharges; the selection follows it,
- * so paying (or a refresh that drops a charge someone else settled) never
- * leaves a stale id behind in the total or in the submitted payload.
+ * `charges` is the live list from usePendingCharges. The exposed selection is
+ * derived from it rather than mirrored into state, so a charge that vanishes on
+ * a refresh (paid elsewhere, withdrawn by a manager) drops straight out of the
+ * total and out of the payload that gets submitted.
  */
 export function useChargeSelection(charges) {
-  const [selectedIds, setSelectedIds] = useState([])
+  const [tickedIds, setTickedIds] = useState([])
 
-  useEffect(() => {
-    setSelectedIds((current) => {
-      if (current.length === 0) return current
-      const available = new Set(charges.map((charge) => charge.id))
-      const next = current.filter((id) => available.has(id))
-      // Returning the same array keeps this from looping on every render.
-      return next.length === current.length ? current : next
-    })
-  }, [charges])
+  const availableIds = useMemo(() => new Set(charges.map((charge) => charge.id)), [charges])
+
+  const selectedIds = useMemo(
+    () => tickedIds.filter((id) => availableIds.has(id)),
+    [tickedIds, availableIds],
+  )
 
   const toggle = useCallback((chargeId) => {
-    setSelectedIds((current) =>
+    setTickedIds((current) =>
       current.includes(chargeId)
         ? current.filter((id) => id !== chargeId)
         : [...current, chargeId],
     )
   }, [])
 
-  const clear = useCallback(() => setSelectedIds([]), [])
+  const clear = useCallback(() => setTickedIds([]), [])
+
+  const allSelected = charges.length > 0 && selectedIds.length === charges.length
 
   const toggleAll = useCallback(() => {
-    setSelectedIds((current) =>
-      current.length === charges.length ? [] : charges.map((charge) => charge.id),
-    )
-  }, [charges])
+    setTickedIds((current) => {
+      const ticked = current.filter((id) => availableIds.has(id))
+      return ticked.length === availableIds.size ? [] : [...availableIds]
+    })
+  }, [availableIds])
 
   const selectedCharges = useMemo(
     () => charges.filter((charge) => selectedIds.includes(charge.id)),
     [charges, selectedIds],
   )
 
-  const totalAmount = useMemo(() => sumAmounts(selectedCharges), [selectedCharges])
-
-  const allSelected = charges.length > 0 && selectedIds.length === charges.length
+  const totalAmount = useMemo(() => sumChargeAmounts(selectedCharges), [selectedCharges])
 
   return {
     selectedIds,
