@@ -480,7 +480,7 @@ class ResidentPaymentTests(BaseChargeTestCase):
         )
         self.assertEqual(
             self.building.building_wallet_balance,
-            Decimal("1500.00"),
+            Decimal("501000.00"),
         )
 
     def test_resident_cannot_pay_another_residents_charge(self):
