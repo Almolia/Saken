@@ -1,16 +1,19 @@
 from decimal import Decimal
 
+from common.constants import ChargeMessages
 from rest_framework import serializers
 
 from .models import MasterCharge, UnitCharge
 
 
-class ResidentPendingChargeSerializer(serializers.ModelSerializer):
-    """Payload for a resident's own pending bill.
+class ResidentChargeSerializer(serializers.ModelSerializer):
+    """Payload for one of a resident's own bills, pending or paid.
 
     Flattens the related MasterCharge (title, description, due_date) together
-    with the specific amount this unit owes. Exposed on a read-only, resident
-    scoped endpoint only; residents can never create or edit their bills here.
+    with the specific amount this unit owes. Exposed on read-only, resident
+    scoped endpoints only; residents can never create or edit their bills here.
+    `paid_at` is null while the bill is pending, and also for anything settled
+    before the column existed.
     """
 
     title = serializers.CharField(source="master_charge.title", read_only=True)
@@ -27,9 +30,15 @@ class ResidentPendingChargeSerializer(serializers.ModelSerializer):
             "amount",
             "due_date",
             "status",
+            "paid_at",
             "created_at",
         ]
-        read_only_fields = ["id", "status", "created_at"]
+        read_only_fields = ["id", "status", "paid_at", "created_at"]
+
+
+# Kept so the pending-charges view keeps reading the way it did before paid
+# bills were served by the same serializer.
+ResidentPendingChargeSerializer = ResidentChargeSerializer
 
 
 class UnitChargeSerializer(serializers.ModelSerializer):
@@ -140,6 +149,50 @@ class MasterChargeSerializer(serializers.ModelSerializer):
 
 
 PeriodicChargeSerializer = MasterChargeSerializer
+
+
+class MasterChargeUpdateSerializer(serializers.Serializer):
+    """Partial edit of an issued charge; every field is optional.
+
+    Mirrors the `amount` / `amount_per_unit` alias that MasterChargeSerializer
+    accepts, so the manager UI can send either name.
+    """
+
+    # Blank is accepted at field level so an empty title is rejected by
+    # validate() below with the Persian message, not DRF's English default.
+    title = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+    due_date = serializers.DateField(required=False)
+    amount_per_unit = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+    )
+    amount = serializers.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+    )
+
+    def validate(self, attrs):
+        alias = attrs.pop('amount', None)
+        if alias is not None and attrs.get('amount_per_unit') is None:
+            attrs['amount_per_unit'] = alias
+
+        if not attrs:
+            raise serializers.ValidationError(ChargeMessages.NO_FIELDS_TO_UPDATE)
+
+        title = attrs.get('title')
+        if title is not None and not title.strip():
+            raise serializers.ValidationError({'title': ChargeMessages.TITLE_REQUIRED})
+
+        amount = attrs.get('amount_per_unit')
+        if amount is not None and amount <= 0:
+            raise serializers.ValidationError(
+                {'amount': ChargeMessages.AMOUNT_MUST_BE_POSITIVE}
+            )
+
+        return attrs
 
 
 class ResidentPaymentSerializer(serializers.Serializer):

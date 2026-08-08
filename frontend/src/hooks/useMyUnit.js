@@ -37,5 +37,15 @@ export function useMyUnit(fetchUnit = unitApi.myUnit) {
     setAttempt((current) => current + 1)
   }, [])
 
-  return { ...state, retry }
+  // Re-reads the unit in the background so the debt figure can be resynced
+  // after a payment without flashing the skeleton. A failure here is swallowed
+  // on purpose: the payment already went through, and a briefly stale balance
+  // is far better than blanking the card the resident is looking at.
+  const refresh = useCallback(() => {
+    fetchUnit()
+      .then((data) => setState({ unit: normalizeUnit(data), loading: false, error: '' }))
+      .catch(() => {})
+  }, [fetchUnit])
+
+  return { ...state, retry, refresh }
 }

@@ -27,4 +27,15 @@ export const residentChargeApi = {
   pending() {
     return request('/resident/charges/pending/')
   },
+  history() {
+    return request('/resident/charges/history/')
+  },
+  // The backend settles every id in one atomic transaction, so a partially
+  // applied payment can never come back: it either all succeeds or it 400s.
+  pay(chargeIds) {
+    return request('/resident/charges/pay/', {
+      method: 'POST',
+      body: JSON.stringify({ charge_ids: chargeIds }),
+    })
+  },
 }

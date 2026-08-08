@@ -1,14 +1,19 @@
 import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
 import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
+import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
+import { PaymentModal } from '../../components/dashboard/PaymentModal'
 import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
+import { useChargeSelection } from '../../hooks/useChargeSelection'
 import { useMyUnit } from '../../hooks/useMyUnit'
+import { usePaymentHistory } from '../../hooks/usePaymentHistory'
 import { usePendingCharges } from '../../hooks/usePendingCharges'
 import { useServiceRequests } from '../../hooks/useServiceRequests'
 import { authApi } from '../../lib/api'
@@ -17,13 +22,27 @@ import { roleLabels } from '../../utils/constants'
 export function ResidentDashboardPage({ authState, setAuthState }) {
   const navigate = useNavigate()
   const { showToast } = useToast()
-  const { unit, loading, error, retry } = useMyUnit()
+  const { unit, loading, error, retry, refresh: refreshUnit } = useMyUnit()
   const {
     charges: pendingCharges,
     loading: chargesLoading,
     error: chargesError,
     refresh: refreshPendingCharges,
+    removeCharges,
   } = usePendingCharges()
+  const {
+    charges: paidCharges,
+    totalPaid,
+    loading: historyLoading,
+    error: historyError,
+    refresh: refreshHistory,
+  } = usePaymentHistory()
+  const selection = useChargeSelection(pendingCharges)
+  // Holds the charges the resident confirmed at the moment they hit "Pay
+  // Selected"; null means the gateway is closed. Snapshotting rather than
+  // reading the live selection keeps a background refresh from changing what
+  // is being paid while the modal is open.
+  const [chargesUnderPayment, setChargesUnderPayment] = useState(null)
   const {
     requests,
     loading: requestsLoading,
@@ -32,6 +51,16 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     refresh: refreshRequests,
     addRequest,
   } = useServiceRequests()
+
+  // The charges are already gone server-side, so they come off the list right
+  // away; the unit is re-read in the background to pick up the authoritative
+  // debt figure rather than trusting a locally subtracted one.
+  function handlePaid(paidChargeIds) {
+    removeCharges(paidChargeIds)
+    selection.clear()
+    refreshUnit()
+    refreshHistory()
+  }
 
   async function handleLogout() {
     await authApi.logout()
@@ -80,6 +109,30 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
           loading={chargesLoading}
           error={chargesError}
           onRetry={refreshPendingCharges}
+          selectedIds={selection.selectedIds}
+          allSelected={selection.allSelected}
+          onToggle={selection.toggle}
+          onToggleAll={selection.toggleAll}
+          onPay={() => setChargesUnderPayment(selection.selectedCharges)}
+          totalSelected={selection.totalAmount}
+          unitDebt={unit?.unit_debt}
+        />
+
+        <PaymentModal
+          open={chargesUnderPayment !== null}
+          charges={chargesUnderPayment ?? []}
+          unitDebt={unit?.unit_debt}
+          onClose={() => setChargesUnderPayment(null)}
+          onPaid={handlePaid}
+          onFailed={refreshPendingCharges}
+        />
+
+        <PaymentHistoryList
+          charges={paidCharges}
+          totalPaid={totalPaid}
+          loading={historyLoading}
+          error={historyError}
+          onRetry={refreshHistory}
         />
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
