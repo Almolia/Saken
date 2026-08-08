@@ -7,12 +7,10 @@ from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
 from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 from buildings.models import Building, Unit
-from common.constants import ServiceRequestMessages, SettlementMessages
+from common.constants import ServiceRequestMessages, SettlementMessages, PaymentMessages
 from django.db import transaction
 from django.db.models import F
 from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
-
-from backend.common.constants import PaymentMessages
 
 CENT = Decimal("0.01")
 

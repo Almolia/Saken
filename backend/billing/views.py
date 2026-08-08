@@ -1,3 +1,4 @@
+from common.constants import PaymentMessages
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -6,7 +7,6 @@ from users.permissions import IsManagerOrAdmin, IsResident
 from .models import MasterCharge, UnitCharge, UnitChargeStatus
 from .serializers import MasterChargeSerializer, ResidentPendingChargeSerializer, ResidentPaymentSerializer
 from .services import SettlementError, create_periodic_charge, process_resident_payment
-from ..common.constants import PaymentMessages
 
 
 class ResidentPendingChargesView(APIView):
