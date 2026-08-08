@@ -3,13 +3,20 @@
 Money is handled entirely in Decimal. Every routing rule runs inside a single
 transaction so a partially applied settlement or charge issue can never be committed.
 """
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
 
 from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 from buildings.models import Building, Unit
-from common.constants import ServiceRequestMessages, SettlementMessages, PaymentMessages
+from common.constants import (
+    ChargeMessages,
+    PaymentMessages,
+    ServiceRequestMessages,
+    SettlementMessages,
+)
 from django.db import transaction
 from django.db.models import F
+from django.utils import timezone
 from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 
 CENT = Decimal("0.01")
@@ -19,16 +26,32 @@ class SettlementError(Exception):
     """Raised when a settlement or billing action cannot be applied. Message is user-facing."""
 
 
-def _clean_cost(cost):
+class ChargeNotFoundError(SettlementError):
+    """Raised when the targeted charge does not exist, so views can answer 404."""
+
+
+def _clean_cost(cost, message=SettlementMessages.COST_MUST_BE_POSITIVE):
     try:
         amount = Decimal(str(cost))
     except (InvalidOperation, TypeError, ValueError):
-        raise SettlementError(SettlementMessages.COST_MUST_BE_POSITIVE)
+        raise SettlementError(message)
 
     if not amount.is_finite() or amount <= 0:
-        raise SettlementError(SettlementMessages.COST_MUST_BE_POSITIVE)
+        raise SettlementError(message)
 
     return amount.quantize(CENT, rounding=ROUND_DOWN)
+
+
+def _totals_by(charges, key):
+    """Total the charge amounts per unit (or per building).
+
+    Lets each affected row be updated once instead of once per charge, which
+    matters as soon as a resident owns more than one unit.
+    """
+    totals = defaultdict(Decimal)
+    for charge in charges:
+        totals[key(charge)] += charge.amount
+    return totals
 
 
 def _resolve_requester_unit(service_request):
@@ -183,26 +206,140 @@ def create_periodic_charge(
 
 @transaction.atomic
 def process_resident_payment(user, charge_ids):
-    charges = UnitCharge.objects.select_related("unit").filter(
-        id__in=charge_ids,
+    """Settle the resident's own pending charges and move the money.
+
+    Flips every selected charge to Paid, lowers the owning unit's debt and
+    credits the building wallet by the same total, all in one transaction.
+    Returns the settled charges. Raises SettlementError with a user-facing
+    message when the payment is not allowed.
+    """
+    unique_ids = list(dict.fromkeys(charge_ids))
+    if len(unique_ids) != len(charge_ids):
+        raise SettlementError(PaymentMessages.DUPLICATE_CHARGE_IDS)
+
+    # Locked for the whole transaction. Without this, two payments submitted at
+    # the same time for the same bills could both pass the Pending check below,
+    # and each would apply its own debt decrease and wallet credit.
+    charges = list(
+        UnitCharge.objects.select_for_update()
+        .select_related("unit")
+        .filter(pk__in=unique_ids)
     )
 
-    if charges.count() != len(charge_ids):
+    if len(charges) != len(unique_ids):
         raise SettlementError(PaymentMessages.INVALID_CHARGE_IDS)
 
-    if charges.filter(unit__owner=user).count() != len(charge_ids):
+    if any(charge.unit.owner_id != user.pk for charge in charges):
         raise SettlementError(PaymentMessages.CHARGE_NOT_OWNED)
 
-    if charges.filter(status=UnitChargeStatus.PENDING).count() != len(charge_ids):
+    if any(charge.status != UnitChargeStatus.PENDING for charge in charges):
         raise SettlementError(PaymentMessages.CHARGE_ALREADY_PAID)
 
-    charges.update(status=UnitChargeStatus.PAID)
+    # Unit.building is nullable. Crediting a null building id would match no
+    # rows, so the debt would fall with nothing to receive the money and the
+    # payment would quietly vanish from the building's books.
+    if any(charge.unit.building_id is None for charge in charges):
+        raise SettlementError(PaymentMessages.BUILDING_NOT_RESOLVED)
+
+    paid_at = timezone.now()
+    UnitCharge.objects.filter(pk__in=unique_ids).update(
+        status=UnitChargeStatus.PAID,
+        paid_at=paid_at,
+    )
+
+    for unit_id, amount in _totals_by(charges, lambda charge: charge.unit_id).items():
+        Unit.objects.filter(pk=unit_id).update(debt=F("debt") - amount)
+
+    for building_id, amount in _totals_by(charges, lambda charge: charge.unit.building_id).items():
+        Building.objects.filter(pk=building_id).update(
+            building_wallet_balance=F("building_wallet_balance") + amount
+        )
 
     for charge in charges:
-        Unit.objects.filter(pk=charge.unit_id).update(
-            debt=F("debt") - charge.amount
+        charge.status = UnitChargeStatus.PAID
+        charge.paid_at = paid_at
+
+    return charges
+
+
+@transaction.atomic
+def update_periodic_charge(
+        charge_id,
+        title=None,
+        description=None,
+        due_date=None,
+        amount_per_unit=None,
+):
+    """Correct an already-issued charge, realigning unit debt when the amount moves.
+
+    Only the fields that are passed are touched. The amount is frozen the
+    moment anyone pays: a paid UnitCharge has already moved money into the
+    building wallet, so re-pricing it would leave the ledger describing a
+    payment that never happened. Title, description and due date stay editable.
+    """
+    try:
+        master_charge = MasterCharge.objects.select_for_update().get(pk=charge_id)
+    except MasterCharge.DoesNotExist:
+        raise ChargeNotFoundError(ChargeMessages.CHARGE_NOT_FOUND)
+
+    if title is not None:
+        title = title.strip()
+        if not title:
+            raise SettlementError(ChargeMessages.TITLE_REQUIRED)
+        master_charge.title = title
+
+    if description is not None:
+        master_charge.description = description.strip()
+
+    if due_date is not None:
+        master_charge.due_date = due_date
+
+    if amount_per_unit is not None:
+        amount = _clean_cost(amount_per_unit, ChargeMessages.AMOUNT_MUST_BE_POSITIVE)
+        unit_charges = list(
+            UnitCharge.objects.select_for_update().filter(master_charge=master_charge)
         )
 
-        Building.objects.filter(pk=charge.unit.building_id).update(
-            building_wallet_balance=F("building_wallet_balance") + charge.amount
-        )
+        if any(charge.status != UnitChargeStatus.PENDING for charge in unit_charges):
+            raise SettlementError(ChargeMessages.AMOUNT_LOCKED_AFTER_PAYMENT)
+
+        delta = amount - master_charge.amount_per_unit
+        if delta:
+            # One UnitCharge per unit, so a single UPDATE applies the delta
+            # exactly once to each affected unit.
+            unit_ids = {charge.unit_id for charge in unit_charges}
+            Unit.objects.filter(pk__in=unit_ids).update(debt=F("debt") + delta)
+            UnitCharge.objects.filter(master_charge=master_charge).update(amount=amount)
+
+        master_charge.amount_per_unit = amount
+
+    master_charge.save(
+        update_fields=["title", "description", "due_date", "amount_per_unit"]
+    )
+    return master_charge
+
+
+@transaction.atomic
+def delete_periodic_charge(charge_id):
+    """Cancel an issued charge and roll its debt back off the affected units.
+
+    Blocked once any unit charge is paid: that money already sits in the
+    building wallet, so cancelling would require a refund, which is not part of
+    this flow. Deleting the master charge cascades to its unit charges.
+    """
+    try:
+        master_charge = MasterCharge.objects.select_for_update().get(pk=charge_id)
+    except MasterCharge.DoesNotExist:
+        raise ChargeNotFoundError(ChargeMessages.CHARGE_NOT_FOUND)
+
+    unit_charges = list(
+        UnitCharge.objects.select_for_update().filter(master_charge=master_charge)
+    )
+
+    if any(charge.status != UnitChargeStatus.PENDING for charge in unit_charges):
+        raise SettlementError(ChargeMessages.DELETE_LOCKED_AFTER_PAYMENT)
+
+    for unit_id, amount in _totals_by(unit_charges, lambda charge: charge.unit_id).items():
+        Unit.objects.filter(pk=unit_id).update(debt=F("debt") - amount)
+
+    master_charge.delete()

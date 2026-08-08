@@ -3,6 +3,7 @@ from decimal import Decimal
 from buildings.models import Building, Unit
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import UserRole
@@ -587,3 +588,589 @@ class ResidentPaymentTests(BaseChargeTestCase):
             self.building.building_wallet_balance,
             Decimal("1000.00"),
         )
+
+
+class ResidentPaymentIntegrityTests(BaseChargeTestCase):
+    """Guards on the money-moving path that the happy-path tests cannot catch."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.url = reverse("resident-pay-charges")
+
+        self.master_charge1 = MasterCharge.objects.create(
+            title="شارژ شهریور",
+            amount_per_unit=Decimal("300000.00"),
+            due_date="2026-09-20",
+            created_by=self.manager,
+        )
+        self.master_charge2 = MasterCharge.objects.create(
+            title="شارژ تعمیر آسانسور",
+            amount_per_unit=Decimal("200000.00"),
+            due_date="2026-09-25",
+            created_by=self.manager,
+        )
+
+        self.resident_charge1 = UnitCharge.objects.create(
+            master_charge=self.master_charge1,
+            unit=self.unit1,
+            amount=Decimal("300000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+        self.resident_charge2 = UnitCharge.objects.create(
+            master_charge=self.master_charge2,
+            unit=self.unit1,
+            amount=Decimal("200000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+    def test_payment_stamps_paid_at(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={"charge_ids": [self.resident_charge1.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.resident_charge1.refresh_from_db()
+        self.assertIsNotNone(self.resident_charge1.paid_at)
+
+    def test_pending_charge_has_no_paid_at(self):
+        self.assertIsNone(self.resident_charge2.paid_at)
+
+    def test_duplicate_charge_ids_are_rejected(self):
+        """A repeated id must not be settled — or paid for — twice."""
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "charge_ids": [
+                    self.resident_charge1.id,
+                    self.resident_charge1.id,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.resident_charge1.refresh_from_db()
+        self.unit1.refresh_from_db()
+        self.building.refresh_from_db()
+
+        self.assertEqual(self.resident_charge1.status, UnitChargeStatus.PENDING)
+        self.assertEqual(self.unit1.debt, Decimal("500000.00"))
+        self.assertEqual(self.building.building_wallet_balance, Decimal("1000.00"))
+
+    def test_charge_on_a_unit_without_a_building_is_rejected(self):
+        """The wallet credit has nowhere to land, so the payment must not apply.
+
+        Without the guard the debt would fall while no building received the
+        money, silently destroying it.
+        """
+        orphan_unit = Unit.objects.create(
+            owner=self.resident,
+            building=None,
+            unit_number="909",
+            floor=9,
+            area=70.00,
+            debt=Decimal("120000.00"),
+        )
+        orphan_charge = UnitCharge.objects.create(
+            master_charge=self.master_charge1,
+            unit=orphan_unit,
+            amount=Decimal("120000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={"charge_ids": [orphan_charge.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        orphan_charge.refresh_from_db()
+        orphan_unit.refresh_from_db()
+        self.building.refresh_from_db()
+
+        self.assertEqual(orphan_charge.status, UnitChargeStatus.PENDING)
+        self.assertEqual(orphan_unit.debt, Decimal("120000.00"))
+        self.assertEqual(self.building.building_wallet_balance, Decimal("1000.00"))
+
+    def test_a_single_already_paid_charge_rolls_back_the_whole_batch(self):
+        """Mixed batches are all-or-nothing: the pending sibling must not settle."""
+        self.resident_charge1.status = UnitChargeStatus.PAID
+        self.resident_charge1.save(update_fields=["status"])
+
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "charge_ids": [
+                    self.resident_charge1.id,
+                    self.resident_charge2.id,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.resident_charge2.refresh_from_db()
+        self.unit1.refresh_from_db()
+        self.building.refresh_from_db()
+
+        self.assertEqual(self.resident_charge2.status, UnitChargeStatus.PENDING)
+        self.assertEqual(self.unit1.debt, Decimal("500000.00"))
+        self.assertEqual(self.building.building_wallet_balance, Decimal("1000.00"))
+
+    def test_paying_across_two_owned_units_debits_each_unit_separately(self):
+        """A resident can own several units; each debt must fall by its own share."""
+        second_unit = Unit.objects.create(
+            owner=self.resident,
+            building=self.building,
+            unit_number="103",
+            floor=1,
+            area=75.00,
+            debt=Decimal("150000.00"),
+        )
+        second_unit_charge = UnitCharge.objects.create(
+            master_charge=self.master_charge2,
+            unit=second_unit,
+            amount=Decimal("150000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "charge_ids": [
+                    self.resident_charge1.id,
+                    second_unit_charge.id,
+                ]
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.unit1.refresh_from_db()
+        second_unit.refresh_from_db()
+        self.building.refresh_from_db()
+
+        self.assertEqual(self.unit1.debt, Decimal("200000.00"))
+        self.assertEqual(second_unit.debt, Decimal("0.00"))
+        # Both units sit in the same building, so the wallet takes the total.
+        self.assertEqual(
+            self.building.building_wallet_balance,
+            Decimal("1000.00") + Decimal("450000.00"),
+        )
+
+
+class ResidentPaymentHistoryTests(BaseChargeTestCase):
+    """The resident's record of what they have already settled."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.url = reverse("resident-payment-history")
+
+        self.master_charge = MasterCharge.objects.create(
+            title="شارژ مرداد",
+            description="نظافت مشاعات",
+            amount_per_unit=Decimal("300000.00"),
+            due_date="2026-08-20",
+            created_by=self.manager,
+        )
+
+        self.paid_charge = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("300000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=timezone.now(),
+        )
+        self.pending_charge = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("120000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+        self.other_resident_paid_charge = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit2,
+            amount=Decimal("300000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=timezone.now(),
+        )
+
+    def test_resident_sees_only_own_paid_charges_with_master_data(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        charges = response.data["charges"]
+        self.assertEqual(len(charges), 1)
+        self.assertEqual(charges[0]["id"], self.paid_charge.id)
+        self.assertEqual(charges[0]["title"], "شارژ مرداد")
+        self.assertEqual(charges[0]["description"], "نظافت مشاعات")
+        self.assertEqual(charges[0]["status"], UnitChargeStatus.PAID)
+        self.assertIsNotNone(charges[0]["paid_at"])
+
+    def test_history_reports_the_total_paid(self):
+        UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("50000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=timezone.now(),
+        )
+
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.data["total_paid"], "350000.00")
+
+    def test_history_excludes_pending_charges(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.get(self.url)
+
+        returned_ids = {charge["id"] for charge in response.data["charges"]}
+        self.assertNotIn(self.pending_charge.id, returned_ids)
+
+    def test_history_excludes_other_residents_payments(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.get(self.url)
+
+        returned_ids = {charge["id"] for charge in response.data["charges"]}
+        self.assertNotIn(self.other_resident_paid_charge.id, returned_ids)
+
+    def test_history_is_empty_when_nothing_has_been_paid(self):
+        UnitCharge.objects.filter(unit=self.unit1).delete()
+
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.data["charges"], [])
+        self.assertEqual(response.data["total_paid"], "0.00")
+
+    def test_charges_paid_before_paid_at_existed_still_appear_last(self):
+        """Legacy rows carry no timestamp; they must sort last, not vanish."""
+        legacy = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("10000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=None,
+        )
+
+        self.client.force_authenticate(user=self.resident)
+        response = self.client.get(self.url)
+
+        returned_ids = [charge["id"] for charge in response.data["charges"]]
+        self.assertIn(legacy.id, returned_ids)
+        self.assertEqual(returned_ids[-1], legacy.id)
+
+    def test_manager_cannot_access_resident_history(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_request_is_rejected(self):
+        response = self.client.get(self.url)
+
+        self.assertIn(
+            response.status_code,
+            {status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN},
+        )
+
+
+class ManagerChargeEditTests(BaseChargeTestCase):
+    """Correcting a charge that was issued with the wrong details."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.unit1.debt = Decimal("0.00")
+        self.unit1.save(update_fields=["debt"])
+        self.unit2.debt = Decimal("0.00")
+        self.unit2.save(update_fields=["debt"])
+
+        self.master_charge = MasterCharge.objects.create(
+            title="شارژ شهریور",
+            description="نظافت مشاعات",
+            amount_per_unit=Decimal("200000.00"),
+            due_date="2026-09-20",
+            created_by=self.manager,
+        )
+        self.charge1 = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("200000.00"),
+        )
+        self.charge2 = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit2,
+            amount=Decimal("200000.00"),
+        )
+        self.unit1.debt = Decimal("200000.00")
+        self.unit1.save(update_fields=["debt"])
+        self.unit2.debt = Decimal("200000.00")
+        self.unit2.save(update_fields=["debt"])
+
+        self.url = reverse("manager-charge-detail", args=[self.master_charge.id])
+
+    def test_manager_edits_title_description_and_due_date(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(
+            self.url,
+            data={
+                "title": "شارژ شهریور (اصلاح‌شده)",
+                "description": "نظافت و نگهبانی",
+                "due_date": "2026-10-01",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.master_charge.refresh_from_db()
+        self.assertEqual(self.master_charge.title, "شارژ شهریور (اصلاح‌شده)")
+        self.assertEqual(self.master_charge.description, "نظافت و نگهبانی")
+        self.assertEqual(str(self.master_charge.due_date), "2026-10-01")
+
+    def test_raising_the_amount_raises_every_unit_debt_by_the_delta(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(
+            self.url,
+            data={"amount": "250000.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.master_charge.refresh_from_db()
+        self.charge1.refresh_from_db()
+        self.charge2.refresh_from_db()
+        self.unit1.refresh_from_db()
+        self.unit2.refresh_from_db()
+
+        self.assertEqual(self.master_charge.amount_per_unit, Decimal("250000.00"))
+        self.assertEqual(self.charge1.amount, Decimal("250000.00"))
+        self.assertEqual(self.charge2.amount, Decimal("250000.00"))
+        self.assertEqual(self.unit1.debt, Decimal("250000.00"))
+        self.assertEqual(self.unit2.debt, Decimal("250000.00"))
+
+    def test_lowering_the_amount_lowers_every_unit_debt_by_the_delta(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(
+            self.url,
+            data={"amount_per_unit": "80000.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.unit1.refresh_from_db()
+        self.unit2.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("80000.00"))
+        self.assertEqual(self.unit2.debt, Decimal("80000.00"))
+
+    def test_editing_untouched_units_leaves_their_debt_alone(self):
+        """unit3 was never charged, so a re-price must not reach it."""
+        self.client.force_authenticate(user=self.manager)
+
+        self.client.patch(self.url, data={"amount": "250000.00"}, format="json")
+
+        self.unit3.refresh_from_db()
+        self.assertEqual(self.unit3.debt, Decimal("0.00"))
+
+    def test_amount_is_frozen_once_any_unit_charge_is_paid(self):
+        """Paid money is already in the wallet; re-pricing would corrupt the ledger."""
+        self.charge2.status = UnitChargeStatus.PAID
+        self.charge2.save(update_fields=["status"])
+
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(
+            self.url,
+            data={"amount": "250000.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.master_charge.refresh_from_db()
+        self.charge1.refresh_from_db()
+        self.unit1.refresh_from_db()
+
+        self.assertEqual(self.master_charge.amount_per_unit, Decimal("200000.00"))
+        self.assertEqual(self.charge1.amount, Decimal("200000.00"))
+        self.assertEqual(self.unit1.debt, Decimal("200000.00"))
+
+    def test_title_stays_editable_after_a_payment(self):
+        self.charge2.status = UnitChargeStatus.PAID
+        self.charge2.save(update_fields=["status"])
+
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(
+            self.url,
+            data={"title": "شارژ شهریور - اصلاح عنوان"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.master_charge.refresh_from_db()
+        self.assertEqual(self.master_charge.title, "شارژ شهریور - اصلاح عنوان")
+
+    def test_empty_payload_is_rejected(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(self.url, data={}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blank_title_is_rejected(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(self.url, data={"title": "   "}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.master_charge.refresh_from_db()
+        self.assertEqual(self.master_charge.title, "شارژ شهریور")
+
+    def test_non_positive_amount_is_rejected(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.patch(self.url, data={"amount": "0"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("200000.00"))
+
+    def test_editing_a_missing_charge_returns_404(self):
+        self.client.force_authenticate(user=self.manager)
+
+        missing = reverse("manager-charge-detail", args=[self.master_charge.id + 999])
+        response = self.client.patch(missing, data={"title": "x"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_resident_cannot_edit_a_charge(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.patch(
+            self.url,
+            data={"amount": "1.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.master_charge.refresh_from_db()
+        self.assertEqual(self.master_charge.amount_per_unit, Decimal("200000.00"))
+
+    def test_service_staff_cannot_edit_a_charge(self):
+        self.client.force_authenticate(user=self.service_staff)
+
+        response = self.client.patch(self.url, data={"title": "x"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ManagerChargeDeleteTests(BaseChargeTestCase):
+    """Cancelling a charge that should never have been issued."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.master_charge = MasterCharge.objects.create(
+            title="شارژ اشتباه",
+            amount_per_unit=Decimal("200000.00"),
+            due_date="2026-09-20",
+            created_by=self.manager,
+        )
+        self.charge1 = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("200000.00"),
+        )
+        self.charge2 = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit2,
+            amount=Decimal("200000.00"),
+        )
+
+        self.url = reverse("manager-charge-detail", args=[self.master_charge.id])
+
+    def test_manager_cancels_a_charge_and_the_debt_is_rolled_back(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertFalse(MasterCharge.objects.filter(pk=self.master_charge.pk).exists())
+        self.assertFalse(UnitCharge.objects.filter(master_charge=self.master_charge.pk).exists())
+
+        self.unit1.refresh_from_db()
+        self.unit2.refresh_from_db()
+        # Both started at the BaseChargeTestCase amounts before the charge landed.
+        self.assertEqual(self.unit1.debt, Decimal("300000.00"))
+        self.assertEqual(self.unit2.debt, Decimal("100000.00"))
+
+    def test_cancelling_is_blocked_once_any_unit_charge_is_paid(self):
+        self.charge2.status = UnitChargeStatus.PAID
+        self.charge2.save(update_fields=["status"])
+
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.assertTrue(MasterCharge.objects.filter(pk=self.master_charge.pk).exists())
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("500000.00"))
+
+    def test_cancelling_a_missing_charge_returns_404(self):
+        self.client.force_authenticate(user=self.manager)
+
+        missing = reverse("manager-charge-detail", args=[self.master_charge.id + 999])
+        response = self.client.delete(missing)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_resident_cannot_cancel_a_charge(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(MasterCharge.objects.filter(pk=self.master_charge.pk).exists())
+
+    def test_service_staff_cannot_cancel_a_charge(self):
+        self.client.force_authenticate(user=self.service_staff)
+
+        response = self.client.delete(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -59,6 +59,10 @@ class UnitCharge(models.Model):
         choices=UnitChargeStatus.choices,
         default=UnitChargeStatus.PENDING,
     )
+    # Set when the resident settles the charge. Null while Pending, and also
+    # null for anything settled before this column existed, so payment history
+    # must tolerate a missing timestamp rather than invent one.
+    paid_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

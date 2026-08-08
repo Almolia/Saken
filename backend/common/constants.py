@@ -77,3 +77,24 @@ class PaymentMessages:
     INVALID_CHARGE_IDS = "برخی از شارژهای انتخاب‌شده وجود ندارند."
     CHARGE_NOT_OWNED = "برخی از شارژهای انتخاب‌شده متعلق به شما نیستند."
     CHARGE_ALREADY_PAID = "برخی از شارژهای انتخاب‌شده قبلاً پرداخت شده‌اند."
+    DUPLICATE_CHARGE_IDS = "هر شارژ تنها یک بار می‌تواند در فهرست پرداخت باشد."
+    BUILDING_NOT_RESOLVED = (
+        "ساختمان مربوط به برخی از شارژهای انتخاب‌شده مشخص نیست؛ "
+        "لطفاً با مدیر ساختمان تماس بگیرید."
+    )
+
+
+class ChargeMessages:
+    CHARGE_NOT_FOUND = "شارژ مورد نظر یافت نشد."
+    CHARGE_UPDATED = "شارژ با موفقیت به‌روزرسانی شد."
+    CHARGE_DELETED = "شارژ با موفقیت حذف شد."
+    TITLE_REQUIRED = "عنوان شارژ الزامی است."
+    DUE_DATE_REQUIRED = "مهلت پرداخت الزامی است."
+    AMOUNT_MUST_BE_POSITIVE = "مبلغ شارژ باید بزرگ‌تر از صفر باشد."
+    NO_FIELDS_TO_UPDATE = "هیچ فیلدی برای به‌روزرسانی ارسال نشده است."
+    AMOUNT_LOCKED_AFTER_PAYMENT = (
+        "مبلغ این شارژ قابل تغییر نیست، چون بخشی از آن پرداخت شده است."
+    )
+    DELETE_LOCKED_AFTER_PAYMENT = (
+        "این شارژ قابل حذف نیست، چون بخشی از آن پرداخت شده است."
+    )
