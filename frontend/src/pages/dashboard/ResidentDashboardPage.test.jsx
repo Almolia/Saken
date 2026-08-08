@@ -16,6 +16,7 @@ vi.mock('../../lib/unitApi', () => ({
 vi.mock('../../lib/billingApi', () => ({
   residentChargeApi: {
     pending: vi.fn(),
+    history: vi.fn(),
     pay: vi.fn(),
   },
 }))
@@ -83,8 +84,10 @@ describe('ResidentDashboardPage', () => {
   beforeEach(() => {
     unitApi.myUnit.mockReset()
     residentChargeApi.pending.mockReset()
+    residentChargeApi.history.mockReset()
     residentChargeApi.pay.mockReset()
     residentChargeApi.pending.mockResolvedValue({ charges: [] })
+    residentChargeApi.history.mockResolvedValue({ charges: [], total_paid: '0.00' })
   })
 
   it('renders the resident profile info from auth state', async () => {
@@ -236,6 +239,46 @@ describe('ResidentDashboardPage', () => {
     // Success toast, and the debt card re-read from the server.
     expect(await screen.findByText('پرداخت با موفقیت انجام شد.')).toBeInTheDocument()
     await waitFor(() => expect(debtSection().getByText('250,000 تومان')).toBeInTheDocument())
+  })
+
+  it('lists what the resident has already settled, with the total', async () => {
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentChargeApi.history.mockResolvedValue({
+      charges: [{ ...septemberCharge, status: 'Paid', paid_at: '2026-08-01T10:00:00Z' }],
+      total_paid: '500000.00',
+    })
+    renderPage()
+
+    const history = within(await screen.findByRole('region', { name: 'تاریخچه پرداخت' }))
+    expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
+    expect(history.getByText('پرداخت‌شده')).toBeInTheDocument()
+    expect(history.getByText('مجموع پرداختی')).toBeInTheDocument()
+    // Scoped to the rows: the total in the header shows the same figure.
+    expect(within(history.getByRole('list')).getByText('500,000 تومان')).toBeInTheDocument()
+  })
+
+  it('refreshes the payment history after a successful payment', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentChargeApi.pending.mockResolvedValue({ charges: [septemberCharge] })
+    residentChargeApi.history
+      .mockResolvedValueOnce({ charges: [], total_paid: '0.00' })
+      .mockResolvedValueOnce({
+        charges: [{ ...septemberCharge, status: 'Paid', paid_at: '2026-08-09T10:00:00Z' }],
+        total_paid: '500000.00',
+      })
+    residentChargeApi.pay.mockResolvedValue({ message: 'پرداخت با موفقیت انجام شد.' })
+    renderPage()
+
+    await screen.findByText(/هنوز پرداختی ثبت نشده است/)
+
+    await user.click(screen.getByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
+    await user.click(screen.getByRole('button', { name: /پرداخت انتخاب‌شده‌ها/ }))
+    await user.click(await screen.findByRole('button', { name: /تأیید و پرداخت/ }))
+
+    const history = within(screen.getByRole('region', { name: 'تاریخچه پرداخت' }))
+    expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
+    expect(history.getByText('مجموع پرداختی')).toBeInTheDocument()
   })
 
   it('keeps the charges on screen and surfaces the error when payment fails', async () => {

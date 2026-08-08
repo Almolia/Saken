@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
 import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
+import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
 import { PaymentModal } from '../../components/dashboard/PaymentModal'
 import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
@@ -12,6 +13,7 @@ import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
 import { useChargeSelection } from '../../hooks/useChargeSelection'
 import { useMyUnit } from '../../hooks/useMyUnit'
+import { usePaymentHistory } from '../../hooks/usePaymentHistory'
 import { usePendingCharges } from '../../hooks/usePendingCharges'
 import { useServiceRequests } from '../../hooks/useServiceRequests'
 import { authApi } from '../../lib/api'
@@ -28,6 +30,13 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     refresh: refreshPendingCharges,
     removeCharges,
   } = usePendingCharges()
+  const {
+    charges: paidCharges,
+    totalPaid,
+    loading: historyLoading,
+    error: historyError,
+    refresh: refreshHistory,
+  } = usePaymentHistory()
   const selection = useChargeSelection(pendingCharges)
   // Holds the charges the resident confirmed at the moment they hit "Pay
   // Selected"; null means the gateway is closed. Snapshotting rather than
@@ -50,6 +59,7 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     removeCharges(paidChargeIds)
     selection.clear()
     refreshUnit()
+    refreshHistory()
   }
 
   async function handleLogout() {
@@ -115,6 +125,14 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
           onClose={() => setChargesUnderPayment(null)}
           onPaid={handlePaid}
           onFailed={refreshPendingCharges}
+        />
+
+        <PaymentHistoryList
+          charges={paidCharges}
+          totalPaid={totalPaid}
+          loading={historyLoading}
+          error={historyError}
+          onRetry={refreshHistory}
         />
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
