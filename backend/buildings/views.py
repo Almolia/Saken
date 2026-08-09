@@ -93,6 +93,7 @@ class ManagerUnitDetailView(APIView):
         if not unit:
             return Response({"detail": UnitMessages.UNIT_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
 
+        # Safely handle the specific "resident_id: null" payload requirement
         data = request.data.copy()
         if 'resident_id' in data:
             data['owner'] = data.pop('resident_id')
