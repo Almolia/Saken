@@ -72,6 +72,30 @@ def cancel_reservation(reservation_id, user=None):
     reservation.save(update_fields=["status", "updated_at"])
     return reservation
 
+def cancel_reservation_with_validation(reservation, user):
+    """
+    Cancels a reservation with validation:
+    - Resident must own the reservation
+    - Reservation must be in the future (start_time > now)
+    - Reservation must not already be canceled
+    """
+    # Check ownership
+    if user and getattr(user, "role", None) == "resident" and reservation.resident_id != user.id:
+        raise serializers.ValidationError("شما اجازه دسترسی به این رزرو را ندارید.")
+
+    # Check if already canceled
+    if reservation.status == ReservationStatus.CANCELED:
+        raise serializers.ValidationError("این رزرو قبلاً لغو شده است.")
+
+    # Check if reservation is in the future
+    now = timezone.now()
+    if reservation.start_time <= now:
+        raise serializers.ValidationError("امکان لغو رزروهای گذشته وجود ندارد.")
+
+    reservation.status = ReservationStatus.CANCELED
+    reservation.save(update_fields=["status", "updated_at"])
+    return reservation
+
 
 def get_amenity_slots(amenity, target_date):
     """
