@@ -7,18 +7,20 @@ from django.utils import timezone
 
 from common.constants import AmenityMessages
 from users.permissions import IsManagerOrAdmin, IsResident
-from .models import Amenity, Reservation
+from .models import Amenity, Reservation, ReservationStatus
 from .serializers import (
     AmenitySerializer,
     AmenityCreateSerializer,
     AmenityUpdateSerializer,
     ReservationSerializer,
     ReservationCreateSerializer,
+    ReservationUpdateSerializer,
 )
 from .services import (
     create_reservation,
     cancel_reservation,
     get_amenity_slots,
+    cancel_reservation_with_validation,
 )
 
 
@@ -183,10 +185,11 @@ class ResidentReservationListCreateView(APIView):
     permission_classes = [IsResident]
 
     def get(self, request):
+        now = timezone.now()
         reservations = (
             Reservation.objects.select_related("amenity", "resident")
             .filter(resident=request.user)
-            .order_by("-start_time", "-id")
+            .order_by("start_time", "-id")
         )
         serializer = ReservationSerializer(reservations, many=True)
         return Response({"reservations": serializer.data})
@@ -230,13 +233,49 @@ class ResidentReservationDetailView(APIView):
                 {"detail": AmenityMessages.RESERVATION_NOT_FOUND},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        return Response(ReservationSerializer(reservation).data)
-
-    def delete(self, request, pk):
-        cancel_reservation(reservation_id=pk, user=request.user)
-        return Response({"message": AmenityMessages.RESERVATION_CANCELED})
 
     def patch(self, request, pk):
+        """
+                Update reservation status to Canceled with validation:
+                - Resident must own the reservation
+                - Reservation must be in the future (start_time > now)
+                """
+        try:
+            reservation = (
+                Reservation.objects.select_related("amenity", "resident")
+                .get(pk=pk, resident=request.user)
+            )
+        except Reservation.DoesNotExist:
+            return Response(
+                {"detail": AmenityMessages.RESERVATION_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Validate using the serializer
+        serializer = ReservationUpdateSerializer(
+            reservation,
+            data=request.data,
+            context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        # Perform the cancellation with validation
+        updated_reservation = cancel_reservation_with_validation(
+            reservation=reservation,
+            user=request.user
+        )
+
+        return Response(
+            {
+                "message": AmenityMessages.RESERVATION_CANCELED,
+                "reservation": ReservationSerializer(updated_reservation).data,
+            }
+        )
+
+    def delete(self, request, pk):
+        """
+        Original DELETE behavior - cancels the reservation.
+        """
         reservation = cancel_reservation(reservation_id=pk, user=request.user)
         return Response(
             {
