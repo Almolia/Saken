@@ -690,3 +690,110 @@ class AmenitySlotsAPITests(APITestCase):
         slot_11 = next(s for s in response.data["slots"] if s["start_time_formatted"] == "11:00")
         self.assertFalse(slot_11["is_booked"])
         self.assertTrue(slot_11["is_available"])
+
+
+class DoubleBookingAndLogicTests(APITestCase):
+    """
+    Task 6: Double-Booking & Logic Tests
+    - Simulate Resident A successfully booking the Pool from 10:00 to 12:00.
+    - Simulate Resident B attempting to book the Pool from 11:00 to 13:00 (partial overlap)
+      or 10:00 to 12:00 (exact overlap) -> Assert 400 Validation Error.
+    - Verify that a Resident cannot book an amenity that has is_active = False (under maintenance).
+    """
+
+    def setUp(self):
+        self.resident_a = User.objects.create_user(
+            phone="09120000001",
+            password="ResidentPassA",
+            full_name="Resident A",
+            national_id="0000000001",
+            role="resident",
+        )
+        self.resident_b = User.objects.create_user(
+            phone="09120000002",
+            password="ResidentPassB",
+            full_name="Resident B",
+            national_id="0000000002",
+            role="resident",
+        )
+        self.pool = Amenity.objects.create(
+            name="استخر",
+            description="استخر شنا",
+            operating_rules="08:00 تا 22:00",
+            is_active=True,
+        )
+        self.list_url = reverse("resident-reservations")
+        self.base_time = timezone.localtime(timezone.now()).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        ) + timedelta(days=10)
+
+    def test_resident_a_books_pool_10_to_12_success(self):
+        self.client.force_authenticate(user=self.resident_a)
+        payload = {
+            "amenity": self.pool.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=2)).isoformat(),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["message"], AmenityMessages.RESERVATION_CREATED)
+        self.assertEqual(Reservation.objects.count(), 1)
+        res = Reservation.objects.first()
+        self.assertEqual(res.resident, self.resident_a)
+        self.assertEqual(res.amenity.name, "استخر")
+
+    def test_resident_b_booking_pool_partial_or_exact_overlap_returns_400(self):
+        # Resident A books Pool from 10:00 to 12:00
+        Reservation.objects.create(
+            amenity=self.pool,
+            resident=self.resident_a,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=2),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.resident_b)
+
+        # 1. Partial overlap: 11:00 to 13:00
+        payload_partial = {
+            "amenity": self.pool.id,
+            "start_time": (self.base_time + timedelta(hours=1)).isoformat(),
+            "end_time": (self.base_time + timedelta(hours=3)).isoformat(),
+        }
+        response_partial = self.client.post(self.list_url, payload_partial, format="json")
+        self.assertEqual(response_partial.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("این بازه زمانی قبلاً رزرو شده است", str(response_partial.data))
+
+        # 2. Exact overlap: 10:00 to 12:00
+        payload_exact = {
+            "amenity": self.pool.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=2)).isoformat(),
+        }
+        response_exact = self.client.post(self.list_url, payload_exact, format="json")
+        self.assertEqual(response_exact.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("این بازه زمانی قبلاً رزرو شده است", str(response_exact.data))
+
+        # 3. Partial overlap before: 09:00 to 11:00
+        payload_before = {
+            "amenity": self.pool.id,
+            "start_time": (self.base_time - timedelta(hours=1)).isoformat(),
+            "end_time": (self.base_time + timedelta(hours=1)).isoformat(),
+        }
+        response_before = self.client.post(self.list_url, payload_before, format="json")
+        self.assertEqual(response_before.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_resident_cannot_book_inactive_amenity_under_maintenance(self):
+        self.pool.is_active = False
+        self.pool.save(update_fields=["is_active"])
+
+        self.client.force_authenticate(user=self.resident_a)
+        payload = {
+            "amenity": self.pool.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=2)).isoformat(),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("فعال نیست", str(response.data))
+
