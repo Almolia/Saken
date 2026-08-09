@@ -797,3 +797,290 @@ class DoubleBookingAndLogicTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("فعال نیست", str(response.data))
 
+
+class ResidentReservationIsolationAndCancellationTests(APITestCase):
+    def setUp(self):
+        self.resident_a = User.objects.create_user(
+            phone="09120000101",
+            password="ResidentPassA",
+            full_name="Resident A",
+            national_id="0000000101",
+            role="resident",
+        )
+        self.resident_b = User.objects.create_user(
+            phone="09120000102",
+            password="ResidentPassB",
+            full_name="Resident B",
+            national_id="0000000102",
+            role="resident",
+        )
+        self.amenity = Amenity.objects.create(
+            name="سالن اجتماعات",
+            description="سالن جلسات و مراسم",
+            operating_rules="08:00 تا 22:00",
+            is_active=True,
+        )
+        self.reservations_url = reverse("resident-reservations")
+
+        # Future time for upcoming reservations (3 days from now)
+        self.future_time = timezone.localtime(timezone.now()).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        ) + timedelta(days=3)
+
+        # Past time for past reservations (3 days ago)
+        self.past_time = timezone.localtime(timezone.now()).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        ) - timedelta(days=3)
+
+    def test_data_isolation_resident_a_only_sees_own_bookings(self):
+        """
+        Test 1: Data isolation test - Resident A fetching their bookings,
+        asserting that none of Resident B's bookings are returned.
+        """
+        # Create a future booking for Resident A
+        reservation_a = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.future_time,
+            end_time=self.future_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        # Create a future booking for Resident B
+        reservation_b = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_b,
+            start_time=self.future_time + timedelta(days=1),
+            end_time=self.future_time + timedelta(days=1, hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        # Authenticate as Resident A and fetch bookings
+        self.client.force_authenticate(user=self.resident_a)
+        response = self.client.get(self.reservations_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        reservations = response.data["reservations"]
+
+        # Should only see Resident A's reservation
+        self.assertEqual(len(reservations), 1)
+        self.assertEqual(reservations[0]["id"], reservation_a.id)
+        self.assertEqual(reservations[0]["resident"], self.resident_a.id)
+
+        # Explicitly verify Resident B's booking is NOT in the response
+        resident_b_ids = [res["id"] for res in reservations if res["resident"] == self.resident_b.id]
+        self.assertEqual(len(resident_b_ids), 0)
+
+        # Verify the response includes the amenity name
+        self.assertEqual(reservations[0]["amenity_name"], "سالن اجتماعات")
+
+        # Verify ordering: upcoming first
+        # Create another future booking for Resident A that is earlier
+        earlier_time = self.future_time - timedelta(hours=2)
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=earlier_time,
+            end_time=earlier_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        response = self.client.get(self.reservations_url)
+        reservations = response.data["reservations"]
+
+        # Should be ordered by start_time (earliest first)
+        self.assertEqual(len(reservations), 2)
+        self.assertEqual(reservations[0]["start_time"], earlier_time.isoformat())
+        self.assertEqual(reservations[1]["start_time"], self.future_time.isoformat())
+
+    def test_cancel_future_booking_then_another_user_can_book(self):
+        """
+        Test 2: Logic test - Cancelling a future booking.
+        Assert a 200 OK, then verify another user can successfully book that exact same time slot.
+        """
+        # Resident A books the amenity for a future time
+        self.client.force_authenticate(user=self.resident_a)
+        create_payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.future_time.isoformat(),
+            "end_time": (self.future_time + timedelta(hours=1)).isoformat(),
+        }
+        create_response = self.client.post(self.reservations_url, create_payload, format="json")
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        reservation_id = create_response.data["reservation"]["id"]
+
+        # Verify the reservation exists and is active
+        reservation = Reservation.objects.get(pk=reservation_id)
+        self.assertEqual(reservation.status, ReservationStatus.ACTIVE)
+
+        # Cancel the reservation using PATCH
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation_id})
+        patch_payload = {"status": ReservationStatus.CANCELED}
+        patch_response = self.client.patch(detail_url, patch_payload, format="json")
+
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(patch_response.data["message"], AmenityMessages.RESERVATION_CANCELED)
+
+        # Verify the reservation is now canceled
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.CANCELED)
+
+        # Now Resident B should be able to book the exact same time slot
+        self.client.force_authenticate(user=self.resident_b)
+        book_payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.future_time.isoformat(),
+            "end_time": (self.future_time + timedelta(hours=1)).isoformat(),
+        }
+        book_response = self.client.post(self.reservations_url, book_payload, format="json")
+
+        self.assertEqual(book_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(book_response.data["message"], AmenityMessages.RESERVATION_CREATED)
+
+        # Verify Resident B's booking is active
+        new_reservation = Reservation.objects.get(pk=book_response.data["reservation"]["id"])
+        self.assertEqual(new_reservation.status, ReservationStatus.ACTIVE)
+        self.assertEqual(new_reservation.resident, self.resident_b)
+        self.assertEqual(new_reservation.start_time, self.future_time)
+
+    def test_cancel_past_reservation_returns_400(self):
+        """
+        Test 3: Validation test - Attempting to cancel a past reservation.
+        Asserts the system blocks it and returns a 400 error.
+        """
+        # Create a past reservation for Resident A
+        past_reservation = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.past_time,
+            end_time=self.past_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.resident_a)
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": past_reservation.id})
+
+        # Attempt to cancel the past reservation
+        patch_payload = {"status": ReservationStatus.CANCELED}
+        response = self.client.patch(detail_url, patch_payload, format="json")
+
+        # Should be rejected with 400 Bad Request
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("امکان لغو رزروهای گذشته وجود ندارد", str(response.data))
+
+        # Verify the reservation is still ACTIVE
+        past_reservation.refresh_from_db()
+        self.assertEqual(past_reservation.status, ReservationStatus.ACTIVE)
+
+    def test_resident_cannot_cancel_another_residents_reservation(self):
+        """
+        Additional test: A resident cannot cancel another resident's reservation.
+        """
+        # Resident A creates a reservation
+        self.client.force_authenticate(user=self.resident_a)
+        create_payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.future_time.isoformat(),
+            "end_time": (self.future_time + timedelta(hours=1)).isoformat(),
+        }
+        create_response = self.client.post(self.reservations_url, create_payload, format="json")
+        reservation_id = create_response.data["reservation"]["id"]
+
+        # Resident B tries to cancel it
+        self.client.force_authenticate(user=self.resident_b)
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation_id})
+        patch_payload = {"status": ReservationStatus.CANCELED}
+        response = self.client.patch(detail_url, patch_payload, format="json")
+
+        # Should return 404 since Resident B doesn't own it
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Verify the reservation is still ACTIVE
+        reservation = Reservation.objects.get(pk=reservation_id)
+        self.assertEqual(reservation.status, ReservationStatus.ACTIVE)
+
+    def test_cancel_already_canceled_reservation_returns_error(self):
+        """
+        Additional test: Attempting to cancel an already canceled reservation.
+        """
+        # Create a future reservation
+        self.client.force_authenticate(user=self.resident_a)
+        create_payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.future_time.isoformat(),
+            "end_time": (self.future_time + timedelta(hours=1)).isoformat(),
+        }
+        create_response = self.client.post(self.reservations_url, create_payload, format="json")
+        reservation_id = create_response.data["reservation"]["id"]
+
+        # Cancel it once
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation_id})
+        patch_payload = {"status": ReservationStatus.CANCELED}
+        first_response = self.client.patch(detail_url, patch_payload, format="json")
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+
+        # Try to cancel it again
+        second_response = self.client.patch(detail_url, patch_payload, format="json")
+        self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("قبلاً لغو شده است", str(second_response.data))
+
+    def test_reservation_list_ordered_by_start_time(self):
+        """
+        Additional test: Verify reservations are ordered by start_time (upcoming first).
+        """
+        # Create multiple reservations for Resident A with different times
+        times = [
+            self.future_time + timedelta(hours=3),  # Latest
+            self.future_time,  # Earliest
+            self.future_time + timedelta(hours=1),  # Middle
+        ]
+
+        for t in times:
+            Reservation.objects.create(
+                amenity=self.amenity,
+                resident=self.resident_a,
+                start_time=t,
+                end_time=t + timedelta(hours=1),
+                status=ReservationStatus.ACTIVE,
+            )
+
+        self.client.force_authenticate(user=self.resident_a)
+        response = self.client.get(self.reservations_url)
+
+        reservations = response.data["reservations"]
+        self.assertEqual(len(reservations), 3)
+
+        # Should be ordered by start_time (earliest first)
+        start_times = [res["start_time"] for res in reservations]
+        sorted_times = sorted([t.isoformat() for t in times])
+        self.assertEqual(start_times, sorted_times)
+
+    def test_canceled_reservations_do_not_block_availability(self):
+        """
+        Additional test: Canceled reservations are ignored in availability checks.
+        """
+        # Create a canceled reservation for a time slot
+        canceled_reservation = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.future_time,
+            end_time=self.future_time + timedelta(hours=1),
+            status=ReservationStatus.CANCELED,
+        )
+
+        # Another resident should be able to book that slot
+        self.client.force_authenticate(user=self.resident_b)
+        book_payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.future_time.isoformat(),
+            "end_time": (self.future_time + timedelta(hours=1)).isoformat(),
+        }
+        response = self.client.post(self.reservations_url, book_payload, format="json")
+
+        # Should succeed (201 Created) because canceled reservations don't block
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the new booking is active
+        new_reservation = Reservation.objects.get(pk=response.data["reservation"]["id"])
+        self.assertEqual(new_reservation.status, ReservationStatus.ACTIVE)
+        self.assertEqual(new_reservation.resident, self.resident_b)
