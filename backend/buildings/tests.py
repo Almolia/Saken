@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from buildings.models import Building, Unit
 
+
 User = get_user_model()
 
 class ResidentUnitAPITests(APITestCase):
@@ -132,3 +133,58 @@ class ResidentUnitAPITests(APITestCase):
         
         # Explicitly prove it is NOT User B's unit (102)
         self.assertNotEqual(response.data['unit_number'], "102")
+
+
+class ManagerAdminAPITests(APITestCase):
+    def setUp(self):
+        self.building = Building.objects.create(name="Old Saken Name", building_wallet_balance="5000.00")
+
+        self.manager = User.objects.create_user(
+            phone='99988877766', full_name='The Manager', national_id='9998887776', role='manager', password='pw'
+        )
+        self.resident = User.objects.create_user(
+            phone='11122233344', full_name='The Resident', national_id='1112223334', role='resident', password='pw'
+        )
+        self.staff = User.objects.create_user(
+            phone='55544433322', full_name='The Staff', national_id='5554443332', role='service_staff', password='pw'
+        )
+
+        self.unit = Unit.objects.create(
+            unit_number="101", floor=1, area="75.00", building=self.building, owner=self.resident
+        )
+
+        self.building_url = reverse('manager-building')
+        self.unit_detail_url = reverse('manager-unit-detail', kwargs={'pk': self.unit.pk})
+
+    def test_manager_can_update_building_and_unlink_resident(self):
+        """Asserts a 200 OK and verifies the correct database state for both Building and Unit."""
+        self.client.force_authenticate(user=self.manager)
+
+        # 1. Update the building name (adding format='json')
+        building_payload = {"name": "Saken Tower Primary"}
+        b_response = self.client.patch(self.building_url, data=building_payload, format='json')
+
+        self.assertEqual(b_response.status_code, status.HTTP_200_OK)
+        self.building.refresh_from_db()
+        self.assertEqual(self.building.name, "Saken Tower Primary")
+
+        # 2. Unlink the resident using resident_id: null (adding format='json')
+        unit_payload = {"resident_id": None}
+        u_response = self.client.patch(self.unit_detail_url, data=unit_payload, format='json')
+
+        self.assertEqual(u_response.status_code, status.HTTP_200_OK)
+        self.unit.refresh_from_db()
+        self.assertIsNone(self.unit.owner)
+
+    def test_unauthorized_roles_are_forbidden(self):
+        """Asserts a 403 Forbidden failure when a resident or staff member accesses manager endpoints."""
+
+        # Test Resident Access
+        self.client.force_authenticate(user=self.resident)
+        self.assertEqual(self.client.get(self.building_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.patch(self.unit_detail_url, data={}).status_code, status.HTTP_403_FORBIDDEN)
+
+        # Test Service Staff Access
+        self.client.force_authenticate(user=self.staff)
+        self.assertEqual(self.client.get(self.building_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.patch(self.unit_detail_url, data={}).status_code, status.HTTP_403_FORBIDDEN)

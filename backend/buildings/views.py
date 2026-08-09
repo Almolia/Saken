@@ -3,8 +3,14 @@ from rest_framework.response import Response
 from rest_framework import status, permissions
 from common.constants import UnitMessages
 from users.permissions import IsManagerOrAdmin
-from .models import Unit
-from .serializers import ManagerUnitSerializer, UnitAssignSerializer, UnitSerializer
+from .models import Unit, Building
+from .serializers import (
+    ManagerUnitSerializer,
+    UnitAssignSerializer,
+    UnitSerializer,
+    ManagerBuildingSerializer,
+    ManagerUnitUpdateSerializer
+)
 
 class MyUnitView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -43,8 +49,59 @@ class ManagerUnitListCreateView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
+class ManagerBuildingDetailView(APIView):
+    permission_classes = [IsManagerOrAdmin]
+
+    def get_object(self, pk=None):
+        if pk:
+            return Building.objects.filter(pk=pk).first()
+        return Building.objects.first()  # Fallback for generic /api/manager/building/ route
+
+    def get(self, request, pk=None):
+        building = self.get_object(pk)
+        if not building:
+            return Response({"detail": "Building not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ManagerBuildingSerializer(building).data)
+
+    def patch(self, request, pk=None):
+        building = self.get_object(pk)
+        if not building:
+            return Response({"detail": "Building not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = ManagerBuildingSerializer(building, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
 class ManagerUnitDetailView(APIView):
     permission_classes = [IsManagerOrAdmin]
+
+    def get_object(self, pk):
+        try:
+            return Unit.objects.get(pk=pk)
+        except Unit.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        unit = self.get_object(pk)
+        if not unit:
+            return Response({"detail": UnitMessages.UNIT_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ManagerUnitSerializer(unit).data)
+
+    def patch(self, request, pk):
+        unit = self.get_object(pk)
+        if not unit:
+            return Response({"detail": UnitMessages.UNIT_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        # Safely handle the specific "resident_id: null" payload requirement
+        data = request.data.copy()
+        if 'resident_id' in data:
+            data['owner'] = data.pop('resident_id')
+
+        serializer = ManagerUnitUpdateSerializer(unit, data=data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(ManagerUnitSerializer(unit).data)
 
     def delete(self, request, pk):
         try:

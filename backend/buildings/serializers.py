@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from common.constants import UnitMessages
-from .models import Unit
+from .models import Unit, Building
 
 User = get_user_model()
 
@@ -45,3 +45,23 @@ class UnitAssignSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
         fields = ['user_id']
+
+class ManagerBuildingSerializer(serializers.ModelSerializer):
+    total_units = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Building
+        fields = ['id', 'name', 'building_wallet_balance', 'total_units']
+        read_only_fields = ['id', 'total_units']
+
+    def get_total_units(self, obj):
+        return obj.units.count()
+
+
+class ManagerUnitUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unit
+        fields = ['unit_number', 'floor', 'area', 'details', 'owner']
+        extra_kwargs = {
+            'owner': {'allow_null': True, 'required': False}
+        }
