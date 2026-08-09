@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -39,3 +40,45 @@ class Amenity(models.Model):
     def __str__(self):
         status = "" if self.is_active else " (غیرفعال)"
         return f"{self.name}{status}"
+
+
+class ReservationStatus(models.TextChoices):
+    ACTIVE = "Active", "Active"
+    CANCELED = "Canceled", "Canceled"
+
+
+class Reservation(models.Model):
+    """
+    Represents a booking made by a resident for a shared amenity during a specific time range.
+    """
+
+    amenity = models.ForeignKey(
+        Amenity,
+        on_delete=models.CASCADE,
+        related_name="reservations",
+        verbose_name="امکان",
+    )
+    resident = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reservations",
+        verbose_name="ساکن",
+    )
+    start_time = models.DateTimeField(verbose_name="زمان شروع")
+    end_time = models.DateTimeField(verbose_name="زمان پایان")
+    status = models.CharField(
+        max_length=20,
+        choices=ReservationStatus.choices,
+        default=ReservationStatus.ACTIVE,
+        verbose_name="وضعیت",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "رزرو"
+        verbose_name_plural = "رزروها"
+        ordering = ["-start_time", "-id"]
+
+    def __str__(self):
+        return f"{self.amenity.name} - {self.resident.full_name} ({self.start_time} - {self.end_time})"

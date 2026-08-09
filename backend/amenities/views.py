@@ -1,12 +1,25 @@
+from datetime import datetime, time
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
 
 from common.constants import AmenityMessages
-from users.permissions import IsManagerOrAdmin
-from .models import Amenity
-from .serializers import AmenitySerializer, AmenityCreateSerializer, AmenityUpdateSerializer
+from users.permissions import IsManagerOrAdmin, IsResident
+from .models import Amenity, Reservation
+from .serializers import (
+    AmenitySerializer,
+    AmenityCreateSerializer,
+    AmenityUpdateSerializer,
+    ReservationSerializer,
+    ReservationCreateSerializer,
+)
+from .services import (
+    create_reservation,
+    cancel_reservation,
+    get_amenity_slots,
+)
 
 
 class ManagerAmenityListCreateView(APIView):
@@ -109,3 +122,171 @@ class ManagerAmenityDetailView(APIView):
 
         amenity.delete()
         return Response({"message": AmenityMessages.AMENITY_DELETED})
+
+
+class AmenityListView(APIView):
+    """
+    GET: List active amenities (or all if manager/admin).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if getattr(request.user, "role", None) == "resident":
+            amenities = Amenity.objects.filter(is_active=True).order_by("name")
+        else:
+            amenities = Amenity.objects.all().order_by("name")
+        serializer = AmenitySerializer(amenities, many=True)
+        return Response({"amenities": serializer.data})
+
+
+class AmenitySlotsView(APIView):
+    """
+    GET: Fetch existing active reservations and time slots for a specific amenity on a specific day.
+    URL: /api/amenities/<id>/slots/?date=YYYY-MM-DD
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id=None, pk=None):
+        amenity_id = id or pk
+        try:
+            amenity = Amenity.objects.get(pk=amenity_id)
+        except Amenity.DoesNotExist:
+            return Response(
+                {"detail": AmenityMessages.AMENITY_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        date_str = request.query_params.get("date")
+        if not date_str:
+            target_date = timezone.localtime(timezone.now()).date()
+        else:
+            try:
+                target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response(
+                    {"detail": "فرمت تاریخ نامعتبر است. فرمت صحیح YYYY-MM-DD می‌باشد."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        data = get_amenity_slots(amenity, target_date)
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class ResidentReservationListCreateView(APIView):
+    """
+    GET: List current resident's reservations.
+    POST: Create a booking for an amenity.
+    """
+
+    permission_classes = [IsResident]
+
+    def get(self, request):
+        reservations = (
+            Reservation.objects.select_related("amenity", "resident")
+            .filter(resident=request.user)
+            .order_by("-start_time", "-id")
+        )
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response({"reservations": serializer.data})
+
+    def post(self, request):
+        serializer = ReservationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        reservation = create_reservation(
+            resident=request.user,
+            amenity_id=validated["amenity"].id,
+            start_time=validated["start_time"],
+            end_time=validated["end_time"],
+        )
+
+        return Response(
+            {
+                "message": AmenityMessages.RESERVATION_CREATED,
+                "reservation": ReservationSerializer(reservation).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ResidentReservationDetailView(APIView):
+    """
+    GET/DELETE/PATCH resident's own reservation.
+    """
+
+    permission_classes = [IsResident]
+
+    def get(self, request, pk):
+        try:
+            reservation = (
+                Reservation.objects.select_related("amenity", "resident")
+                .get(pk=pk, resident=request.user)
+            )
+        except Reservation.DoesNotExist:
+            return Response(
+                {"detail": AmenityMessages.RESERVATION_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(ReservationSerializer(reservation).data)
+
+    def delete(self, request, pk):
+        cancel_reservation(reservation_id=pk, user=request.user)
+        return Response({"message": AmenityMessages.RESERVATION_CANCELED})
+
+    def patch(self, request, pk):
+        reservation = cancel_reservation(reservation_id=pk, user=request.user)
+        return Response(
+            {
+                "message": AmenityMessages.RESERVATION_CANCELED,
+                "reservation": ReservationSerializer(reservation).data,
+            }
+        )
+
+
+class ResidentReservationCancelView(APIView):
+    """
+    POST: Cancel resident's reservation.
+    """
+
+    permission_classes = [IsResident]
+
+    def post(self, request, pk):
+        reservation = cancel_reservation(reservation_id=pk, user=request.user)
+        return Response(
+            {
+                "message": AmenityMessages.RESERVATION_CANCELED,
+                "reservation": ReservationSerializer(reservation).data,
+            }
+        )
+
+
+class ManagerReservationListView(APIView):
+    """
+    GET: List all reservations (for manager/admin).
+    """
+
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request):
+        queryset = Reservation.objects.select_related("amenity", "resident").all()
+        amenity_id = request.query_params.get("amenity")
+        if amenity_id:
+            queryset = queryset.filter(amenity_id=amenity_id)
+
+        date_str = request.query_params.get("date")
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                tz = timezone.get_current_timezone()
+                day_start = timezone.make_aware(datetime.combine(target_date, time.min), tz)
+                day_end = timezone.make_aware(datetime.combine(target_date, time.max), tz)
+                queryset = queryset.filter(start_time__lt=day_end, end_time__gt=day_start)
+            except ValueError:
+                pass
+
+        reservations = queryset.order_by("-start_time", "-id")
+        serializer = ReservationSerializer(reservations, many=True)
+        return Response({"reservations": serializer.data})

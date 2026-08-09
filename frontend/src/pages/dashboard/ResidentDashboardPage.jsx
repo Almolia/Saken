@@ -9,6 +9,7 @@ import { PendingChargesList } from '../../components/dashboard/PendingChargesLis
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
+import { AmenityBookingSection } from '../../components/dashboard/AmenityBookingSection'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
 import { useChargeSelection } from '../../hooks/useChargeSelection'
@@ -134,6 +135,8 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
           error={historyError}
           onRetry={refreshHistory}
         />
+
+        <AmenityBookingSection />
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
           <ServiceRequestForm onRequestCreated={addRequest} />

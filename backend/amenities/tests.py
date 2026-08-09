@@ -1,8 +1,13 @@
+from datetime import datetime, timedelta
+from django.utils import timezone
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from amenities.models import Amenity
+from amenities.models import Amenity, Reservation, ReservationStatus
+from amenities.services import check_booking_conflict
+from common.constants import AmenityMessages
 
 User = get_user_model()
 
@@ -455,3 +460,233 @@ class AmenityValidationTests(APITestCase):
         response = self.client.patch(detail_url, patch_payload, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ReservationModelTests(APITestCase):
+    """Tests for the Reservation model."""
+
+    def setUp(self):
+        self.resident = User.objects.create_user(
+            phone="09121112233",
+            password="ResidentPass123",
+            full_name="Test Resident",
+            national_id="1122334455",
+            role="resident",
+        )
+        self.amenity = Amenity.objects.create(name="باشگاه", operating_rules="08:00 تا 22:00")
+
+    def test_create_reservation_model(self):
+        start_time = timezone.now() + timedelta(days=1)
+        end_time = start_time + timedelta(hours=1)
+
+        res = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident,
+            start_time=start_time,
+            end_time=end_time,
+        )
+        self.assertEqual(res.status, ReservationStatus.ACTIVE)
+        self.assertEqual(res.amenity, self.amenity)
+        self.assertEqual(res.resident, self.resident)
+        self.assertIn(self.amenity.name, str(res))
+
+
+class ConflictResolutionServiceTests(APITestCase):
+    """Tests for check_booking_conflict service function."""
+
+    def setUp(self):
+        self.resident1 = User.objects.create_user(
+            phone="09123334455",
+            password="Resident1Pass",
+            full_name="Resident One",
+            national_id="3333333333",
+            role="resident",
+        )
+        self.resident2 = User.objects.create_user(
+            phone="09124445566",
+            password="Resident2Pass",
+            full_name="Resident Two",
+            national_id="4444444444",
+            role="resident",
+        )
+        self.amenity = Amenity.objects.create(name="زمین تنیس", is_active=True)
+        self.base_time = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+
+    def test_no_conflict_when_empty(self):
+        # Should not raise any exception
+        check_booking_conflict(
+            self.amenity.id,
+            self.base_time,
+            self.base_time + timedelta(hours=1),
+        )
+
+    def test_overlap_raises_validation_error(self):
+        # Create an existing active booking from 10:00 to 11:00
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident1,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        # Overlapping request from 10:30 to 11:30 should raise ValidationError
+        with self.assertRaises(ValidationError) as context:
+            check_booking_conflict(
+                self.amenity.id,
+                self.base_time + timedelta(minutes=30),
+                self.base_time + timedelta(hours=1, minutes=30),
+            )
+        self.assertIn(AmenityMessages.SLOT_ALREADY_BOOKED, str(context.exception))
+
+    def test_adjacent_time_no_conflict(self):
+        # Booking from 10:00 to 11:00
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident1,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        # Request from 11:00 to 12:00 is adjacent, not overlapping
+        check_booking_conflict(
+            self.amenity.id,
+            self.base_time + timedelta(hours=1),
+            self.base_time + timedelta(hours=2),
+        )
+
+    def test_canceled_reservation_no_conflict(self):
+        # Canceled booking from 10:00 to 11:00
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident1,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=1),
+            status=ReservationStatus.CANCELED,
+        )
+
+        # Should pass without conflict
+        check_booking_conflict(
+            self.amenity.id,
+            self.base_time,
+            self.base_time + timedelta(hours=1),
+        )
+
+
+class ResidentReservationAPITests(APITestCase):
+    """Tests for POST and GET /api/resident/reservations/."""
+
+    def setUp(self):
+        self.resident = User.objects.create_user(
+            phone="09125556677",
+            password="ResidentPass",
+            full_name="Alice Resident",
+            national_id="5555555555",
+            role="resident",
+        )
+        self.other_resident = User.objects.create_user(
+            phone="09126667788",
+            password="ResidentPass",
+            full_name="Bob Resident",
+            national_id="6666666666",
+            role="resident",
+        )
+        self.manager = User.objects.create_user(
+            phone="09127778899",
+            password="ManagerPass",
+            full_name="Charlie Manager",
+            national_id="7777777777",
+            role="manager",
+        )
+        self.amenity = Amenity.objects.create(name="باشگاه", operating_rules="08:00 تا 22:00", is_active=True)
+        self.list_url = reverse("resident-reservations")
+        self.base_time = timezone.localtime(timezone.now()).replace(hour=14, minute=0, second=0, microsecond=0) + timedelta(days=3)
+
+    def test_resident_can_create_reservation(self):
+        self.client.force_authenticate(user=self.resident)
+        payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=1)).isoformat(),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["message"], AmenityMessages.RESERVATION_CREATED)
+        self.assertEqual(response.data["reservation"]["amenity"], self.amenity.id)
+        self.assertEqual(response.data["reservation"]["resident"], self.resident.id)
+        self.assertEqual(Reservation.objects.count(), 1)
+        res = Reservation.objects.first()
+        self.assertEqual(res.resident, self.resident)
+
+    def test_conflict_returns_400(self):
+        # Existing reservation
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.other_resident,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.resident)
+        payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=1)).isoformat(),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_cannot_create_via_resident_endpoint(self):
+        self.client.force_authenticate(user=self.manager)
+        payload = {
+            "amenity": self.amenity.id,
+            "start_time": self.base_time.isoformat(),
+            "end_time": (self.base_time + timedelta(hours=1)).isoformat(),
+        }
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class AmenitySlotsAPITests(APITestCase):
+    """Tests for GET /api/amenities/<id>/slots/?date=YYYY-MM-DD."""
+
+    def setUp(self):
+        self.resident = User.objects.create_user(
+            phone="09128889900",
+            password="ResidentPass",
+            full_name="Slot Resident",
+            national_id="8888888888",
+            role="resident",
+        )
+        self.amenity = Amenity.objects.create(name="لابی", is_active=True)
+        self.target_date = timezone.localtime(timezone.now()).date() + timedelta(days=5)
+        self.base_time = timezone.make_aware(datetime.combine(self.target_date, datetime.min.time())).replace(hour=10, minute=0, second=0, microsecond=0)
+
+    def test_get_slots(self):
+        self.client.force_authenticate(user=self.resident)
+        # Create an active reservation from 10:00 to 11:00
+        Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident,
+            start_time=self.base_time,
+            end_time=self.base_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+        url = reverse("amenity-slots", kwargs={"pk": self.amenity.id})
+        response = self.client.get(f"{url}?date={self.target_date.isoformat()}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["date"], self.target_date.isoformat())
+        self.assertEqual(len(response.data["reservations"]), 1)
+        self.assertEqual(len(response.data["slots"]), 14)
+
+        # Slot at 10:00 (index 2 for 08:00, 09:00, 10:00) should be booked
+        slot_10 = next(s for s in response.data["slots"] if s["start_time_formatted"] == "10:00")
+        self.assertTrue(slot_10["is_booked"])
+        self.assertFalse(slot_10["is_available"])
+
+        slot_11 = next(s for s in response.data["slots"] if s["start_time_formatted"] == "11:00")
+        self.assertFalse(slot_11["is_booked"])
+        self.assertTrue(slot_11["is_available"])

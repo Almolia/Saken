@@ -105,3 +105,8 @@ class AmenityMessages:
     AMENITY_UPDATED = "امکان با موفقیت به‌روزرسانی شد."
     AMENITY_DELETED = "امکان با موفقیت حذف شد."
     AMENITY_NOT_FOUND = "امکان مورد نظر یافت نشد."
+    SLOT_ALREADY_BOOKED = "این بازه زمانی قبلاً رزرو شده است."
+    RESERVATION_CREATED = "رزرو با موفقیت انجام شد."
+    RESERVATION_CANCELED = "رزرو با موفقیت لغو شد."
+    RESERVATION_NOT_FOUND = "رزرو مورد نظر یافت نشد."
+    AMENITY_NOT_ACTIVE = "امکان مورد نظر در حال حاضر فعال نیست."
