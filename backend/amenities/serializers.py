@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from .models import Amenity, Reservation
+from .models import Amenity, Reservation, ReservationStatus
+from django.utils import timezone
+
 
 
 class AmenitySerializer(serializers.ModelSerializer):
@@ -78,5 +80,37 @@ class ReservationCreateSerializer(serializers.Serializer):
 
         if attrs["start_time"] >= attrs["end_time"]:
             raise serializers.ValidationError("زمان پایان باید بعد از زمان شروع باشد.")
+
+        return attrs
+
+
+class ReservationUpdateSerializer(serializers.Serializer):
+    """
+    Serializer for updating a reservation (specifically for cancellation).
+    """
+    status = serializers.CharField(required=False)
+
+    def validate_status(self, value):
+        if value and value != ReservationStatus.CANCELED:
+            raise serializers.ValidationError(
+                "فقط می‌توانید وضعیت رزرو را به 'لغو شده' تغییر دهید."
+            )
+        return value
+
+    def validate(self, attrs):
+        reservation = self.context.get("reservation")
+        if not reservation:
+            return attrs
+
+        if reservation.status == ReservationStatus.CANCELED:
+            raise serializers.ValidationError(
+                "این رزرو قبلاً لغو شده است."
+            )
+
+        now = timezone.now()
+        if reservation.start_time <= now:
+            raise serializers.ValidationError(
+                "امکان لغو رزروهای گذشته وجود ندارد."
+            )
 
         return attrs
