@@ -160,17 +160,17 @@ class ManagerAdminAPITests(APITestCase):
         """Asserts a 200 OK and verifies the correct database state for both Building and Unit."""
         self.client.force_authenticate(user=self.manager)
 
-        # Update the building name
+        # 1. Update the building name (adding format='json')
         building_payload = {"name": "Saken Tower Primary"}
-        b_response = self.client.patch(self.building_url, data=building_payload)
+        b_response = self.client.patch(self.building_url, data=building_payload, format='json')
 
         self.assertEqual(b_response.status_code, status.HTTP_200_OK)
         self.building.refresh_from_db()
         self.assertEqual(self.building.name, "Saken Tower Primary")
 
-        # Unlink the resident using resident_id: null
+        # 2. Unlink the resident using resident_id: null (adding format='json')
         unit_payload = {"resident_id": None}
-        u_response = self.client.patch(self.unit_detail_url, data=unit_payload)
+        u_response = self.client.patch(self.unit_detail_url, data=unit_payload, format='json')
 
         self.assertEqual(u_response.status_code, status.HTTP_200_OK)
         self.unit.refresh_from_db()
