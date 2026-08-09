@@ -189,7 +189,7 @@ class ResidentReservationListCreateView(APIView):
         reservations = (
             Reservation.objects.select_related("amenity", "resident")
             .filter(resident=request.user)
-            .order_by("-start_time", "-id")
+            .order_by("start_time", "-id")
         )
         serializer = ReservationSerializer(reservations, many=True)
         return Response({"reservations": serializer.data})
