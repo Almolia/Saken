@@ -98,3 +98,10 @@ class ChargeMessages:
     DELETE_LOCKED_AFTER_PAYMENT = (
         "این شارژ قابل حذف نیست، چون بخشی از آن پرداخت شده است."
     )
+
+
+class AmenityMessages:
+    AMENITY_CREATED = "امکان با موفقیت ایجاد شد."
+    AMENITY_UPDATED = "امکان با موفقیت به‌روزرسانی شد."
+    AMENITY_DELETED = "امکان با موفقیت حذف شد."
+    AMENITY_NOT_FOUND = "امکان مورد نظر یافت نشد."

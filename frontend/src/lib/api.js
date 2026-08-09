@@ -168,6 +168,27 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  // Amenities
+  amenities() {
+    return request('/manager/amenities/')
+  },
+  createAmenity(payload) {
+    return request('/manager/amenities/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  updateAmenity(amenityId, payload) {
+    return request(`/manager/amenities/${amenityId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  deleteAmenity(amenityId) {
+    return request(`/manager/amenities/${amenityId}/`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 export { API_BASE_URL, request }

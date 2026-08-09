@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, LogOut, Receipt, ShieldCheck, Users } from 'lucide-react'
+import { Building2, Building, ClipboardList, LogOut, Receipt, ShieldCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -8,6 +8,7 @@ import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
 import { AdminProfile } from './admin/AdminProfile'
+import { AmenitiesSection } from './manager/AmenitiesSection'
 import { FinancialsSection } from './manager/FinancialsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
@@ -16,6 +17,7 @@ import { UsersSection } from './manager/UsersSection'
 const sectionTitles = {
   requests: 'درخواست‌های خدمات',
   units: 'مدیریت واحدها',
+  amenities: 'امکانات',
   financials: 'امور مالی',
   users: 'کاربران',
 }
@@ -46,6 +48,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
           <nav className="mt-7 flex flex-1 flex-col gap-2">
             <SideNavItem icon={ClipboardList} label="درخواست‌های خدمات" active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} />
             <SideNavItem icon={Building2} label="مدیریت واحدها" active={activeSection === 'units'} onClick={() => setActiveSection('units')} />
+            <SideNavItem icon={Building} label="امکانات" active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} />
             <SideNavItem icon={Receipt} label="امور مالی" active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} />
             <SideNavItem icon={Users} label="کاربران" active={activeSection === 'users'} onClick={() => setActiveSection('users')} />
           </nav>
@@ -72,6 +75,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
               <MobileTab active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} label="درخواست‌ها" />
               <MobileTab active={activeSection === 'units'} onClick={() => setActiveSection('units')} label="واحدها" />
+              <MobileTab active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} label="امکانات" />
               <MobileTab active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} label="امور مالی" />
               <MobileTab active={activeSection === 'users'} onClick={() => setActiveSection('users')} label="کاربران" />
             </div>
@@ -82,6 +86,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <ServiceRequestsSection />
             ) : activeSection === 'units' ? (
               <UnitsSection users={userData.users} />
+            ) : activeSection === 'amenities' ? (
+              <AmenitiesSection />
             ) : activeSection === 'financials' ? (
               <FinancialsSection />
             ) : (

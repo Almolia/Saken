@@ -178,3 +178,15 @@ export function validateAdminPasswordChange(values) {
 
   return errors
 }
+
+export function validateAmenity(values) {
+  const errors = {}
+
+  if (!values.name?.trim()) {
+    errors.name = 'نام امکان الزامی است.'
+  } else if (values.name.trim().length < 2) {
+    errors.name = 'نام امکان باید حداقل ۲ کاراکتر باشد.'
+  }
+
+  return errors
+}
