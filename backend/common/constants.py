@@ -37,11 +37,21 @@ class ValidationMessages:
 
 class UnitMessages:
     UNIT_CREATED = "واحد با موفقیت ایجاد شد."
+    UNIT_UPDATED = "اطلاعات واحد با موفقیت به‌روزرسانی شد."
     UNIT_ASSIGNED = "واحد با موفقیت به کاربر اختصاص یافت."
     UNIT_UNASSIGNED = "واحد با موفقیت تخلیه شد."
     UNIT_DELETED = "واحد با موفقیت حذف شد."
     UNIT_NOT_FOUND = "واحد مورد نظر یافت نشد."
     USER_NOT_FOUND = "کاربر مورد نظر یافت نشد."
+
+
+class BuildingMessages:
+    BUILDING_NOT_FOUND = "اطلاعات ساختمان هنوز ثبت نشده است."
+    BUILDING_CREATED = "اطلاعات ساختمان با موفقیت ثبت شد."
+    BUILDING_UPDATED = "اطلاعات ساختمان با موفقیت به‌روزرسانی شد."
+    BUILDING_ALREADY_EXISTS = "اطلاعات ساختمان قبلاً ثبت شده است."
+    NAME_REQUIRED = "نام ساختمان الزامی است."
+    WALLET_BALANCE_NEGATIVE = "موجودی صندوق ساختمان نمی‌تواند منفی باشد."
 
 
 class ManagerMessages:

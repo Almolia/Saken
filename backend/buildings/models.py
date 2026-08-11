@@ -17,6 +17,12 @@ class Building(models.Model):
         return self.name
 
 
+class OccupancyStatus(models.TextChoices):
+    OCCUPIED = "Occupied", "Occupied"
+    VACANT = "Vacant", "Vacant"
+    UNDER_RENOVATION = "UnderRenovation", "Under Renovation"
+
+
 class Unit(models.Model):
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -36,6 +42,13 @@ class Unit(models.Model):
     floor = models.IntegerField()
     area = models.DecimalField(max_digits=8, decimal_places=2)
     details = models.TextField(blank=True)
+    # Kept independent of `owner`: a unit can be held vacant while a resident is
+    # still linked to it (mid-move-out), or be closed for renovation.
+    occupancy_status = models.CharField(
+        max_length=20,
+        choices=OccupancyStatus.choices,
+        default=OccupancyStatus.VACANT,
+    )
     # Outstanding charges billed to this unit, in the building's currency.
     debt = models.DecimalField(
         max_digits=12,

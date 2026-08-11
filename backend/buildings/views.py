@@ -1,7 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions
-from common.constants import UnitMessages
+from common.constants import BuildingMessages, UnitMessages
 from users.permissions import IsManagerOrAdmin
 from .models import Unit, Building
 from .serializers import (
@@ -60,18 +60,52 @@ class ManagerBuildingDetailView(APIView):
     def get(self, request, pk=None):
         building = self.get_object(pk)
         if not building:
-            return Response({"detail": "Building not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": BuildingMessages.BUILDING_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         return Response(ManagerBuildingSerializer(building).data)
+
+    def post(self, request, pk=None):
+        """
+        Registers the building record. The app models a single building, so this
+        is only available while none exists — otherwise the settings form would
+        silently create a second one the rest of the app never reads.
+        """
+        if Building.objects.exists():
+            return Response(
+                {"detail": BuildingMessages.BUILDING_ALREADY_EXISTS},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ManagerBuildingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        building = serializer.save()
+        return Response(
+            {
+                "message": BuildingMessages.BUILDING_CREATED,
+                "building": ManagerBuildingSerializer(building).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
     def patch(self, request, pk=None):
         building = self.get_object(pk)
         if not building:
-            return Response({"detail": "Building not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"detail": BuildingMessages.BUILDING_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
         serializer = ManagerBuildingSerializer(building, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data)
+        return Response(
+            {
+                "message": BuildingMessages.BUILDING_UPDATED,
+                "building": serializer.data,
+            }
+        )
 
 class ManagerUnitDetailView(APIView):
     permission_classes = [IsManagerOrAdmin]
@@ -101,7 +135,12 @@ class ManagerUnitDetailView(APIView):
         serializer = ManagerUnitUpdateSerializer(unit, data=data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(ManagerUnitSerializer(unit).data)
+        return Response(
+            {
+                "message": UnitMessages.UNIT_UPDATED,
+                "unit": ManagerUnitSerializer(unit).data,
+            }
+        )
 
     def delete(self, request, pk):
         try:
