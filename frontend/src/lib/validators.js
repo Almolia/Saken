@@ -44,6 +44,28 @@ export function validateUnit(values) {
   return errors
 }
 
+export function validateBuildingSettings(values) {
+  const errors = {}
+
+  if (!values.name?.trim()) {
+    errors.name = 'نام ساختمان الزامی است.'
+  }
+
+  const balanceStr = String(values.building_wallet_balance ?? '').trim()
+  if (!balanceStr) {
+    errors.building_wallet_balance = 'موجودی صندوق ساختمان الزامی است.'
+  } else {
+    const balance = Number.parseFloat(balanceStr)
+    if (Number.isNaN(balance)) {
+      errors.building_wallet_balance = 'موجودی صندوق باید یک عدد باشد.'
+    } else if (balance < 0) {
+      errors.building_wallet_balance = 'موجودی صندوق ساختمان نمی‌تواند منفی باشد.'
+    }
+  }
+
+  return errors
+}
+
 export function validateCharge(values) {
   const errors = {}
 
