@@ -1,20 +1,19 @@
-import { Building2, Home, Plus, UserPlus, UserRound, Users } from 'lucide-react'
+import { AlertTriangle, Building2, Home, Pencil, Plus, UserMinus, UserPlus, UserRound, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { useForm } from '../../../hooks/useForm'
 import { managerApi } from '../../../lib/api'
 import { validateUnit } from '../../../lib/validators'
 import { formatArea } from '../../../utils/helpers'
+import { hasOccupancyMismatch, occupancyStatusLabel, occupancyStatusTone, sortUnits } from '../../../utils/units'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
 import { Modal } from '../../../components/ui/Modal'
 import { InputField } from '../../../components/ui/InputField'
 import { PrimaryButton } from '../../../components/ui/PrimaryButton'
-
-function sortUnits(units) {
-  return [...units].sort((a, b) => a.floor - b.floor || String(a.unit_number).localeCompare(String(b.unit_number), 'fa', { numeric: true }))
-}
+import { UnitOccupancyModal } from '../../../components/dashboard/UnitOccupancyModal'
+import { UnlinkResidentModal } from '../../../components/dashboard/UnlinkResidentModal'
 
 export function UnitsSection({ users }) {
   const { showToast } = useToast()
@@ -23,7 +22,8 @@ export function UnitsSection({ users }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [assignTarget, setAssignTarget] = useState(null)
   const [assignState, setAssignState] = useState({ userId: '', loading: false, error: '' })
-  const [evictingId, setEvictingId] = useState(null)
+  const [occupancyTarget, setOccupancyTarget] = useState(null)
+  const [unlinkTarget, setUnlinkTarget] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
@@ -90,22 +90,13 @@ export function UnitsSection({ users }) {
     }
   }
 
-  async function handleEvict(unit) {
-    const confirmed = window.confirm(`ساکن فعلی واحد ${unit.unit_number} (${unit.owner.full_name}) حذف شود؟`)
-    if (!confirmed) return
-    setEvictingId(unit.id)
-    try {
-      const response = await managerApi.assignUnit(unit.id, { user_id: null })
-      setData((current) => ({
-        ...current,
-        units: current.units.map((item) => (item.id === response.unit.id ? response.unit : item)),
-      }))
-      showToast(response.message || 'واحد با موفقیت تخلیه شد.')
-    } catch (error) {
-      showToast(error.message, 'error')
-    } finally {
-      setEvictingId(null)
-    }
+  // Both edit modals answer with the unit as the server stored it, so the row
+  // is replaced from that copy rather than being patched locally.
+  function replaceUnit(updatedUnit) {
+    setData((current) => ({
+      ...current,
+      units: sortUnits(current.units.map((item) => (item.id === updatedUnit.id ? updatedUnit : item))),
+    }))
   }
 
   async function handleDelete(unit) {
@@ -129,9 +120,11 @@ export function UnitsSection({ users }) {
     <>
       <section className="admin-hero overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-300/60 sm:p-8">
         <div className="relative z-10 max-w-3xl">
-          <p className="text-sm font-bold text-teal-200">مدیریت واحدها</p>
+          <p className="text-sm font-bold text-teal-200">فهرست واحدها</p>
           <h2 className="mt-3 text-3xl font-black leading-tight tracking-tight sm:text-4xl">واحدهای ساختمان و ساکنان آن‌ها</h2>
-          <p className="mt-4 text-sm leading-8 text-slate-300">در این بخش می‌توانید واحد جدید ثبت کنید و برای واحدهای خالی ساکن تعیین کنید.</p>
+          <p className="mt-4 text-sm leading-8 text-slate-300">
+            در این بخش می‌توانید واحد جدید ثبت کنید، وضعیت سکونت هر واحد را ویرایش کنید و ساکن واحدهایی که تخلیه شده‌اند را حذف کنید.
+          </p>
         </div>
       </section>
 
@@ -182,6 +175,7 @@ export function UnitsSection({ users }) {
                   <th className="px-6 py-4">شماره واحد</th>
                   <th className="px-6 py-4">طبقه</th>
                   <th className="px-6 py-4">متراژ</th>
+                  <th className="px-6 py-4">وضعیت سکونت</th>
                   <th className="px-6 py-4">ساکن</th>
                   <th className="px-6 py-4">عملیات</th>
                 </tr>
@@ -200,6 +194,17 @@ export function UnitsSection({ users }) {
                     <td className="px-6 py-4 font-bold">{unit.floor}</td>
                     <td className="px-6 py-4 font-bold">{formatArea(unit.area)}</td>
                     <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black ${occupancyStatusTone(unit.occupancy_status)}`}>
+                        {occupancyStatusLabel(unit.occupancy_status)}
+                      </span>
+                      {hasOccupancyMismatch(unit) ? (
+                        <span className="mt-2 flex items-center gap-1 text-[11px] font-bold text-amber-700">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          با وضعیت ساکن هم‌خوانی ندارد
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-6 py-4">
                       {unit.owner ? (
                         <div className="flex items-center gap-2">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -216,6 +221,16 @@ export function UnitsSection({ users }) {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setOccupancyTarget(unit)}
+                          disabled={deletingId === unit.id}
+                          aria-label={`ویرایش واحد ${unit.unit_number}`}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          ویرایش
+                        </button>
                         {!unit.owner ? (
                           <button
                             type="button"
@@ -231,25 +246,27 @@ export function UnitsSection({ users }) {
                             <button
                               type="button"
                               onClick={() => openAssign(unit)}
-                              disabled={evictingId === unit.id || deletingId === unit.id}
+                              disabled={deletingId === unit.id}
                               className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                               تغییر ساکن
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleEvict(unit)}
-                              disabled={evictingId === unit.id || deletingId === unit.id}
-                              className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                              onClick={() => setUnlinkTarget(unit)}
+                              disabled={deletingId === unit.id}
+                              aria-label={`حذف ساکن واحد ${unit.unit_number}`}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 shadow-sm transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                             >
-                              تخلیه واحد
+                              <UserMinus className="h-4 w-4" />
+                              حذف ساکن
                             </button>
                           </>
                         )}
                         <button
                           type="button"
                           onClick={() => handleDelete(unit)}
-                          disabled={evictingId === unit.id || deletingId === unit.id}
+                          disabled={deletingId === unit.id}
                           className="inline-flex h-10 items-center justify-center rounded-2xl bg-rose-600 px-4 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           حذف واحد
@@ -310,6 +327,24 @@ export function UnitsSection({ users }) {
           </form>
         )}
       </Modal>
+
+      {occupancyTarget ? (
+        <UnitOccupancyModal
+          open
+          unit={occupancyTarget}
+          onClose={() => setOccupancyTarget(null)}
+          onUpdated={replaceUnit}
+        />
+      ) : null}
+
+      {unlinkTarget ? (
+        <UnlinkResidentModal
+          open
+          unit={unlinkTarget}
+          onClose={() => setUnlinkTarget(null)}
+          onUpdated={replaceUnit}
+        />
+      ) : null}
     </>
   )
 }
