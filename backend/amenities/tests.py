@@ -1084,3 +1084,59 @@ class ResidentReservationIsolationAndCancellationTests(APITestCase):
         new_reservation = Reservation.objects.get(pk=response.data["reservation"]["id"])
         self.assertEqual(new_reservation.status, ReservationStatus.ACTIVE)
         self.assertEqual(new_reservation.resident, self.resident_b)
+
+    def test_retrieve_own_reservation_detail(self):
+        """
+        The detail endpoint returns the reservation, including the fields the
+        dashboard renders (amenity name, times and status).
+        """
+        reservation = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.future_time,
+            end_time=self.future_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.resident_a)
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation.id})
+        response = self.client.get(detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["reservation"]["id"], reservation.id)
+        self.assertEqual(response.data["reservation"]["amenity_name"], self.amenity.name)
+        self.assertEqual(response.data["reservation"]["status"], ReservationStatus.ACTIVE)
+
+    def test_retrieve_another_residents_reservation_returns_404(self):
+        """A resident cannot read another resident's reservation."""
+        reservation = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.future_time,
+            end_time=self.future_time + timedelta(hours=1),
+            status=ReservationStatus.ACTIVE,
+        )
+
+        self.client.force_authenticate(user=self.resident_b)
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation.id})
+        response = self.client.get(detail_url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_patch_rejects_a_status_other_than_canceled(self):
+        """The PATCH endpoint only accepts a cancellation, not arbitrary edits."""
+        reservation = Reservation.objects.create(
+            amenity=self.amenity,
+            resident=self.resident_a,
+            start_time=self.future_time,
+            end_time=self.future_time + timedelta(hours=1),
+            status=ReservationStatus.CANCELED,
+        )
+
+        self.client.force_authenticate(user=self.resident_a)
+        detail_url = reverse("resident-reservation-detail", kwargs={"pk": reservation.id})
+        response = self.client.patch(detail_url, {"status": ReservationStatus.ACTIVE}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.CANCELED)

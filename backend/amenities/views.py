@@ -234,6 +234,8 @@ class ResidentReservationDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        return Response({"reservation": ReservationSerializer(reservation).data})
+
     def patch(self, request, pk):
         """
                 Update reservation status to Canceled with validation:

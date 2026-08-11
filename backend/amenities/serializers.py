@@ -98,7 +98,8 @@ class ReservationUpdateSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        reservation = self.context.get("reservation")
+        # The reservation being updated is passed as the serializer instance.
+        reservation = self.instance
         if not reservation:
             return attrs
 
