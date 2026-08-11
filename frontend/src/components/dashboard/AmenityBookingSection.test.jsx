@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '../ToastProvider'
 import { amenityApi } from '../../lib/amenityApi'
@@ -10,8 +10,6 @@ vi.mock('../../lib/amenityApi', () => ({
     list: vi.fn(),
     getSlots: vi.fn(),
     createReservation: vi.fn(),
-    myReservations: vi.fn(),
-    cancelReservation: vi.fn(),
   },
 }))
 
@@ -53,10 +51,10 @@ const sampleSlots = [
   },
 ]
 
-function renderSection() {
+function renderSection(props = {}) {
   return render(
     <ToastProvider>
-      <AmenityBookingSection />
+      <AmenityBookingSection {...props} />
     </ToastProvider>,
   )
 }
@@ -66,12 +64,9 @@ describe('AmenityBookingSection', () => {
     amenityApi.list.mockReset()
     amenityApi.getSlots.mockReset()
     amenityApi.createReservation.mockReset()
-    amenityApi.myReservations.mockReset()
-    amenityApi.cancelReservation.mockReset()
 
     amenityApi.list.mockResolvedValue({ amenities: sampleAmenities })
     amenityApi.getSlots.mockResolvedValue({ slots: sampleSlots })
-    amenityApi.myReservations.mockResolvedValue({ reservations: [] })
   })
 
   it('renders the section title and loads active amenities', async () => {
@@ -141,34 +136,42 @@ describe('AmenityBookingSection', () => {
     expect(alert).toHaveTextContent('این بازه زمانی قبلاً رزرو شده است.')
   })
 
-  it('shows existing bookings in the "رزروهای من" tab and allows cancellation', async () => {
+  it('hands the created booking to the reservations list', async () => {
     const user = userEvent.setup()
-    amenityApi.myReservations.mockResolvedValue({
-      reservations: [
-        {
-          id: 5,
-          amenity: 1,
-          amenity_name: 'باشگاه ورزشی',
-          start_time: '2026-08-09T08:00:00+03:30',
-          end_time: '2026-08-09T09:00:00+03:30',
-          status: 'Active',
-        },
-      ],
+    const createdReservation = {
+      id: 10,
+      amenity: 1,
+      amenity_name: 'باشگاه ورزشی',
+      start_time: '2026-08-09T08:00:00+03:30',
+      end_time: '2026-08-09T09:00:00+03:30',
+      status: 'Active',
+    }
+    amenityApi.createReservation.mockResolvedValue({
+      message: 'رزرو با موفقیت انجام شد.',
+      reservation: createdReservation,
     })
-    amenityApi.cancelReservation.mockResolvedValue({ message: 'رزرو با موفقیت لغو شد.' })
-    vi.spyOn(window, 'confirm').mockImplementation(() => true)
+    const onBookingCreated = vi.fn()
 
-    renderSection()
+    renderSection({ onBookingCreated })
 
-    await user.click(screen.getByRole('button', { name: /رزروهای من/ }))
+    await user.click(await screen.findByRole('button', { name: /08:00.*09:00/ }))
+    await user.click(screen.getByRole('button', { name: /تأیید و ثبت رزرو/ }))
 
-    expect(await screen.findByText('باشگاه ورزشی')).toBeInTheDocument()
-    expect(screen.getByText('فعال')).toBeInTheDocument()
+    await waitFor(() => expect(onBookingCreated).toHaveBeenCalledWith(createdReservation))
+  })
 
-    const cancelBtn = screen.getByRole('button', { name: /لغو رزرو/ })
-    await user.click(cancelBtn)
+  it('re-reads the slots when a cancellation frees one', async () => {
+    const { rerender } = renderSection({ slotsRefreshToken: 0 })
 
-    expect(amenityApi.cancelReservation).toHaveBeenCalledWith(5)
-    expect(await screen.findByText('رزرو با موفقیت لغو شد.')).toBeInTheDocument()
+    await screen.findByRole('button', { name: /08:00.*09:00/ })
+    expect(amenityApi.getSlots).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <ToastProvider>
+        <AmenityBookingSection slotsRefreshToken={1} />
+      </ToastProvider>,
+    )
+
+    await waitFor(() => expect(amenityApi.getSlots).toHaveBeenCalledTimes(2))
   })
 })

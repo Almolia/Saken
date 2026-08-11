@@ -10,9 +10,11 @@ import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestFor
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
 import { AmenityBookingSection } from '../../components/dashboard/AmenityBookingSection'
+import { MyReservationsSection } from '../../components/dashboard/MyReservationsSection'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
 import { useChargeSelection } from '../../hooks/useChargeSelection'
+import { useMyReservations } from '../../hooks/useMyReservations'
 import { useMyUnit } from '../../hooks/useMyUnit'
 import { usePaymentHistory } from '../../hooks/usePaymentHistory'
 import { usePendingCharges } from '../../hooks/usePendingCharges'
@@ -52,6 +54,18 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     refresh: refreshRequests,
     addRequest,
   } = useServiceRequests()
+  const {
+    reservations,
+    loading: reservationsLoading,
+    refreshing: reservationsRefreshing,
+    error: reservationsError,
+    refresh: refreshReservations,
+    markCanceled,
+    addReservation,
+  } = useMyReservations()
+  // Bumped after a cancellation so the booking grid re-reads its slots and the
+  // freed hour shows as available again.
+  const [freedSlotsToken, setFreedSlotsToken] = useState(0)
 
   // The charges are already gone server-side, so they come off the list right
   // away; the unit is re-read in the background to pick up the authoritative
@@ -61,6 +75,13 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     selection.clear()
     refreshUnit()
     refreshHistory()
+  }
+
+  // The booking is already canceled server-side, so it moves to the "canceled"
+  // bucket immediately instead of waiting on a refetch.
+  function handleReservationCanceled(reservationId, canceledReservation) {
+    markCanceled(reservationId, canceledReservation)
+    setFreedSlotsToken((current) => current + 1)
   }
 
   async function handleLogout() {
@@ -136,7 +157,19 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
           onRetry={refreshHistory}
         />
 
-        <AmenityBookingSection />
+        <AmenityBookingSection
+          onBookingCreated={addReservation}
+          slotsRefreshToken={freedSlotsToken}
+        />
+
+        <MyReservationsSection
+          reservations={reservations}
+          loading={reservationsLoading}
+          refreshing={reservationsRefreshing}
+          error={reservationsError}
+          onRetry={refreshReservations}
+          onCanceled={handleReservationCanceled}
+        />
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
           <ServiceRequestForm onRequestCreated={addRequest} />

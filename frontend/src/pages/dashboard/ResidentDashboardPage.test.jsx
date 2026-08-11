@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
+import { amenityApi } from '../../lib/amenityApi'
 import { residentChargeApi } from '../../lib/billingApi'
 import { unitApi } from '../../lib/unitApi'
 import { ResidentDashboardPage } from './ResidentDashboardPage'
@@ -10,6 +11,16 @@ import { ResidentDashboardPage } from './ResidentDashboardPage'
 vi.mock('../../lib/unitApi', () => ({
   unitApi: {
     myUnit: vi.fn(),
+  },
+}))
+
+vi.mock('../../lib/amenityApi', () => ({
+  amenityApi: {
+    list: vi.fn(),
+    getSlots: vi.fn(),
+    createReservation: vi.fn(),
+    myReservations: vi.fn(),
+    cancelReservation: vi.fn(),
   },
 }))
 
@@ -51,6 +62,37 @@ const authState = {
 // money assertions below are always scoped to one of these regions.
 const chargesSection = () => within(screen.getByRole('region', { name: 'شارژهای پرداخت‌نشده' }))
 const debtSection = () => within(screen.getByRole('region', { name: 'خلاصه بدهی' }))
+const reservationsSection = () => within(screen.getByRole('region', { name: 'رزروهای من' }))
+
+const HOUR = 60 * 60 * 1000
+const isoOffset = (hoursFromNow) => new Date(Date.now() + hoursFromNow * HOUR).toISOString()
+
+const upcomingReservation = {
+  id: 21,
+  amenity: 1,
+  amenity_name: 'باشگاه ورزشی',
+  start_time: isoOffset(24),
+  end_time: isoOffset(25),
+  status: 'Active',
+}
+
+const pastReservation = {
+  id: 22,
+  amenity: 2,
+  amenity_name: 'زمین تنیس',
+  start_time: isoOffset(-48),
+  end_time: isoOffset(-47),
+  status: 'Active',
+}
+
+const canceledReservation = {
+  id: 23,
+  amenity: 3,
+  amenity_name: 'سالن اجتماعات',
+  start_time: isoOffset(72),
+  end_time: isoOffset(73),
+  status: 'Canceled',
+}
 
 function renderPage() {
   return render(
@@ -88,6 +130,14 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pay.mockReset()
     residentChargeApi.pending.mockResolvedValue({ charges: [] })
     residentChargeApi.history.mockResolvedValue({ charges: [], total_paid: '0.00' })
+
+    amenityApi.list.mockReset()
+    amenityApi.getSlots.mockReset()
+    amenityApi.myReservations.mockReset()
+    amenityApi.cancelReservation.mockReset()
+    amenityApi.list.mockResolvedValue({ amenities: [] })
+    amenityApi.getSlots.mockResolvedValue({ slots: [] })
+    amenityApi.myReservations.mockResolvedValue({ reservations: [] })
   })
 
   it('renders the resident profile info from auth state', async () => {
@@ -299,5 +349,65 @@ describe('ResidentDashboardPage', () => {
       'برخی از شارژهای انتخاب‌شده قبلاً پرداخت شده‌اند.',
     )
     expect(chargesSection().getByText('شارژ شهریور')).toBeInTheDocument()
+  })
+
+  it('lists only the resident own bookings, split into the three categories', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    amenityApi.myReservations.mockResolvedValue({
+      reservations: [upcomingReservation, pastReservation, canceledReservation],
+    })
+    renderPage()
+
+    expect(await reservationsSection().findByText('باشگاه ورزشی')).toBeInTheDocument()
+    expect(reservationsSection().queryByText('زمین تنیس')).not.toBeInTheDocument()
+
+    await user.click(reservationsSection().getByRole('tab', { name: /گذشته/ }))
+    expect(reservationsSection().getByText('زمین تنیس')).toBeInTheDocument()
+
+    await user.click(reservationsSection().getByRole('tab', { name: /لغوشده/ }))
+    expect(reservationsSection().getByText('سالن اجتماعات')).toBeInTheDocument()
+  })
+
+  it('moves a canceled booking to the canceled tab and frees its slot', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    // The booking grid needs an amenity selected before it reads any slots.
+    amenityApi.list.mockResolvedValue({
+      amenities: [{ id: 1, name: 'باشگاه ورزشی', operating_rules: '', is_active: true }],
+    })
+    amenityApi.myReservations.mockResolvedValue({ reservations: [upcomingReservation] })
+    amenityApi.cancelReservation.mockResolvedValue({
+      message: 'رزرو با موفقیت لغو شد.',
+      reservation: { ...upcomingReservation, status: 'Canceled' },
+    })
+    renderPage()
+
+    await reservationsSection().findByText('باشگاه ورزشی')
+    const slotReadsBeforeCancel = amenityApi.getSlots.mock.calls.length
+
+    await user.click(reservationsSection().getByRole('button', { name: 'لغو رزرو باشگاه ورزشی' }))
+    await user.click(await screen.findByRole('button', { name: 'بله، رزرو لغو شود' }))
+
+    expect(amenityApi.cancelReservation).toHaveBeenCalledWith(21)
+    expect(await screen.findByText('رزرو با موفقیت لغو شد.')).toBeInTheDocument()
+
+    // Gone from "upcoming", now filed under "canceled" without a refetch.
+    await waitFor(() =>
+      expect(reservationsSection().queryByText('باشگاه ورزشی')).not.toBeInTheDocument(),
+    )
+    expect(reservationsSection().getByRole('tab', { name: /پیش‌رو/ })).toHaveTextContent('0')
+
+    await user.click(reservationsSection().getByRole('tab', { name: /لغوشده/ }))
+    expect(reservationsSection().getByText('باشگاه ورزشی')).toBeInTheDocument()
+    expect(reservationsSection().getByText('لغو شده')).toBeInTheDocument()
+    expect(
+      reservationsSection().queryByRole('button', { name: /لغو رزرو/ }),
+    ).not.toBeInTheDocument()
+
+    // The freed hour is re-read so it shows as bookable again.
+    await waitFor(() =>
+      expect(amenityApi.getSlots.mock.calls.length).toBeGreaterThan(slotReadsBeforeCancel),
+    )
   })
 })
