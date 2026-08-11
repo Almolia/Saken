@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from common.constants import UnitMessages
+from common.constants import BuildingMessages, UnitMessages
 from .models import Unit, Building
 
 User = get_user_model()
@@ -29,7 +29,7 @@ class ManagerUnitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Unit
-        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'owner']
+        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'owner', 'occupancy_status']
 
 class UnitAssignSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(
@@ -57,11 +57,21 @@ class ManagerBuildingSerializer(serializers.ModelSerializer):
     def get_total_units(self, obj):
         return obj.units.count()
 
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError(BuildingMessages.NAME_REQUIRED)
+        return value.strip()
+
+    def validate_building_wallet_balance(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError(BuildingMessages.WALLET_BALANCE_NEGATIVE)
+        return value
+
 
 class ManagerUnitUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
-        fields = ['unit_number', 'floor', 'area', 'details', 'owner']
+        fields = ['unit_number', 'floor', 'area', 'details', 'owner', 'occupancy_status']
         extra_kwargs = {
             'owner': {'allow_null': True, 'required': False}
         }

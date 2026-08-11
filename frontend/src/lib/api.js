@@ -151,6 +151,14 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  // Edits a unit's own details. Sending resident_id: null unlinks the resident
+  // — the backend maps that key onto the owner relation.
+  updateUnit(unitId, payload) {
+    return request(`/manager/units/${unitId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
   deleteUnit(unitId) {
     return request(`/manager/units/${unitId}/`, {
       method: 'DELETE',
@@ -165,6 +173,23 @@ export const managerApi = {
   createCharge(payload) {
     return request('/manager/charges/', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  // Building. The app models a single building, so these hit one shared record;
+  // GET answers 404 until it has been registered with createBuilding().
+  building() {
+    return request('/manager/building/')
+  },
+  createBuilding(payload) {
+    return request('/manager/building/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  updateBuilding(payload) {
+    return request('/manager/building/', {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     })
   },

@@ -2,7 +2,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from buildings.models import Building, Unit
+from common.constants import BuildingMessages
+from buildings.models import Building, OccupancyStatus, Unit
 
 
 User = get_user_model()
@@ -188,3 +189,152 @@ class ManagerAdminAPITests(APITestCase):
         self.client.force_authenticate(user=self.staff)
         self.assertEqual(self.client.get(self.building_url).status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.client.patch(self.unit_detail_url, data={}).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_building_detail_exposes_the_fields_the_settings_form_edits(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.building_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["name"], "Old Saken Name")
+        self.assertEqual(response.data["building_wallet_balance"], "5000.00")
+        self.assertEqual(response.data["total_units"], 1)
+
+    def test_manager_can_update_the_wallet_balance(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.patch(
+            self.building_url, data={"building_wallet_balance": "7500.50"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], BuildingMessages.BUILDING_UPDATED)
+        self.building.refresh_from_db()
+        self.assertEqual(str(self.building.building_wallet_balance), "7500.50")
+
+    def test_building_update_rejects_an_empty_name_and_a_negative_balance(self):
+        self.client.force_authenticate(user=self.manager)
+
+        blank_name = self.client.patch(self.building_url, data={"name": "   "}, format="json")
+        self.assertEqual(blank_name.status_code, status.HTTP_400_BAD_REQUEST)
+
+        negative_balance = self.client.patch(
+            self.building_url, data={"building_wallet_balance": "-1.00"}, format="json"
+        )
+        self.assertEqual(negative_balance.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.building.refresh_from_db()
+        self.assertEqual(self.building.name, "Old Saken Name")
+        self.assertEqual(str(self.building.building_wallet_balance), "5000.00")
+
+    def test_manager_can_register_the_building_when_none_exists(self):
+        Unit.objects.all().delete()
+        Building.objects.all().delete()
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(
+            self.building_url,
+            data={"name": "Saken Tower", "building_wallet_balance": "1000.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["building"]["name"], "Saken Tower")
+        self.assertEqual(Building.objects.count(), 1)
+
+    def test_registering_a_second_building_is_refused(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.post(self.building_url, data={"name": "Second Tower"}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Building.objects.count(), 1)
+
+    def test_building_endpoints_report_a_missing_building(self):
+        Unit.objects.all().delete()
+        Building.objects.all().delete()
+
+        self.client.force_authenticate(user=self.manager)
+        self.assertEqual(self.client.get(self.building_url).status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            self.client.patch(self.building_url, data={"name": "X"}, format="json").status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+
+    def test_unit_list_reports_occupancy_status_and_resident(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(reverse("manager-units"))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        unit = response.data["units"][0]
+        self.assertEqual(unit["unit_number"], "101")
+        self.assertEqual(unit["occupancy_status"], OccupancyStatus.VACANT)
+        self.assertEqual(unit["owner"]["full_name"], "The Resident")
+
+    def test_manager_can_change_the_occupancy_status(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.patch(
+            self.unit_detail_url,
+            data={"occupancy_status": OccupancyStatus.UNDER_RENOVATION},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["unit"]["occupancy_status"], OccupancyStatus.UNDER_RENOVATION)
+        self.unit.refresh_from_db()
+        self.assertEqual(self.unit.occupancy_status, OccupancyStatus.UNDER_RENOVATION)
+
+    def test_unknown_occupancy_status_is_rejected(self):
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.patch(
+            self.unit_detail_url, data={"occupancy_status": "Sold"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.unit.refresh_from_db()
+        self.assertEqual(self.unit.occupancy_status, OccupancyStatus.VACANT)
+
+    def test_unlinking_a_resident_keeps_the_rest_of_the_unit_intact(self):
+        self.unit.occupancy_status = OccupancyStatus.OCCUPIED
+        self.unit.save(update_fields=["occupancy_status"])
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.patch(self.unit_detail_url, data={"resident_id": None}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["unit"]["owner"])
+        self.unit.refresh_from_db()
+        self.assertIsNone(self.unit.owner)
+        self.assertEqual(self.unit.unit_number, "101")
+        # The status is manager-controlled, so unlinking does not silently move it.
+        self.assertEqual(self.unit.occupancy_status, OccupancyStatus.OCCUPIED)
+
+    def test_residents_and_staff_cannot_change_occupancy_status(self):
+        payload = {"occupancy_status": OccupancyStatus.OCCUPIED}
+
+        for user in (self.resident, self.staff):
+            self.client.force_authenticate(user=user)
+            response = self.client.patch(self.unit_detail_url, data=payload, format="json")
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=None)
+        anonymous = self.client.patch(self.unit_detail_url, data=payload, format="json")
+        self.assertEqual(anonymous.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        self.unit.refresh_from_db()
+        self.assertEqual(self.unit.occupancy_status, OccupancyStatus.VACANT)
+
+    def test_admin_can_manage_building_and_units(self):
+        admin = User.objects.create_user(
+            phone='77766655544', full_name='The Admin', national_id='7776665554', role='admin', password='pw'
+        )
+        self.client.force_authenticate(user=admin)
+
+        building_response = self.client.patch(
+            self.building_url, data={"name": "Admin Renamed"}, format="json"
+        )
+        unit_response = self.client.patch(
+            self.unit_detail_url,
+            data={"occupancy_status": OccupancyStatus.OCCUPIED},
+            format="json",
+        )
+
+        self.assertEqual(building_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(unit_response.status_code, status.HTTP_200_OK)
