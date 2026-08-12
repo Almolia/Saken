@@ -195,12 +195,10 @@ class ManagerFinancialSummaryView(APIView):
     permission_classes = [IsManagerOrAdmin]
 
     def get(self, request):
-        # Total collected revenue (sum of all PAID charges)
         total_revenue = UnitCharge.objects.filter(
             status=UnitChargeStatus.PAID
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
-        # Total outstanding debt (sum of all PENDING charges)
         total_debt = UnitCharge.objects.filter(
             status=UnitChargeStatus.PENDING
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
