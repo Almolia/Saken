@@ -200,3 +200,26 @@ class ResidentPaymentSerializer(serializers.Serializer):
         child=serializers.IntegerField(),
         allow_empty=False,
     )
+
+
+class UnitChargeSearchSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(source='master_charge.title', read_only=True)
+    description = serializers.CharField(source='master_charge.description', read_only=True)
+    due_date = serializers.DateField(source='master_charge.due_date', read_only=True)
+    unit_number = serializers.CharField(source='unit.unit_number', read_only=True)
+    floor = serializers.IntegerField(source='unit.floor', read_only=True)
+
+    class Meta:
+        model = UnitCharge
+        fields = [
+            'id',
+            'title',
+            'description',
+            'unit_number',
+            'floor',
+            'amount',
+            'due_date',
+            'status',
+            'created_at',
+        ]
+        read_only_fields = fields

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from common.constants import ChargeMessages, PaymentMessages
 from django.db.models import F, Sum
-from rest_framework import status
+from rest_framework import status, generics, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsManagerOrAdmin, IsResident
@@ -14,6 +14,7 @@ from .serializers import (
     ResidentChargeSerializer,
     ResidentPendingChargeSerializer,
     ResidentPaymentSerializer,
+    UnitChargeSearchSerializer,
 )
 from .services import (
     CENT,
@@ -186,3 +187,39 @@ class ManagerPeriodicChargeDetailView(APIView):
             return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'message': ChargeMessages.CHARGE_DELETED})
+
+
+class ManagerFinancialSummaryView(APIView):
+    """
+    GET: Returns the total collected revenue and total outstanding debt for the building.
+    """
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request):
+        total_revenue = UnitCharge.objects.filter(
+            status=UnitChargeStatus.PAID
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        total_debt = UnitCharge.objects.filter(
+            status=UnitChargeStatus.PENDING
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        return Response({
+            'total_collected_revenue': str(total_revenue.quantize(Decimal('0.01'))),
+            'total_outstanding_debt': str(total_debt.quantize(Decimal('0.01'))),
+        })
+
+class ManagerChargeSearchListView(generics.ListAPIView):
+    """
+    GET: Retrieves a master list of all UnitCharge records with search functionality.
+    Searchable fields: unit__unit_number, status, master_charge__title.
+    """
+    permission_classes = [IsManagerOrAdmin]
+    serializer_class = UnitChargeSearchSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = [
+        'unit__unit_number',
+        'status',
+        'master_charge__title',
+    ]
+    queryset = UnitCharge.objects.select_related('unit', 'master_charge').all().order_by('-created_at')

@@ -1174,3 +1174,181 @@ class ManagerChargeDeleteTests(BaseChargeTestCase):
         response = self.client.delete(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class FinancialSummaryAPITests(BaseChargeTestCase):
+    """Tests for the /api/manager/reports/financial/summary/ endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('manager-financial-summary')
+
+        Unit.objects.update(debt=Decimal('0.00'))
+
+        self.master_charge_1 = MasterCharge.objects.create(
+            title="شارژ شهریور",
+            amount_per_unit=Decimal("300000.00"),
+            due_date="2026-09-20",
+            created_by=self.manager,
+        )
+        self.master_charge_2 = MasterCharge.objects.create(
+            title="شارژ تعمیر آسانسور",
+            amount_per_unit=Decimal("200000.00"),
+            due_date="2026-09-25",
+            created_by=self.manager,
+        )
+
+        self.paid_1 = UnitCharge.objects.create(
+            master_charge=self.master_charge_1,
+            unit=self.unit1,
+            amount=Decimal("300000.00"),
+            status=UnitChargeStatus.PAID,
+        )
+        self.paid_2 = UnitCharge.objects.create(
+            master_charge=self.master_charge_2,
+            unit=self.unit1,
+            amount=Decimal("200000.00"),
+            status=UnitChargeStatus.PAID,
+        )
+
+        self.pending_1 = UnitCharge.objects.create(
+            master_charge=self.master_charge_1,
+            unit=self.unit2,
+            amount=Decimal("300000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+        self.pending_2 = UnitCharge.objects.create(
+            master_charge=self.master_charge_2,
+            unit=self.unit2,
+            amount=Decimal("200000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+    def test_manager_can_access_financial_summary(self):
+        """Ensure a manager can access the summary and gets correct totals."""
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['total_collected_revenue'], '500000.00')
+        self.assertEqual(response.data['total_outstanding_debt'], '500000.00')
+
+    def test_unauthorized_roles_cannot_access_summary(self):
+        """Non-manager roles get 403 Forbidden."""
+        for user in [self.resident, self.service_staff]:
+            self.client.force_authenticate(user=user)
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ChargeSearchAPITests(BaseChargeTestCase):
+    """Tests for the /api/manager/charges/search/ endpoint."""
+
+    def setUp(self):
+        super().setUp()
+        self.url = reverse('manager-charge-search')
+
+        Unit.objects.update(debt=Decimal('0.00'))
+
+        self.charge_oct = MasterCharge.objects.create(
+            title="شارژ مهرماه",
+            amount_per_unit=Decimal("100000.00"),
+            due_date="2026-10-20",
+            created_by=self.manager,
+        )
+        self.charge_sep = MasterCharge.objects.create(
+            title="شارژ شهریور",
+            amount_per_unit=Decimal("150000.00"),
+            due_date="2026-09-20",
+            created_by=self.manager,
+        )
+
+        self.unit_101 = Unit.objects.create(
+            owner=self.resident,
+            building=self.building,
+            unit_number="101",
+            floor=1,
+            area=80.00,
+        )
+        self.unit_102 = Unit.objects.create(
+            owner=self.other_resident,
+            building=self.building,
+            unit_number="102",
+            floor=1,
+            area=90.00,
+        )
+
+        self.charge_1 = UnitCharge.objects.create(
+            master_charge=self.charge_oct,
+            unit=self.unit_101,
+            amount=Decimal("100000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+        self.charge_2 = UnitCharge.objects.create(
+            master_charge=self.charge_sep,
+            unit=self.unit_102,
+            amount=Decimal("150000.00"),
+            status=UnitChargeStatus.PAID,
+        )
+        self.charge_3 = UnitCharge.objects.create(
+            master_charge=self.charge_oct,
+            unit=self.unit_102,
+            amount=Decimal("100000.00"),
+            status=UnitChargeStatus.PENDING,
+        )
+
+    def test_manager_can_search_by_charge_title(self):
+        """Searching by charge title returns matching records."""
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url, {'search': 'مهر'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+        titles = {item['title'] for item in response.data}
+        self.assertEqual(titles, {'شارژ مهرماه'})
+
+    def test_manager_can_search_by_unit_number(self):
+        """Searching by unit number returns charges for that unit."""
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url, {'search': '101'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['unit_number'], '101')
+
+    def test_manager_can_search_by_status(self):
+        """Searching by charge status returns matching records."""
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url, {'search': 'Paid'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['status'], 'Paid')
+
+    def test_manager_can_search_with_no_results(self):
+        """Searching for a non-existent term returns an empty list."""
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url, {'search': 'nonexistent'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_manager_can_get_all_charges_without_search_param(self):
+        """Omitting the search parameter returns all charges."""
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 3)
+
+    def test_unauthorized_roles_cannot_access_search(self):
+        """Non-manager roles get 403 Forbidden."""
+        for user in [self.resident, self.service_staff]:
+            self.client.force_authenticate(user=user)
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
