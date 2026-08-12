@@ -3,6 +3,7 @@ from .views import (
     ManagerServiceRequestAssignView,
     ManagerServiceRequestListView,
     ManagerServiceRequestSettleView,
+    ManagerServiceRequestSummaryView,
     ServiceRequestListCreateView,
     StaffServiceRequestListView,
     StaffServiceRequestUpdateView,
@@ -10,9 +11,12 @@ from .views import (
 
 urlpatterns = [
     path('requests/', ServiceRequestListCreateView.as_view(), name='service-request-list'),
+
+    path('manager/requests/summary/', ManagerServiceRequestSummaryView.as_view(), name='manager-service-request-summary'),
     path('manager/requests/', ManagerServiceRequestListView.as_view(), name='manager-service-request-list'),
     path('manager/requests/<int:pk>/assign/', ManagerServiceRequestAssignView.as_view(), name='manager-service-request-assign'),
     path('manager/requests/<int:pk>/settle/', ManagerServiceRequestSettleView.as_view(), name='manager-service-request-settle'),
+
     path('staff/requests/', StaffServiceRequestListView.as_view(), name='staff-request-list'),
     path('staff/requests/<int:pk>/', StaffServiceRequestUpdateView.as_view(), name='staff-request-detail'),
 ]
