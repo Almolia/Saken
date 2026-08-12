@@ -6,6 +6,7 @@ from .views import (
     ResidentPaymentView,
     ResidentPendingChargesView,
     ManagerFinancialSummaryView,
+    ManagerChargeSearchListView,
 )
 
 urlpatterns = [
@@ -17,4 +18,5 @@ urlpatterns = [
     path('resident/charges/history/', ResidentPaymentHistoryView.as_view(), name='resident-payment-history'),
     path('resident/charges/pay/', ResidentPaymentView.as_view(), name='resident-pay-charges'),
     path('manager/reports/financial/summary/', ManagerFinancialSummaryView.as_view(), name='manager-financial-summary'),
+    path('manager/charges/search/', ManagerChargeSearchListView.as_view(), name='manager-charge-search'),
 ]

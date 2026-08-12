@@ -209,17 +209,17 @@ class ManagerFinancialSummaryView(APIView):
             'total_outstanding_debt': str(total_debt),
         })
 
-    class ManagerChargeSearchListView(generics.ListAPIView):
-        """
-        GET: Retrieves a master list of all UnitCharge records with search functionality.
-        Searchable fields: unit__unit_number, status, master_charge__title.
-        """
-        permission_classes = [IsManagerOrAdmin]
-        serializer_class = UnitChargeSearchSerializer
-        filter_backends = [filters.SearchFilter]
-        search_fields = [
-            'unit__unit_number',
-            'status',
-            'master_charge__title',
-        ]
-        queryset = UnitCharge.objects.select_related('unit', 'master_charge').all().order_by('-created_at')
+class ManagerChargeSearchListView(generics.ListAPIView):
+    """
+    GET: Retrieves a master list of all UnitCharge records with search functionality.
+    Searchable fields: unit__unit_number, status, master_charge__title.
+    """
+    permission_classes = [IsManagerOrAdmin]
+    serializer_class = UnitChargeSearchSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = [
+        'unit__unit_number',
+        'status',
+        'master_charge__title',
+    ]
+    queryset = UnitCharge.objects.select_related('unit', 'master_charge').all().order_by('-created_at')
