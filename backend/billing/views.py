@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from common.constants import ChargeMessages, PaymentMessages
-from django.db.models import F, Sum
+from django.db.models import F, Sum, Q
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -186,3 +186,26 @@ class ManagerPeriodicChargeDetailView(APIView):
             return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'message': ChargeMessages.CHARGE_DELETED})
+
+
+class ManagerFinancialSummaryView(APIView):
+    """
+    GET: Returns the total collected revenue and total outstanding debt for the building.
+    """
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request):
+        # Total collected revenue (sum of all PAID charges)
+        total_revenue = UnitCharge.objects.filter(
+            status=UnitChargeStatus.PAID
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        # Total outstanding debt (sum of all PENDING charges)
+        total_debt = UnitCharge.objects.filter(
+            status=UnitChargeStatus.PENDING
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+        return Response({
+            'total_collected_revenue': str(total_revenue),
+            'total_outstanding_debt': str(total_debt),
+        })
