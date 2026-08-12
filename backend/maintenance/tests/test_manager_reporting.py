@@ -38,7 +38,7 @@ class ManagerReportingAndSearchTests(APITestCase):
         self.list_url = reverse('manager-service-request-list')
 
     def test_summary_api_returns_exact_math(self):
-        """Task 141: Assert that the Summary API returns the exact mathematical count for each status."""
+        """Assert that the Summary API returns the exact mathematical count for each status."""
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.summary_url)
 
@@ -49,7 +49,7 @@ class ManagerReportingAndSearchTests(APITestCase):
         self.assertEqual(response.data['Completed'], 1)
 
     def test_search_single_term(self):
-        """Task 141: Single term search asserting it correctly returns only matching tasks."""
+        """Single term search asserting it correctly returns only matching tasks."""
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.list_url, {'search': 'Pending'})
 
@@ -59,7 +59,7 @@ class ManagerReportingAndSearchTests(APITestCase):
         self.assertEqual(requests[0]['status'], 'Pending')
 
     def test_advanced_search_multi_term(self):
-        """Task 141: Multi-term query filtering across relationships."""
+        """Multi-term query filtering across relationships."""
         self.client.force_authenticate(user=self.manager)
         response = self.client.get(self.list_url, {'search': 'Completed Smith'})
 
