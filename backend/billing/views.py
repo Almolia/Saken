@@ -205,8 +205,8 @@ class ManagerFinancialSummaryView(APIView):
         ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
         return Response({
-            'total_collected_revenue': str(total_revenue),
-            'total_outstanding_debt': str(total_debt),
+            'total_collected_revenue': str(total_revenue.quantize(Decimal('0.01'))),
+            'total_outstanding_debt': str(total_debt.quantize(Decimal('0.01'))),
         })
 
 class ManagerChargeSearchListView(generics.ListAPIView):
