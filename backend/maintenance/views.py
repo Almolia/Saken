@@ -44,13 +44,19 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     serializer_class = ManagerServiceRequestSerializer
     filter_backends = [filters.SearchFilter]
     pagination_class = None
+    # This endpoint powers both the operational manager view and the global
+    # search in Service Reports. Include every textual value rendered by the
+    # report table, including the secondary phone values and creation date.
     search_fields = [
         'status',
         'title',
         'description',
         'resident__full_name',
+        'resident__phone',
         'resident__units__unit_number',
         'assigned_staff__full_name',
+        'assigned_staff__phone',
+        'created_at',
     ]
 
     def get_queryset(self):

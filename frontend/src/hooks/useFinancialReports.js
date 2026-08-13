@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { managerChargeApi } from '../lib/billingApi'
 
+const PERSIAN_DIGITS = '۰۱۲۳۴۵۶۷۸۹'
+const ARABIC_DIGITS = '٠١٢٣٤٥٦٧٨٩'
+
+const STATUS_ALIASES = {
+  paid: ['paid', 'پرداخت', 'پرداخت‌شده', 'پرداخت شده', 'تسویه', 'تسویه‌شده'],
+  pending: ['pending', 'بدهی', 'پرداخت‌نشده', 'پرداخت نشده', 'معوق', 'مانده'],
+}
+
 function normalizeRecords(data) {
   if (Array.isArray(data?.results)) return data.results
   if (Array.isArray(data?.charges)) return data.charges
@@ -8,36 +16,49 @@ function normalizeRecords(data) {
   return []
 }
 
-const STATUS_ALIASES = {
-  paid: ['paid', 'پرداخت', 'پرداخت‌شده', 'پرداخت شده', 'تسویه'],
-  pending: ['pending', 'بدهی', 'پرداخت‌نشده', 'پرداخت نشده', 'معوق', 'مانده'],
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[۰-۹]/g, (digit) => String(PERSIAN_DIGITS.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String(ARABIC_DIGITS.indexOf(digit)))
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/\u200c/g, ' ')
+    .toLocaleLowerCase('fa-IR')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function recordMatches(record, query) {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
+  const normalizedQuery = normalizeSearchText(query)
+  if (!normalizedQuery) return true
 
-  const status = String(record.status || '').toLowerCase()
-  const statusHaystack = [
-    status,
-    ...(STATUS_ALIASES[status] || []),
-  ].join(' ')
+  const normalizedStatus = String(record.status || '').toLowerCase()
+  const statusTerms = [
+    normalizedStatus,
+    ...(STATUS_ALIASES[normalizedStatus] || []),
+  ]
 
-  const haystack = [
-    record.unit_number,
+  const searchableText = normalizeSearchText([
+    record.unit_number ? `واحد ${record.unit_number}` : '',
     record.title,
     record.description,
     record.amount,
     record.due_date,
     record.created_at,
     record.floor,
-    statusHaystack,
+    ...statusTerms,
   ]
     .filter((value) => value != null && value !== '')
-    .join(' ')
-    .toLowerCase()
+    .join(' '))
 
-  return haystack.includes(q)
+  // A multi-word query should work even when its words match different table
+  // columns (for example "۱۰۱ پرداخت شده"). Matching the complete phrase first
+  // also preserves natural searches containing spaces.
+  return (
+    searchableText.includes(normalizedQuery)
+    || normalizedQuery.split(' ').every((term) => searchableText.includes(term))
+  )
 }
 
 export function useFinancialReports() {
@@ -66,12 +87,15 @@ export function useFinancialReports() {
       error: '',
     }))
 
-    Promise.all([managerChargeApi.financialSummary(), managerChargeApi.search()])
+    Promise.all([
+      managerChargeApi.financialSummary(),
+      managerChargeApi.search(),
+    ])
       .then(([summary, records]) => {
         if (!active) return
+
         hasLoaded.current = true
-        setState((current) => ({
-          ...current,
+        setState({
           summary: {
             total_collected_revenue: summary?.total_collected_revenue ?? '0.00',
             total_outstanding_debt: summary?.total_outstanding_debt ?? '0.00',
@@ -80,10 +104,11 @@ export function useFinancialReports() {
           loading: false,
           refreshing: false,
           error: '',
-        }))
+        })
       })
       .catch((error) => {
         if (!active) return
+
         setState((current) => ({
           ...current,
           loading: false,
@@ -93,6 +118,7 @@ export function useFinancialReports() {
       })
 
     return () => {
+      // Ignore a response from an obsolete refresh or an unmounted report.
       active = false
     }
   }, [reloadKey])
@@ -106,10 +132,15 @@ export function useFinancialReports() {
     setReloadKey((current) => current + 1)
   }, [])
 
+  const clearSearch = useCallback(() => {
+    setSearch('')
+  }, [])
+
   return {
     ...state,
     search,
     setSearch,
+    clearSearch,
     filteredRecords,
     refresh,
   }

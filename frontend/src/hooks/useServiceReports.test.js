@@ -7,7 +7,6 @@ vi.mock('../lib/serviceRequestApi', () => ({
   managerServiceRequestApi: {
     summary: vi.fn(),
     listAll: vi.fn(),
-    search: vi.fn(),
   },
 }))
 
@@ -44,9 +43,20 @@ const sampleRequests = [
   },
 ]
 
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 describe('useServiceReports', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.clearAllMocks()
     managerServiceRequestApi.summary.mockResolvedValue({
       Pending: 1,
       Assigned: 1,
@@ -59,15 +69,14 @@ describe('useServiceReports', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.clearAllMocks()
   })
 
-  it('loads the summary metrics and requests list on mount', async () => {
+  it('loads live summary metrics and the complete requests list on mount', async () => {
     const { result } = renderHook(() => useServiceReports())
 
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    expect(managerServiceRequestApi.summary).toHaveBeenCalled()
+    expect(managerServiceRequestApi.summary).toHaveBeenCalledTimes(1)
     expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('')
     expect(result.current.summary.Pending).toBe(1)
     expect(result.current.summary.Assigned).toBe(1)
@@ -75,7 +84,7 @@ describe('useServiceReports', () => {
     expect(result.current.requests).toHaveLength(3)
   })
 
-  it('debounces search by 300ms before making the API request with the search term', async () => {
+  it('debounces search by 300ms and does not refetch unfiltered summary counts', async () => {
     const { result } = renderHook(() => useServiceReports())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
@@ -87,28 +96,62 @@ describe('useServiceReports', () => {
       result.current.setSearch('101')
     })
 
-    // Before 300ms passes, listAll shouldn't be called with '101' yet
+    expect(result.current.isDebouncing).toBe(true)
     expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith('101')
 
-    // Advance time by 300ms
     act(() => {
-      vi.advanceTimersByTime(300)
+      vi.advanceTimersByTime(299)
+    })
+    expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith('101')
+
+    act(() => {
+      vi.advanceTimersByTime(1)
     })
 
     await waitFor(() => {
       expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('101')
+      expect(result.current.requests).toEqual([sampleRequests[0]])
     })
-
-    await waitFor(() => {
-      expect(result.current.requests).toHaveLength(1)
-      expect(result.current.requests[0].unit_number).toBe('101')
-    })
+    expect(managerServiceRequestApi.summary).toHaveBeenCalledTimes(1)
   })
 
-  it('refreshes summary and requests on refresh call', async () => {
+  it('keeps the newest result when an older search response arrives late', async () => {
     const { result } = renderHook(() => useServiceReports())
     await waitFor(() => expect(result.current.loading).toBe(false))
 
+    const firstSearch = deferred()
+    const secondSearch = deferred()
+    managerServiceRequestApi.listAll.mockImplementation((query) => {
+      if (query === 'اول') return firstSearch.promise
+      if (query === 'دوم') return secondSearch.promise
+      return Promise.resolve({ requests: sampleRequests })
+    })
+
+    act(() => result.current.setSearch('اول'))
+    act(() => vi.advanceTimersByTime(300))
+    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('اول'))
+
+    act(() => result.current.setSearch('دوم'))
+    act(() => vi.advanceTimersByTime(300))
+    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('دوم'))
+
+    await act(async () => {
+      secondSearch.resolve({ requests: [sampleRequests[1]] })
+    })
+    await waitFor(() => expect(result.current.requests[0].id).toBe(2))
+
+    await act(async () => {
+      firstSearch.resolve({ requests: [sampleRequests[0]] })
+    })
+    expect(result.current.requests[0].id).toBe(2)
+  })
+
+  it('refreshes both summary and requests without clearing existing rows', async () => {
+    const { result } = renderHook(() => useServiceReports())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    const refreshList = deferred()
+    managerServiceRequestApi.listAll.mockReturnValueOnce(refreshList.promise)
     managerServiceRequestApi.summary.mockResolvedValue({
       Pending: 2,
       Assigned: 1,
@@ -119,16 +162,36 @@ describe('useServiceReports', () => {
       result.current.refresh()
     })
 
-    await waitFor(() => {
-      expect(result.current.summary.Pending).toBe(2)
+    expect(result.current.refreshing).toBe(true)
+    expect(result.current.requests).toHaveLength(3)
+
+    await act(async () => {
+      refreshList.resolve({ requests: sampleRequests })
     })
+    await waitFor(() => expect(result.current.summary.Pending).toBe(2))
+    expect(managerServiceRequestApi.summary).toHaveBeenCalledTimes(2)
   })
 
-  it('handles API errors gracefully', async () => {
-    managerServiceRequestApi.summary.mockRejectedValue(new Error('خطای سرور'))
+  it('reports a summary failure without discarding a successful table response', async () => {
+    managerServiceRequestApi.summary.mockRejectedValue(new Error('خطای آمار'))
     const { result } = renderHook(() => useServiceReports())
 
     await waitFor(() => expect(result.current.loading).toBe(false))
-    expect(result.current.error).toBe('خطای سرور')
+
+    expect(result.current.summaryError).toBe('خطای آمار')
+    expect(result.current.error).toBe('')
+    expect(result.current.requests).toHaveLength(3)
+  })
+
+  it('reports a list failure and keeps previously loaded rows visible', async () => {
+    const { result } = renderHook(() => useServiceReports())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    managerServiceRequestApi.listAll.mockRejectedValue(new Error('خطای جستجو'))
+    act(() => result.current.setSearch('ناموجود'))
+    act(() => vi.advanceTimersByTime(300))
+
+    await waitFor(() => expect(result.current.error).toBe('خطای جستجو'))
+    expect(result.current.requests).toHaveLength(3)
   })
 })

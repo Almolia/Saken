@@ -1233,6 +1233,18 @@ class FinancialSummaryAPITests(BaseChargeTestCase):
         self.assertEqual(response.data['total_collected_revenue'], '500000.00')
         self.assertEqual(response.data['total_outstanding_debt'], '500000.00')
 
+    def test_empty_ledger_returns_decimal_zero_totals(self):
+        UnitCharge.objects.all().delete()
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {
+            'total_collected_revenue': '0.00',
+            'total_outstanding_debt': '0.00',
+        })
+
     def test_unauthorized_roles_cannot_access_summary(self):
         """Non-manager roles get 403 Forbidden."""
         for user in [self.resident, self.service_staff]:
@@ -1327,6 +1339,32 @@ class ChargeSearchAPITests(BaseChargeTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['status'], 'Paid')
+
+    def test_manager_can_search_visible_amount_and_due_date_columns(self):
+        """The global search covers values rendered in the report table."""
+        self.client.force_authenticate(user=self.manager)
+
+        amount_response = self.client.get(self.url, {'search': '150000'})
+        date_response = self.client.get(self.url, {'search': '2026-10-20'})
+
+        self.assertEqual(amount_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(amount_response.data), 1)
+        self.assertEqual(amount_response.data[0]['amount'], '150000.00')
+        self.assertEqual(date_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(date_response.data), 2)
+        self.assertTrue(all(item['due_date'] == '2026-10-20' for item in date_response.data))
+
+    def test_manager_can_search_description_and_multiple_columns(self):
+        """Whitespace-separated terms may match different ledger columns."""
+        self.client.force_authenticate(user=self.manager)
+
+        self.charge_oct.description = 'هزینه نظافت مشاعات'
+        self.charge_oct.save(update_fields=['description'])
+        response = self.client.get(self.url, {'search': 'نظافت 102 Pending'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['id'], self.charge_3.id)
 
     def test_manager_can_search_with_no_results(self):
         """Searching for a non-existent term returns an empty list."""

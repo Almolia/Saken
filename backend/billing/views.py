@@ -210,17 +210,30 @@ class ManagerFinancialSummaryView(APIView):
         })
 
 class ManagerChargeSearchListView(generics.ListAPIView):
+    """Return the complete per-unit financial ledger for manager reports.
+
+    DRF's SearchFilter treats whitespace-separated words as an AND query while
+    allowing each word to match any searchable column.  Keep every value shown
+    by the report table searchable so the single frontend field behaves like a
+    true global search rather than only a title filter.
     """
-    GET: Retrieves a master list of all UnitCharge records with search functionality.
-    Searchable fields: unit__unit_number, status, master_charge__title.
-    """
+
     permission_classes = [IsManagerOrAdmin]
     serializer_class = UnitChargeSearchSerializer
     filter_backends = [filters.SearchFilter]
     pagination_class = None
     search_fields = [
         'unit__unit_number',
+        'unit__floor',
         'status',
+        'amount',
         'master_charge__title',
+        'master_charge__description',
+        'master_charge__due_date',
+        'created_at',
     ]
-    queryset = UnitCharge.objects.select_related('unit', 'master_charge').all().order_by('-created_at')
+    queryset = (
+        UnitCharge.objects.select_related('unit', 'master_charge')
+        .all()
+        .order_by('-created_at', '-id')
+    )

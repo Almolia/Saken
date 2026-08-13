@@ -1,4 +1,4 @@
-import { Check, CheckSquare, Coins, LoaderCircle, Square, X } from 'lucide-react'
+import { Coins, LoaderCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useToast } from '../ToastProvider'
 import { Modal } from '../ui/Modal'
@@ -7,11 +7,20 @@ import { managerChargeApi } from '../../lib/billingApi'
 import { managerApi } from '../../lib/api'
 import { validateCharge } from '../../lib/validators'
 
-export function IssueChargeModal({
-  open,
+const EMPTY_UNITS = []
+
+export function IssueChargeModal({ open, ...props }) {
+  // Mount a fresh form each time the modal opens. Besides resetting the form
+  // naturally, this avoids synchronously mirroring the `open` prop into many
+  // separate state values inside an effect.
+  if (!open) return null
+  return <IssueChargeModalContent {...props} />
+}
+
+function IssueChargeModalContent({
   onClose,
   onChargeIssued,
-  units: initialUnits = [],
+  units: initialUnits = EMPTY_UNITS,
 }) {
   const { showToast } = useToast()
   const [title, setTitle] = useState('')
@@ -21,50 +30,37 @@ export function IssueChargeModal({
   const [applyToAll, setApplyToAll] = useState(true)
   const [selectedUnitIds, setSelectedUnitIds] = useState([])
   const [units, setUnits] = useState(initialUnits)
-  const [unitsLoading, setUnitsLoading] = useState(false)
+  const [unitsLoading, setUnitsLoading] = useState(initialUnits.length === 0)
 
   const [loading, setLoading] = useState(false)
   const [fieldErrors, setFieldErrors] = useState({})
   const [serverError, setServerError] = useState('')
 
-  // Fetch or sync units when opening the modal
+  // When units were not supplied by the parent, load them once for this modal
+  // instance. Async callbacks are guarded so closing the modal cannot update an
+  // unmounted form.
   useEffect(() => {
-    if (!open) return
+    if (initialUnits.length > 0) return undefined
 
-    setFieldErrors({})
-    setServerError('')
-    setTitle('')
-    setDescription('')
-    setAmount('')
-    setDueDate('')
-    setApplyToAll(true)
-    setSelectedUnitIds([])
+    let active = true
+    managerApi
+      .units()
+      .then((res) => {
+        if (!active) return
+        const fetched = Array.isArray(res?.units) ? res.units : []
+        setUnits(fetched)
+      })
+      .catch(() => {
+        // The empty-state message remains usable if loading units fails.
+      })
+      .finally(() => {
+        if (active) setUnitsLoading(false)
+      })
 
-    if (initialUnits && initialUnits.length > 0) {
-      setUnits(initialUnits)
-    } else {
-      setUnitsLoading(true)
-      let active = true
-      managerApi
-        .units()
-        .then((res) => {
-          if (!active) return
-          const fetched = Array.isArray(res?.units) ? res.units : []
-          setUnits(fetched)
-        })
-        .catch(() => {
-          // Fallback gracefully
-        })
-        .finally(() => {
-          if (active) setUnitsLoading(false)
-        })
-      return () => {
-        active = false
-      }
+    return () => {
+      active = false
     }
-  }, [open, initialUnits])
-
-  if (!open) return null
+  }, [initialUnits])
 
   function toggleUnit(unitId) {
     setSelectedUnitIds((current) => {
@@ -141,7 +137,7 @@ export function IssueChargeModal({
 
   return (
     <Modal
-      open={open}
+      open
       title="صدور شارژ جدید"
       description="مشخصات شارژ دوره‌ای را وارد کرده و واحدهای مشمول را مشخص کنید."
       onClose={loading ? () => {} : onClose}

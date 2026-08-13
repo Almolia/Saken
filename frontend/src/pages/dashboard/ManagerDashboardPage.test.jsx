@@ -45,6 +45,46 @@ vi.mock('../../hooks/useServiceStaff', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useFinancialReports', () => ({
+  useFinancialReports: () => ({
+    summary: {
+      total_collected_revenue: '500000.00',
+      total_outstanding_debt: '250000.00',
+    },
+    records: [
+      {
+        id: 10,
+        unit_number: '101',
+        title: 'شارژ ماهیانه',
+        description: 'هزینه مشاعات',
+        status: 'Paid',
+        amount: '500000.00',
+        due_date: '2026-08-20',
+        created_at: '2026-08-01',
+      },
+    ],
+    filteredRecords: [
+      {
+        id: 10,
+        unit_number: '101',
+        title: 'شارژ ماهیانه',
+        description: 'هزینه مشاعات',
+        status: 'Paid',
+        amount: '500000.00',
+        due_date: '2026-08-20',
+        created_at: '2026-08-01',
+      },
+    ],
+    search: '',
+    setSearch: vi.fn(),
+    clearSearch: vi.fn(),
+    loading: false,
+    refreshing: false,
+    error: '',
+    refresh: vi.fn(),
+  }),
+}))
+
 vi.mock('../../hooks/useServiceReports', () => ({
   useServiceReports: () => ({
     summary: { Pending: 2, Assigned: 1, Completed: 3 },
@@ -118,6 +158,20 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getByText('آمار و گزارش درخواست‌های خدمات')).toBeInTheDocument()
     expect(screen.getByText('فهرست گزارش درخواست‌ها')).toBeInTheDocument()
     expect(screen.getByText('تعمیر آسانسور')).toBeInTheDocument()
+  })
+
+  it('switches to the Financial Reports section and renders live ledger data', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    const financialReportsButton = screen.getAllByText('گزارش مالی')[0]
+    await user.click(financialReportsButton)
+
+    expect(screen.getByRole('heading', { name: 'گزارش مالی', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('نمای کلی درآمد و بدهی‌ها')).toBeInTheDocument()
+    expect(screen.getByText('سوابق مالی واحدها')).toBeInTheDocument()
+    expect(screen.getByText('شارژ ماهیانه')).toBeInTheDocument()
+    expect(screen.getAllByText('500,000 تومان').length).toBeGreaterThan(0)
   })
 
   it('handles manager logout', async () => {

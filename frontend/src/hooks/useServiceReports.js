@@ -12,18 +12,21 @@ function normalizeSummary(data) {
   const pending = Number(data?.Pending ?? data?.pending ?? 0)
   const assigned = Number(data?.Assigned ?? data?.assigned ?? 0)
   const completed = Number(data?.Completed ?? data?.completed ?? 0)
+
   return {
-    Pending: pending,
-    Assigned: assigned,
-    Completed: completed,
-    pending,
-    assigned,
-    completed,
+    Pending: Number.isFinite(pending) ? pending : 0,
+    Assigned: Number.isFinite(assigned) ? assigned : 0,
+    Completed: Number.isFinite(completed) ? completed : 0,
   }
+}
+
+function errorMessage(error, fallback) {
+  return error instanceof Error && error.message ? error.message : fallback
 }
 
 export function useServiceReports() {
   const hasLoaded = useRef(false)
+  const lastSummaryReloadKey = useRef(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -32,67 +35,84 @@ export function useServiceReports() {
       Pending: 0,
       Assigned: 0,
       Completed: 0,
-      pending: 0,
-      assigned: 0,
-      completed: 0,
     },
     requests: [],
     loading: true,
     refreshing: false,
     searching: false,
     error: '',
+    summaryError: '',
   })
 
-  // Debounce search input changes by 300ms
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search)
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim())
     }, 300)
 
-    return () => clearTimeout(timer)
+    return () => window.clearTimeout(timer)
   }, [search])
 
-  // Fetch summary and requests (initial load & whenever debounced search or reloadKey changes)
   useEffect(() => {
     let active = true
     const isInitialLoad = !hasLoaded.current
+    const shouldFetchSummary = lastSummaryReloadKey.current !== reloadKey
+    const isManualRefresh = !isInitialLoad && shouldFetchSummary
 
     setState((current) => ({
       ...current,
       loading: isInitialLoad,
-      refreshing: !isInitialLoad && !debouncedSearch,
-      searching: !isInitialLoad && Boolean(debouncedSearch),
+      refreshing: isManualRefresh,
+      searching: !isInitialLoad && !isManualRefresh,
       error: '',
+      summaryError: shouldFetchSummary ? '' : current.summaryError,
     }))
 
-    Promise.all([
-      managerServiceRequestApi.summary(),
-      managerServiceRequestApi.listAll(debouncedSearch),
-    ])
-      .then(([summaryData, listData]) => {
-        if (!active) return
+    const listRequest = managerServiceRequestApi.listAll(debouncedSearch)
+    // Summary counts represent all requests, not only the search results. Fetch
+    // them on mount and explicit refreshes, but do not repeat that request after
+    // every keystroke.
+    const summaryRequest = shouldFetchSummary
+      ? managerServiceRequestApi.summary()
+      : Promise.resolve(null)
+
+    Promise.allSettled([listRequest, summaryRequest]).then(([listResult, summaryResult]) => {
+      if (!active) return
+
+      if (shouldFetchSummary) {
+        lastSummaryReloadKey.current = reloadKey
+      }
+      if (listResult.status === 'fulfilled') {
         hasLoaded.current = true
-        setState({
-          summary: normalizeSummary(summaryData),
-          requests: normalizeRequests(listData),
-          loading: false,
-          refreshing: false,
-          searching: false,
-          error: '',
-        })
-      })
-      .catch((error) => {
-        if (!active) return
-        setState((current) => ({
-          ...current,
-          loading: false,
-          refreshing: false,
-          searching: false,
-          error: error.message || 'خطایی در دریافت گزارش‌های خدمات رخ داد.',
-        }))
-      })
+      }
+
+      setState((current) => ({
+        ...current,
+        summary:
+          shouldFetchSummary && summaryResult.status === 'fulfilled'
+            ? normalizeSummary(summaryResult.value)
+            : current.summary,
+        requests:
+          listResult.status === 'fulfilled'
+            ? normalizeRequests(listResult.value)
+            : current.requests,
+        loading: false,
+        refreshing: false,
+        searching: false,
+        error:
+          listResult.status === 'rejected'
+            ? errorMessage(listResult.reason, 'خطایی در دریافت گزارش‌های خدمات رخ داد.')
+            : '',
+        summaryError:
+          shouldFetchSummary && summaryResult.status === 'rejected'
+            ? errorMessage(summaryResult.reason, 'خطایی در دریافت آمار درخواست‌ها رخ داد.')
+            : shouldFetchSummary
+              ? ''
+              : current.summaryError,
+      }))
+    })
 
     return () => {
+      // Prevent slow, older searches from replacing a newer result set.
       active = false
     }
   }, [debouncedSearch, reloadKey])
@@ -101,11 +121,17 @@ export function useServiceReports() {
     setReloadKey((current) => current + 1)
   }, [])
 
+  const clearSearch = useCallback(() => {
+    setSearch('')
+  }, [])
+
   return {
     ...state,
     search,
     setSearch,
+    clearSearch,
     debouncedSearch,
+    isDebouncing: search.trim() !== debouncedSearch,
     refresh,
   }
 }

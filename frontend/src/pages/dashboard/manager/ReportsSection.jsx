@@ -1,4 +1,12 @@
-import { Calendar, CircleAlert, Receipt, RefreshCw, Search, Wallet } from 'lucide-react'
+import {
+  Calendar,
+  CircleAlert,
+  Receipt,
+  RefreshCw,
+  Search,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
@@ -31,12 +39,15 @@ export function ReportsSection() {
     filteredRecords,
     search,
     setSearch,
+    clearSearch,
     loading,
     refreshing,
     error,
     refresh,
     records,
   } = useFinancialReports()
+
+  const hasRecords = records.length > 0
 
   return (
     <>
@@ -52,18 +63,20 @@ export function ReportsSection() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2">
+      <section className="grid gap-4 md:grid-cols-2" aria-label="خلاصه مالی">
         <SummaryCard
           title="کل مبلغ وصول‌شده"
           value={loading ? '—' : formatCurrency(summary.total_collected_revenue)}
           icon={Wallet}
           tone="green"
+          emphasized
         />
         <SummaryCard
           title="کل بدهی معوق"
           value={loading ? '—' : formatCurrency(summary.total_outstanding_debt)}
           icon={CircleAlert}
           tone="orange"
+          emphasized
         />
       </section>
 
@@ -72,7 +85,7 @@ export function ReportsSection() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-black text-slate-950">سوابق مالی واحدها</h2>
-              <p className="mt-1 text-sm text-slate-500">
+              <p id="financial-record-count" className="mt-1 text-sm text-slate-500" aria-live="polite">
                 {loading
                   ? 'در حال دریافت اطلاعات...'
                   : `${filteredRecords.length} از ${records.length} رکورد نمایش داده می‌شود.`}
@@ -84,27 +97,52 @@ export function ReportsSection() {
               disabled={loading || refreshing}
               className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
               {refreshing ? 'در حال به‌روزرسانی...' : 'به‌روزرسانی'}
             </button>
           </div>
 
           <label className="relative block">
             <span className="sr-only">جستجو در سوابق مالی</span>
-            <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Search
+              className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="جستجو بر اساس شماره واحد، عنوان، وضعیت یا مبلغ..."
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-11 pl-4 text-sm font-bold text-slate-900 outline-none ring-teal-600/20 transition placeholder:font-medium placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4"
+              placeholder="جستجو بر اساس شماره واحد، عنوان، وضعیت، مبلغ یا تاریخ..."
+              autoComplete="off"
+              aria-controls="financial-records-table"
+              aria-describedby="financial-record-count"
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pr-11 pl-11 text-sm font-bold text-slate-900 outline-none ring-teal-600/20 transition placeholder:font-medium placeholder:text-slate-400 focus:border-teal-500 focus:bg-white focus:ring-4"
             />
+            {search ? (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-200 hover:text-slate-700"
+                aria-label="پاک کردن جستجو"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
           </label>
         </div>
 
+        {error && hasRecords ? (
+          <div className="border-b border-rose-100 px-5 py-4 sm:px-6">
+            <ServerError error={`${error} اطلاعات قبلی همچنان نمایش داده می‌شود.`} />
+          </div>
+        ) : null}
+
         {loading ? (
           <LoadingBlock />
-        ) : error ? (
+        ) : error && !hasRecords ? (
           <div className="space-y-4 p-6">
             <ServerError error={error} />
             <button
@@ -118,7 +156,7 @@ export function ReportsSection() {
         ) : filteredRecords.length === 0 ? (
           <div className="px-6 py-20 text-center">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-              <Receipt className="h-6 w-6" />
+              <Receipt className="h-6 w-6" aria-hidden="true" />
             </div>
             <h3 className="mt-4 text-lg font-black text-slate-900">
               {records.length === 0 ? 'هنوز سابقه مالی ثبت نشده است' : 'نتیجه‌ای برای این جستجو پیدا نشد'}
@@ -131,19 +169,23 @@ export function ReportsSection() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-right">
+            <table id="financial-records-table" className="w-full min-w-[760px] text-right">
+              <caption className="sr-only">فهرست کامل سوابق مالی واحدهای ساختمان</caption>
               <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                 <tr>
-                  <th className="px-6 py-4">شماره واحد</th>
-                  <th className="px-6 py-4">عنوان</th>
-                  <th className="px-6 py-4">وضعیت</th>
-                  <th className="px-6 py-4">مبلغ</th>
-                  <th className="px-6 py-4">تاریخ</th>
+                  <th scope="col" className="px-6 py-4">شماره واحد</th>
+                  <th scope="col" className="px-6 py-4">عنوان</th>
+                  <th scope="col" className="px-6 py-4">وضعیت</th>
+                  <th scope="col" className="px-6 py-4">مبلغ</th>
+                  <th scope="col" className="px-6 py-4">تاریخ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm text-slate-800">
                 {filteredRecords.map((record) => {
                   const status = statusMeta(record.status)
+                  const primaryDate = record.due_date || record.created_at
+                  const showCreatedDate = record.due_date && record.created_at
+
                   return (
                     <tr key={record.id} className="transition hover:bg-slate-50/70">
                       <td className="px-6 py-4 font-black text-slate-950">
@@ -152,7 +194,7 @@ export function ReportsSection() {
                       <td className="px-6 py-4">
                         <div className="font-black text-slate-950">{record.title || '—'}</div>
                         {record.description ? (
-                          <div className="mt-1 text-xs text-slate-500 line-clamp-2 max-w-md">
+                          <div className="mt-1 max-w-md text-xs text-slate-500 line-clamp-2">
                             {record.description}
                           </div>
                         ) : null}
@@ -165,15 +207,18 @@ export function ReportsSection() {
                         </span>
                       </td>
                       <td className="px-6 py-4 font-black text-slate-900">
-                        {formatCurrency(record.amount)}
+                        {record.amount != null ? formatCurrency(record.amount) : '—'}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
-                          <Calendar className="h-4 w-4 text-slate-400" />
-                          <span>
-                            {formatDate(record.due_date || record.created_at) || '—'}
-                          </span>
+                          <Calendar className="h-4 w-4 text-slate-400" aria-hidden="true" />
+                          <span>{formatDate(primaryDate) || '—'}</span>
                         </div>
+                        {showCreatedDate ? (
+                          <div className="mt-1 text-[11px] text-slate-400">
+                            ثبت: {formatDate(record.created_at)}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   )
