@@ -1,4 +1,15 @@
-import { Building2, Building, ClipboardList, Landmark, LogOut, PieChart, Receipt, ShieldCheck, Users } from 'lucide-react'
+import {
+  Building2,
+  Building,
+  ClipboardList,
+  FileSpreadsheet,
+  Landmark,
+  LogOut,
+  PieChart,
+  Receipt,
+  ShieldCheck,
+  Users,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -12,12 +23,14 @@ import { AmenitiesSection } from './manager/AmenitiesSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
 import { ReportsSection } from './manager/ReportsSection'
+import { ServiceReportsSection } from './manager/ServiceReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
 import { UsersSection } from './manager/UsersSection'
 
 const sectionTitles = {
   requests: 'درخواست‌های خدمات',
+  serviceReports: 'گزارش خدمات',
   building: 'تنظیمات ساختمان',
   units: 'فهرست واحدها',
   amenities: 'امکانات',
@@ -50,13 +63,54 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
           </div>
 
           <nav className="mt-7 flex flex-1 flex-col gap-2">
-            <SideNavItem icon={ClipboardList} label="درخواست‌های خدمات" active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} />
-            <SideNavItem icon={Landmark} label="تنظیمات ساختمان" active={activeSection === 'building'} onClick={() => setActiveSection('building')} />
-            <SideNavItem icon={Building2} label="فهرست واحدها" active={activeSection === 'units'} onClick={() => setActiveSection('units')} />
-            <SideNavItem icon={Building} label="امکانات" active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} />
-            <SideNavItem icon={Receipt} label="امور مالی" active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} />
-            <SideNavItem icon={PieChart} label="گزارش مالی" active={activeSection === 'reports'} onClick={() => setActiveSection('reports')} />
-            <SideNavItem icon={Users} label="کاربران" active={activeSection === 'users'} onClick={() => setActiveSection('users')} />
+            <SideNavItem
+              icon={ClipboardList}
+              label="درخواست‌های خدمات"
+              active={activeSection === 'requests'}
+              onClick={() => setActiveSection('requests')}
+            />
+            <SideNavItem
+              icon={FileSpreadsheet}
+              label="گزارش خدمات"
+              active={activeSection === 'serviceReports'}
+              onClick={() => setActiveSection('serviceReports')}
+            />
+            <SideNavItem
+              icon={Landmark}
+              label="تنظیمات ساختمان"
+              active={activeSection === 'building'}
+              onClick={() => setActiveSection('building')}
+            />
+            <SideNavItem
+              icon={Building2}
+              label="فهرست واحدها"
+              active={activeSection === 'units'}
+              onClick={() => setActiveSection('units')}
+            />
+            <SideNavItem
+              icon={Building}
+              label="امکانات"
+              active={activeSection === 'amenities'}
+              onClick={() => setActiveSection('amenities')}
+            />
+            <SideNavItem
+              icon={Receipt}
+              label="امور مالی"
+              active={activeSection === 'financials'}
+              onClick={() => setActiveSection('financials')}
+            />
+            <SideNavItem
+              icon={PieChart}
+              label="گزارش مالی"
+              active={activeSection === 'reports'}
+              onClick={() => setActiveSection('reports')}
+            />
+            <SideNavItem
+              icon={Users}
+              label="کاربران"
+              active={activeSection === 'users'}
+              onClick={() => setActiveSection('users')}
+            />
           </nav>
 
           <AdminProfile user={authState.user} onLogout={handleLogout} />
@@ -70,28 +124,69 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                   <ShieldCheck className="h-4 w-4" />
                   پنل مدیر
                 </div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">{pageTitle}</h1>
+                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  {pageTitle}
+                </h1>
               </div>
-              <button className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 xl:hidden" type="button" onClick={handleLogout}>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 xl:hidden"
+                type="button"
+                onClick={handleLogout}
+              >
                 <LogOut className="h-4 w-4" />
                 خروج
               </button>
             </div>
 
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
-              <MobileTab active={activeSection === 'requests'} onClick={() => setActiveSection('requests')} label="درخواست‌ها" />
-              <MobileTab active={activeSection === 'building'} onClick={() => setActiveSection('building')} label="ساختمان" />
-              <MobileTab active={activeSection === 'units'} onClick={() => setActiveSection('units')} label="واحدها" />
-              <MobileTab active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} label="امکانات" />
-              <MobileTab active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} label="امور مالی" />
-              <MobileTab active={activeSection === 'reports'} onClick={() => setActiveSection('reports')} label="گزارش" />
-              <MobileTab active={activeSection === 'users'} onClick={() => setActiveSection('users')} label="کاربران" />
+              <MobileTab
+                active={activeSection === 'requests'}
+                onClick={() => setActiveSection('requests')}
+                label="درخواست‌ها"
+              />
+              <MobileTab
+                active={activeSection === 'serviceReports'}
+                onClick={() => setActiveSection('serviceReports')}
+                label="گزارش خدمات"
+              />
+              <MobileTab
+                active={activeSection === 'building'}
+                onClick={() => setActiveSection('building')}
+                label="ساختمان"
+              />
+              <MobileTab
+                active={activeSection === 'units'}
+                onClick={() => setActiveSection('units')}
+                label="واحدها"
+              />
+              <MobileTab
+                active={activeSection === 'amenities'}
+                onClick={() => setActiveSection('amenities')}
+                label="امکانات"
+              />
+              <MobileTab
+                active={activeSection === 'financials'}
+                onClick={() => setActiveSection('financials')}
+                label="امور مالی"
+              />
+              <MobileTab
+                active={activeSection === 'reports'}
+                onClick={() => setActiveSection('reports')}
+                label="گزارش مالی"
+              />
+              <MobileTab
+                active={activeSection === 'users'}
+                onClick={() => setActiveSection('users')}
+                label="کاربران"
+              />
             </div>
           </header>
 
           <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
             {activeSection === 'requests' ? (
               <ServiceRequestsSection />
+            ) : activeSection === 'serviceReports' ? (
+              <ServiceReportsSection />
             ) : activeSection === 'building' ? (
               <BuildingSettingsSection />
             ) : activeSection === 'units' ? (
@@ -103,7 +198,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
             ) : activeSection === 'reports' ? (
               <ReportsSection />
             ) : (
-              <UsersSection data={userData} authState={authState} actionState={actionState} changeRole={changeRole} />
+              <UsersSection
+                data={userData}
+                authState={authState}
+                actionState={actionState}
+                changeRole={changeRole}
+              />
             )}
           </div>
         </main>

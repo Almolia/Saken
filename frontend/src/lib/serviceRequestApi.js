@@ -14,10 +14,22 @@ export const serviceRequestApi = {
   },
 }
 
-// Manager-facing service request endpoints for viewing and assigning requests.
+// Manager-facing service request endpoints for viewing, assigning, summarizing, and searching requests.
 export const managerServiceRequestApi = {
-  listAll() {
-    return request('/manager/requests/')
+  listAll(search = '') {
+    const query = typeof search === 'string' && search.trim()
+      ? `?search=${encodeURIComponent(search.trim())}`
+      : ''
+    return request(`/manager/requests/${query}`)
+  },
+  summary() {
+    return request('/manager/requests/summary/')
+  },
+  search(search = '') {
+    const query = typeof search === 'string' && search.trim()
+      ? `?search=${encodeURIComponent(search.trim())}`
+      : ''
+    return request(`/manager/requests/${query}`)
   },
   assignStaff(requestId, payload) {
     return request(`/manager/requests/${requestId}/`, {

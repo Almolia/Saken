@@ -48,6 +48,7 @@ class ServiceRequest(models.Model):
         blank=True,
     )
     is_settled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return self.title

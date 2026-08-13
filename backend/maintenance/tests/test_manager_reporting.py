@@ -68,3 +68,15 @@ class ManagerReportingAndSearchTests(APITestCase):
         self.assertEqual(len(requests), 1)
         self.assertEqual(requests[0]['status'], 'Completed')
         self.assertEqual(requests[0]['assigned_staff']['full_name'], 'Agent Smith')
+
+    def test_manager_request_list_includes_unit_number_and_created_at(self):
+        """Assert that manager request list includes unit_number and created_at."""
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        requests = response.data['requests']
+        self.assertEqual(len(requests), 3)
+        for req in requests:
+            self.assertEqual(req['unit_number'], '101')
+            self.assertIn('created_at', req)

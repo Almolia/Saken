@@ -43,8 +43,11 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     permission_classes = [IsManager]
     serializer_class = ManagerServiceRequestSerializer
     filter_backends = [filters.SearchFilter]
+    pagination_class = None
     search_fields = [
         'status',
+        'title',
+        'description',
         'resident__full_name',
         'resident__units__unit_number',
         'assigned_staff__full_name',
@@ -53,6 +56,7 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     def get_queryset(self):
         return (
             ServiceRequest.objects.select_related('resident', 'assigned_staff')
+            .prefetch_related('resident__units')
             .order_by('status', 'id')
         )
 

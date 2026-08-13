@@ -25,13 +25,14 @@ class NestedUserSerializer(serializers.Serializer):
 class ServiceRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceRequest
-        fields = ['id', 'title', 'description', 'status', 'resident', 'assigned_staff', 'work_report']
-        read_only_fields = ['resident', 'status', 'assigned_staff', 'work_report']
+        fields = ['id', 'title', 'description', 'status', 'resident', 'assigned_staff', 'work_report', 'created_at']
+        read_only_fields = ['resident', 'status', 'assigned_staff', 'work_report', 'created_at']
 
 
 class ManagerServiceRequestSerializer(serializers.ModelSerializer):
     resident = NestedUserSerializer(read_only=True)
     assigned_staff = NestedUserSerializer(read_only=True)
+    unit_number = serializers.SerializerMethodField()
 
     class Meta:
         model = ServiceRequest
@@ -41,13 +42,21 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
             'description',
             'status',
             'resident',
+            'unit_number',
             'assigned_staff',
             'work_report',
             'cost',
             'payment_method',
             'is_settled',
+            'created_at',
         ]
         read_only_fields = fields
+
+    def get_unit_number(self, obj):
+        if not obj.resident_id:
+            return None
+        units = sorted(obj.resident.units.all(), key=lambda unit: unit.unit_number)
+        return units[0].unit_number if units else None
 
 
 class SettleServiceRequestSerializer(serializers.Serializer):
