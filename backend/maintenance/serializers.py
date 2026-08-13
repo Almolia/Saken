@@ -1,10 +1,19 @@
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from common.constants import SettlementMessages
+from common.constants import ServiceRequestMessages, SettlementMessages
 from .models import PaymentMethod, ServiceRequest
 from users.models import UserRole
+
+User = get_user_model()
+
+NON_ASSIGNABLE_ROLES = {
+    UserRole.RESIDENT,
+    UserRole.MANAGER,
+    UserRole.ADMIN,
+}
 
 
 class NestedUserSerializer(serializers.Serializer):
@@ -42,8 +51,6 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
 
 
 class SettleServiceRequestSerializer(serializers.Serializer):
-    """Validates the settlement payload before any balance is touched."""
-
     cost = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -57,24 +64,40 @@ class SettleServiceRequestSerializer(serializers.Serializer):
 
 
 class AssignServiceRequestSerializer(serializers.Serializer):
-    staff_id = serializers.IntegerField()
+    assigned_staff_id = serializers.IntegerField(required=False)
+    staff_id = serializers.IntegerField(required=False)
 
-    def validate_staff_id(self, value):
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
+    def validate(self, attrs):
+        staff_id = attrs.get('assigned_staff_id')
+        if staff_id is None:
+            staff_id = attrs.get('staff_id')
 
-        if value is None:
-            raise serializers.ValidationError("انتخاب کارکنان خدمات الزامی است.")
+        if staff_id is None:
+            raise serializers.ValidationError({
+                'assigned_staff_id': ServiceRequestMessages.ASSIGNED_STAFF_REQUIRED,
+            })
 
         try:
-            user = User.objects.get(pk=value, is_active=True)
+            user = User.objects.get(pk=staff_id, is_active=True)
         except User.DoesNotExist:
-            raise serializers.ValidationError("کاربر ارجاعی یافت نشد.")
+            raise serializers.ValidationError({
+                'assigned_staff_id': ServiceRequestMessages.STAFF_NOT_FOUND,
+            })
+
+        if user.role in NON_ASSIGNABLE_ROLES:
+            raise serializers.ValidationError({
+                'assigned_staff_id': ServiceRequestMessages.STAFF_INVALID_ROLE,
+            })
 
         if user.role != UserRole.SERVICE_STAFF:
-            raise serializers.ValidationError("کاربر انتخابی جزو کارکنان خدمات نیست.")
+            raise serializers.ValidationError({
+                'assigned_staff_id': ServiceRequestMessages.STAFF_INVALID_ROLE,
+            })
 
-        return value
+        attrs['assigned_staff'] = user
+        attrs['assigned_staff_id'] = staff_id
+        return attrs
+
 
 class StaffServiceRequestSerializer(serializers.ModelSerializer):
     resident = NestedUserSerializer(read_only=True)
@@ -95,9 +118,7 @@ class StaffServiceRequestSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'title', 'description', 'resident', 'unit_number', 'assigned_staff']
 
     def get_unit_number(self, obj):
-        """Staff need to know which unit to visit; the unit hangs off the resident."""
         if not obj.resident_id:
             return None
-        # Sorted in Python so the prefetched units cache is reused.
         units = sorted(obj.resident.units.all(), key=lambda unit: unit.unit_number)
         return units[0].unit_number if units else None

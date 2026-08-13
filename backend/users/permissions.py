@@ -4,7 +4,7 @@ from rest_framework.permissions import BasePermission
 from .models import UserRole
 
 
-class IsManagerOrAdmin(BasePermission):
+class IsManager(BasePermission):
     def has_permission(self, request, view):
         user = request.user
         return bool(
@@ -13,6 +13,10 @@ class IsManagerOrAdmin(BasePermission):
             and user.is_active
             and user.role in {UserRole.MANAGER, UserRole.ADMIN}
         )
+
+
+class IsManagerOrAdmin(IsManager):
+    pass
 
 
 class IsAdminUserRole(BasePermission):

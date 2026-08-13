@@ -54,7 +54,7 @@ function AssignDropdown({ serviceRequest, staff, staffLoading, onUpdate }) {
 
     try {
       const response = await managerServiceRequestApi.assignStaff(serviceRequest.id, {
-        staff_id: Number(selectedStaffId),
+        assigned_staff_id: Number(selectedStaffId),
       })
       onUpdate(response.request)
       showToast(response.message || 'درخواست با موفقیت ارجاع شد.')

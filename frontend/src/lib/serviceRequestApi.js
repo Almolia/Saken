@@ -20,9 +20,11 @@ export const managerServiceRequestApi = {
     return request('/manager/requests/')
   },
   assignStaff(requestId, payload) {
-    return request(`/manager/requests/${requestId}/assign/`, {
+    return request(`/manager/requests/${requestId}/`, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        assigned_staff_id: payload.assigned_staff_id ?? payload.staff_id,
+      }),
     })
   },
   // Routes the cost of a completed request. The backend applies the balance

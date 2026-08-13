@@ -231,7 +231,7 @@ describe('ServiceRequestsSection', () => {
 
     await waitFor(() =>
       expect(managerServiceRequestApi.assignStaff).toHaveBeenCalledWith(assignedRequest.id, {
-        staff_id: otherStaffMember.id,
+        assigned_staff_id: otherStaffMember.id,
       }),
     )
     expect(updateRequest).toHaveBeenCalledWith(reassigned)
