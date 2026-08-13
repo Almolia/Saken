@@ -10,6 +10,15 @@ export const managerChargeApi = {
       body: JSON.stringify(payload),
     })
   },
+  financialSummary() {
+    return request('/manager/reports/financial/summary/')
+  },
+  search(search = '') {
+    const query = search.trim()
+      ? `?search=${encodeURIComponent(search.trim())}`
+      : ''
+    return request(`/manager/charges/search/${query}`)
+  },
 }
 
 export const billingApi = {

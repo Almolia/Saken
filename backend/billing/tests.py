@@ -1266,15 +1266,15 @@ class ChargeSearchAPITests(BaseChargeTestCase):
         self.unit_101 = Unit.objects.create(
             owner=self.resident,
             building=self.building,
-            unit_number="101",
-            floor=1,
+            unit_number="301",
+            floor=3,
             area=80.00,
         )
         self.unit_102 = Unit.objects.create(
             owner=self.other_resident,
             building=self.building,
-            unit_number="102",
-            floor=1,
+            unit_number="302",
+            floor=3,
             area=90.00,
         )
 

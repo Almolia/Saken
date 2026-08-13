@@ -217,6 +217,7 @@ class ManagerChargeSearchListView(generics.ListAPIView):
     permission_classes = [IsManagerOrAdmin]
     serializer_class = UnitChargeSearchSerializer
     filter_backends = [filters.SearchFilter]
+    pagination_class = None
     search_fields = [
         'unit__unit_number',
         'status',

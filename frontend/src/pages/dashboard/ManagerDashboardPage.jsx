@@ -1,4 +1,4 @@
-import { Building2, Building, ClipboardList, Landmark, LogOut, Receipt, ShieldCheck, Users } from 'lucide-react'
+import { Building2, Building, ClipboardList, Landmark, LogOut, PieChart, Receipt, ShieldCheck, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
@@ -11,6 +11,7 @@ import { AdminProfile } from './admin/AdminProfile'
 import { AmenitiesSection } from './manager/AmenitiesSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
+import { ReportsSection } from './manager/ReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
 import { UsersSection } from './manager/UsersSection'
@@ -21,6 +22,7 @@ const sectionTitles = {
   units: 'فهرست واحدها',
   amenities: 'امکانات',
   financials: 'امور مالی',
+  reports: 'گزارش مالی',
   users: 'کاربران',
 }
 
@@ -53,6 +55,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
             <SideNavItem icon={Building2} label="فهرست واحدها" active={activeSection === 'units'} onClick={() => setActiveSection('units')} />
             <SideNavItem icon={Building} label="امکانات" active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} />
             <SideNavItem icon={Receipt} label="امور مالی" active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} />
+            <SideNavItem icon={PieChart} label="گزارش مالی" active={activeSection === 'reports'} onClick={() => setActiveSection('reports')} />
             <SideNavItem icon={Users} label="کاربران" active={activeSection === 'users'} onClick={() => setActiveSection('users')} />
           </nav>
 
@@ -81,6 +84,7 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <MobileTab active={activeSection === 'units'} onClick={() => setActiveSection('units')} label="واحدها" />
               <MobileTab active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} label="امکانات" />
               <MobileTab active={activeSection === 'financials'} onClick={() => setActiveSection('financials')} label="امور مالی" />
+              <MobileTab active={activeSection === 'reports'} onClick={() => setActiveSection('reports')} label="گزارش" />
               <MobileTab active={activeSection === 'users'} onClick={() => setActiveSection('users')} label="کاربران" />
             </div>
           </header>
@@ -96,6 +100,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <AmenitiesSection />
             ) : activeSection === 'financials' ? (
               <FinancialsSection />
+            ) : activeSection === 'reports' ? (
+              <ReportsSection />
             ) : (
               <UsersSection data={userData} authState={authState} actionState={actionState} changeRole={changeRole} />
             )}

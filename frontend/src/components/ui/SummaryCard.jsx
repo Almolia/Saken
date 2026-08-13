@@ -2,7 +2,11 @@ export function SummaryCard({ title, value, icon: Icon, tone }) {
   const tones = {
     teal: 'bg-teal-50 text-teal-700 ring-teal-100',
     emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    green: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
     blue: 'bg-blue-50 text-blue-700 ring-blue-100',
+    amber: 'bg-amber-50 text-amber-700 ring-amber-100',
+    orange: 'bg-orange-50 text-orange-700 ring-orange-100',
+    red: 'bg-rose-50 text-rose-700 ring-rose-100',
   }
   return (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60">
