@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 
 from users.models import UserRole
 from .models import Announcement
+from buildings.models import Building, Unit
 
 User = get_user_model()
 
@@ -29,6 +30,15 @@ class AnnouncementResidentTests(APITestCase):
             national_id="1111111112",
             role=UserRole.MANAGER,
             is_staff=True,
+        )
+
+        self.building = Building.objects.create(name="Announcements Test Building")
+        self.unit = Unit.objects.create(
+            owner=self.resident,
+            building=self.building,
+            unit_number="ANNOUNCE-101",
+            floor=1,
+            area=75.50
         )
 
         self.url = reverse("resident-announcements")
