@@ -70,6 +70,7 @@ class ServiceRequestMessages:
     STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
     STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
     ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."
+    INVALID_STATUS = "وضعیت درخواست خدمات نامعتبر است."
 
 
 class SettlementMessages:
