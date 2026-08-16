@@ -10,9 +10,7 @@ class Announcement(models.Model):
     content = models.TextField(verbose_name="محتوا")
     author = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
         related_name="announcements",
         verbose_name="نویسنده",
     )
