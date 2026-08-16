@@ -12,7 +12,7 @@ from .serializers import (
     ManagerServiceRequestSerializer,
     ServiceRequestSerializer,
     SettleServiceRequestSerializer,
-    StaffServiceRequestSerializer,
+    StaffServiceRequestSerializer, ManagerServiceRequestFilterSerializer,
 )
 
 
@@ -60,11 +60,22 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     ]
 
     def get_queryset(self):
-        return (
+        queryset = (
             ServiceRequest.objects.select_related('resident', 'assigned_staff')
             .prefetch_related('resident__units')
-            .order_by('status', 'id')
+            .order_by('-created_at', '-id')
         )
+
+        filter_serializer = ManagerServiceRequestFilterSerializer(
+            data=self.request.query_params
+        )
+        filter_serializer.is_valid(raise_exception=True)
+
+        request_status = filter_serializer.validated_data.get('status')
+        if request_status:
+            queryset = queryset.filter(status=request_status)
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())

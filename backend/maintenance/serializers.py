@@ -1,11 +1,11 @@
 from decimal import Decimal
 
+from common.constants import ServiceRequestMessages, SettlementMessages
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
-
-from common.constants import ServiceRequestMessages, SettlementMessages
-from .models import PaymentMethod, ServiceRequest
 from users.models import UserRole
+
+from .models import PaymentMethod, ServiceRequest, RequestStatus
 
 User = get_user_model()
 
@@ -57,6 +57,16 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
             return None
         units = sorted(obj.resident.units.all(), key=lambda unit: unit.unit_number)
         return units[0].unit_number if units else None
+
+
+class ManagerServiceRequestFilterSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(
+        choices=RequestStatus.choices,
+        required=False,
+        error_messages={
+            "invalid_choice": ServiceRequestMessages.INVALID_STATUS,
+        },
+    )
 
 
 class SettleServiceRequestSerializer(serializers.Serializer):
