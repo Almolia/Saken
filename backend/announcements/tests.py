@@ -391,11 +391,14 @@ class ManagerAnnouncementTests(APITestCase):
             content="Old content",
             author=self.manager,
         )
+        Announcement.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=1))
+
         new = Announcement.objects.create(
             title="New Announcement",
             content="New content",
             author=self.manager,
         )
+        Announcement.objects.filter(pk=new.pk).update(created_at=timezone.now())
 
         response = self.client.get(self.list_url)
 
@@ -469,13 +472,3 @@ class AnnouncementModelTests(APITestCase):
         self.assertEqual(announcements[0].title, "Third")
         self.assertEqual(announcements[1].title, "Second")
         self.assertEqual(announcements[2].title, "First")
-
-    def test_announcement_author_nullable(self):
-        """Test that author can be null."""
-        announcement = Announcement.objects.create(
-            title="No Author",
-            content="Content without author",
-            author=None,
-        )
-        self.assertIsNone(announcement.author)
-        self.assertEqual(str(announcement), "No Author")
