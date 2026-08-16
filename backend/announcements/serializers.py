@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Announcement
+from .validators import validate_announcement_title, validate_announcement_content
 
 
 class AnnouncementSerializer(serializers.ModelSerializer):
@@ -18,3 +19,9 @@ class AnnouncementSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "author", "author_name", "created_at", "updated_at"]
+
+    def validate_title(self, value):
+        return validate_announcement_title(value)
+
+    def validate_content(self, value):
+        return validate_announcement_content(value)
