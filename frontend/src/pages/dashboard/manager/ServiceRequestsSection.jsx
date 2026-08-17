@@ -1,4 +1,5 @@
 import {
+  ArrowDownUp,
   BadgeCheck,
   CheckCircle2,
   ClipboardList,
@@ -19,10 +20,14 @@ import { StatusBadge } from '../../../components/ui/StatusBadge'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
 import { formatCurrency } from '../../../utils/helpers'
 import {
+  countForStatus,
   isSettleable,
   normalizeStatus,
   paymentMethodLabels,
   RequestStatus,
+  sortOrderOptions,
+  statusFilterOptions,
+  StatusFilter,
 } from '../../../utils/serviceRequests'
 import { useManagerServiceRequests } from '../../../hooks/useManagerServiceRequests'
 import { useServiceStaff } from '../../../hooks/useServiceStaff'
@@ -200,20 +205,60 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate, onS
   )
 }
 
+function FilterTab({ option, count, active, disabled, onSelect }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      disabled={disabled}
+      onClick={() => onSelect(option.value)}
+      className={`inline-flex h-10 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        active
+          ? 'bg-slate-950 text-white shadow-sm'
+          : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+      }`}
+    >
+      {option.label}
+      {count == null ? null : (
+        <span
+          className={`rounded-full px-1.5 py-0.5 text-[11px] font-black tabular-nums ${
+            active ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-500'
+          }`}
+        >
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
 export function ServiceRequestsSection() {
-  const { requests, loading, refreshing, error, refresh, updateRequest } = useManagerServiceRequests()
+  const {
+    requests,
+    summary,
+    status,
+    setStatus,
+    ordering,
+    setOrdering,
+    loading,
+    refreshing,
+    error,
+    refresh,
+    updateRequest,
+  } = useManagerServiceRequests()
   const { staff, loading: staffLoading } = useServiceStaff()
   const [settlingRequest, setSettlingRequest] = useState(null)
 
-  const pendingCount = requests.filter(
-    (r) => normalizeStatus(r.status) === RequestStatus.PENDING,
-  ).length
-  const assignedCount = requests.filter(
-    (r) => normalizeStatus(r.status) === RequestStatus.ASSIGNED,
-  ).length
-  const completedCount = requests.filter(
-    (r) => normalizeStatus(r.status) === RequestStatus.COMPLETED,
-  ).length
+  // The cards report the building-wide totals from the summary endpoint, so
+  // narrowing the list to one status does not make the other counts read zero.
+  const pendingCount = countForStatus(summary, StatusFilter.PENDING)
+  const assignedCount = countForStatus(summary, StatusFilter.ASSIGNED)
+  const completedCount = countForStatus(summary, StatusFilter.COMPLETED)
+
+  const activeFilter =
+    statusFilterOptions.find((option) => option.value === status) || statusFilterOptions[0]
+  const isFiltered = status !== StatusFilter.ALL
 
   return (
     <>
@@ -232,19 +277,19 @@ export function ServiceRequestsSection() {
       <section className="grid gap-4 md:grid-cols-3">
         <SummaryCard
           title="در انتظار بررسی"
-          value={loading ? '—' : pendingCount}
+          value={pendingCount ?? '—'}
           icon={Clock3}
           tone="teal"
         />
         <SummaryCard
           title="ارجاع‌شده"
-          value={loading ? '—' : assignedCount}
+          value={assignedCount ?? '—'}
           icon={Wrench}
           tone="emerald"
         />
         <SummaryCard
           title="تکمیل‌شده"
-          value={loading ? '—' : completedCount}
+          value={completedCount ?? '—'}
           icon={CheckCircle2}
           tone="blue"
         />
@@ -254,8 +299,12 @@ export function ServiceRequestsSection() {
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <h2 className="text-xl font-black text-slate-950">فهرست درخواست‌ها</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {loading ? 'در حال دریافت اطلاعات...' : `${requests.length} درخواست ثبت شده است.`}
+            <p className="mt-1 text-sm text-slate-500" aria-live="polite">
+              {loading
+                ? 'در حال دریافت اطلاعات...'
+                : isFiltered
+                  ? `${requests.length} درخواست با وضعیت «${activeFilter.label}».`
+                  : `${requests.length} درخواست ثبت شده است.`}
             </p>
           </div>
           <button
@@ -267,6 +316,43 @@ export function ServiceRequestsSection() {
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {refreshing ? 'در حال به‌روزرسانی...' : 'به‌روزرسانی'}
           </button>
+        </div>
+
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div
+            role="tablist"
+            aria-label="فیلتر وضعیت درخواست‌ها"
+            className="flex gap-2 overflow-x-auto pb-1"
+          >
+            {statusFilterOptions.map((option) => (
+              <FilterTab
+                key={option.value}
+                option={option}
+                count={countForStatus(summary, option.value)}
+                active={option.value === status}
+                disabled={loading}
+                onSelect={setStatus}
+              />
+            ))}
+          </div>
+
+          <label className="flex shrink-0 items-center gap-2 text-xs font-bold text-slate-500">
+            <ArrowDownUp className="h-4 w-4" aria-hidden="true" />
+            <span>ترتیب</span>
+            <select
+              value={ordering}
+              onChange={(event) => setOrdering(event.target.value)}
+              disabled={loading}
+              aria-label="ترتیب نمایش بر اساس تاریخ ثبت"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+            >
+              {sortOrderOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {loading ? (
@@ -287,13 +373,28 @@ export function ServiceRequestsSection() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
               <ClipboardList className="h-6 w-6" />
             </div>
-            <h3 className="mt-4 text-lg font-black text-slate-900">هنوز درخواستی ثبت نشده است</h3>
-            <p className="mt-2 text-sm text-slate-500">
-              درخواست‌های خدمات ثبت‌شده توسط ساکنان در این بخش نمایش داده می‌شود.
-            </p>
+            {/* The wording follows the active tab, so an empty "Completed" view
+                explains itself instead of claiming nothing was ever filed. */}
+            <h3 className="mt-4 text-lg font-black text-slate-900">{activeFilter.emptyTitle}</h3>
+            <p className="mt-2 text-sm text-slate-500">{activeFilter.emptyBody}</p>
+            {isFiltered ? (
+              <button
+                type="button"
+                onClick={() => setStatus(StatusFilter.ALL)}
+                className="mt-5 rounded-2xl bg-slate-100 px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-200"
+              >
+                نمایش همه درخواست‌ها
+              </button>
+            ) : null}
           </div>
         ) : (
-          <div className="space-y-3 p-5 sm:p-6" aria-live="polite">
+          // Dimmed rather than emptied while a new filter is on its way, so the
+          // panel does not collapse and jump under the manager's cursor.
+          <div
+            className={`space-y-3 p-5 transition-opacity sm:p-6 ${refreshing ? 'opacity-60' : ''}`}
+            aria-live="polite"
+            aria-busy={refreshing}
+          >
             {requests.map((serviceRequest) => (
               <ServiceRequestCard
                 key={serviceRequest.id}

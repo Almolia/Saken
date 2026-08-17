@@ -59,11 +59,24 @@ class ManagerServiceRequestListView(generics.ListAPIView):
         'created_at',
     ]
 
+    # Managers scan this list newest-first so the freshest requests need no
+    # scrolling; ?ordering=created_at flips it for working a backlog from the
+    # oldest entry. The id tiebreak keeps the order stable for requests that
+    # share a timestamp, and an unrecognised value falls back to the default.
+    ORDERINGS = {
+        '-created_at': ('-created_at', '-id'),
+        'created_at': ('created_at', 'id'),
+    }
+    DEFAULT_ORDERING = '-created_at'
+
     def get_queryset(self):
+        ordering_param = (self.request.query_params.get('ordering') or '').strip()
+        ordering = self.ORDERINGS.get(ordering_param, self.ORDERINGS[self.DEFAULT_ORDERING])
+
         queryset = (
             ServiceRequest.objects.select_related('resident', 'assigned_staff')
             .prefetch_related('resident__units')
-            .order_by('-created_at', '-id')
+            .order_by(*ordering)
         )
 
         filter_serializer = ManagerServiceRequestFilterSerializer(

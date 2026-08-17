@@ -33,6 +33,11 @@ vi.mock('../../hooks/useUserDirectory', () => ({
 vi.mock('../../hooks/useManagerServiceRequests', () => ({
   useManagerServiceRequests: () => ({
     requests: [],
+    summary: { Pending: 0, Assigned: 0, Completed: 0 },
+    status: 'all',
+    setStatus: vi.fn(),
+    ordering: '-created_at',
+    setOrdering: vi.fn(),
     loading: false,
     refreshing: false,
     error: '',

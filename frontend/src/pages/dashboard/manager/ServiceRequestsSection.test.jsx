@@ -5,6 +5,7 @@ import { ToastProvider } from '../../../components/ToastProvider'
 import { useManagerServiceRequests } from '../../../hooks/useManagerServiceRequests'
 import { useServiceStaff } from '../../../hooks/useServiceStaff'
 import { managerServiceRequestApi } from '../../../lib/serviceRequestApi'
+import { SortOrder, StatusFilter } from '../../../utils/serviceRequests'
 import { ServiceRequestsSection } from './ServiceRequestsSection'
 
 vi.mock('../../../hooks/useManagerServiceRequests', () => ({
@@ -68,15 +69,26 @@ const settledRequest = {
   is_settled: true,
 }
 
-function renderSection(requests) {
+const sampleSummary = { Pending: 4, Assigned: 2, Completed: 3 }
+
+function renderSection(requests, overrides = {}) {
   const updateRequest = vi.fn()
+  const setStatus = vi.fn()
+  const setOrdering = vi.fn()
+  const refresh = vi.fn()
   useManagerServiceRequests.mockReturnValue({
     requests,
+    summary: sampleSummary,
+    status: StatusFilter.ALL,
+    setStatus,
+    ordering: SortOrder.NEWEST,
+    setOrdering,
     loading: false,
     refreshing: false,
     error: '',
-    refresh: vi.fn(),
+    refresh,
     updateRequest,
+    ...overrides,
   })
   useServiceStaff.mockReturnValue({
     staff: [staffMember, otherStaffMember],
@@ -88,7 +100,7 @@ function renderSection(requests) {
       <ServiceRequestsSection />
     </ToastProvider>,
   )
-  return { updateRequest }
+  return { updateRequest, setStatus, setOrdering, refresh }
 }
 
 describe('ServiceRequestsSection', () => {
@@ -97,6 +109,115 @@ describe('ServiceRequestsSection', () => {
     useServiceStaff.mockReset()
     managerServiceRequestApi.assignStaff.mockReset()
     managerServiceRequestApi.settleRequest.mockReset()
+  })
+
+  describe('status filtering', () => {
+    const tab = (name) => screen.getByRole('tab', { name: new RegExp(name) })
+
+    it('offers a tab per status with the building-wide counts', () => {
+      renderSection([pendingRequest, assignedRequest, completedRequest])
+
+      const tabs = screen.getAllByRole('tab')
+      expect(tabs.map((node) => node.textContent)).toEqual([
+        'همه9',
+        'در انتظار بررسی4',
+        'ارجاع‌شده2',
+        'تکمیل‌شده3',
+      ])
+    })
+
+    it('marks the active filter and starts on "all"', () => {
+      renderSection([pendingRequest])
+
+      expect(tab('همه')).toHaveAttribute('aria-selected', 'true')
+      expect(tab('در انتظار بررسی')).toHaveAttribute('aria-selected', 'false')
+    })
+
+    it('asks the hook for the chosen status', async () => {
+      const user = userEvent.setup()
+      const { setStatus } = renderSection([pendingRequest, assignedRequest])
+
+      await user.click(tab('تکمیل‌شده'))
+
+      expect(setStatus).toHaveBeenCalledWith(StatusFilter.COMPLETED)
+    })
+
+    it('reflects an active filter in the header count and the selected tab', () => {
+      renderSection([completedRequest], { status: StatusFilter.COMPLETED })
+
+      expect(tab('تکمیل‌شده')).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByText('1 درخواست با وضعیت «تکمیل‌شده».')).toBeInTheDocument()
+    })
+
+    it('keeps the summary cards on the building totals while filtered', () => {
+      // The card title is a <p>; the same words also label a filter tab.
+      const cardValue = (title) =>
+        screen.getByText(title, { selector: 'p' }).parentElement.querySelector('h3').textContent
+
+      renderSection([completedRequest], { status: StatusFilter.COMPLETED })
+
+      // Only one completed request is listed, but four are still pending
+      // overall — the cards must not collapse to the filtered view.
+      expect(cardValue('در انتظار بررسی')).toBe('4')
+      expect(cardValue('ارجاع‌شده')).toBe('2')
+      expect(cardValue('تکمیل‌شده')).toBe('3')
+    })
+
+    it('explains an empty filtered view in terms of that status', async () => {
+      const user = userEvent.setup()
+      const { setStatus } = renderSection([], { status: StatusFilter.COMPLETED })
+
+      expect(screen.getByText('درخواست تکمیل‌شده‌ای وجود ندارد')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'نمایش همه درخواست‌ها' }))
+      expect(setStatus).toHaveBeenCalledWith(StatusFilter.ALL)
+    })
+
+    it('keeps the original wording when nothing has ever been filed', () => {
+      renderSection([], { status: StatusFilter.ALL })
+
+      expect(screen.getByText('هنوز درخواستی ثبت نشده است')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'نمایش همه درخواست‌ها' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('dims the list instead of emptying it while a filter is loading', () => {
+      renderSection([pendingRequest], { refreshing: true })
+
+      const list = screen.getByRole('article').parentElement
+      expect(list).toHaveAttribute('aria-busy', 'true')
+      expect(screen.getByText('نشتی آب')).toBeInTheDocument()
+    })
+
+    it('disables the controls until the first load finishes', () => {
+      renderSection([], { loading: true })
+
+      screen.getAllByRole('tab').forEach((node) => expect(node).toBeDisabled())
+      expect(screen.getByLabelText('ترتیب نمایش بر اساس تاریخ ثبت')).toBeDisabled()
+    })
+  })
+
+  describe('sorting', () => {
+    it('defaults to newest first and can be flipped to oldest', async () => {
+      const user = userEvent.setup()
+      const { setOrdering } = renderSection([pendingRequest])
+
+      const select = screen.getByLabelText('ترتیب نمایش بر اساس تاریخ ثبت')
+      expect(select).toHaveValue(SortOrder.NEWEST)
+
+      await user.selectOptions(select, SortOrder.OLDEST)
+      expect(setOrdering).toHaveBeenCalledWith(SortOrder.OLDEST)
+    })
+
+    it('renders the requests in the order the backend returned them', () => {
+      renderSection([assignedRequest, pendingRequest, completedRequest])
+
+      const titles = screen.getAllByRole('article').map(
+        (card) => within(card).getByRole('heading', { level: 3 }).textContent,
+      )
+      expect(titles).toEqual(['تعمیر آسانسور', 'نشتی آب', 'تعویض لامپ'])
+    })
   })
 
   describe('settlement', () => {
