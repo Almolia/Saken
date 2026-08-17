@@ -2,6 +2,7 @@ import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
+import { AnnouncementFeed } from '../../components/dashboard/AnnouncementFeed'
 import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
 import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
 import { PaymentModal } from '../../components/dashboard/PaymentModal'
@@ -121,6 +122,10 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
             <MiniInfoCard label="نقش" value={roleLabels[authState.user.role]} icon={ShieldCheck} />
           </div>
         </div>
+
+        {/* Building-wide news sits directly under the header, above the
+            resident's own unit details, so it is read before anything else. */}
+        <AnnouncementFeed />
 
         <DebtSummaryCard unit={unit} loading={loading} />
 
