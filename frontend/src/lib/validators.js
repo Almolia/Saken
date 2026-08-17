@@ -201,6 +201,36 @@ export function validateAdminPasswordChange(values) {
   return errors
 }
 
+// The title cap mirrors the CharField(max_length=255) on the backend model, so
+// an over-long title is caught here instead of coming back as a 400. The body
+// is a TextField with no database limit; 4000 keeps an announcement readable.
+export const ANNOUNCEMENT_TITLE_MAX = 255
+export const ANNOUNCEMENT_CONTENT_MAX = 4000
+
+export function validateAnnouncement(values) {
+  const errors = {}
+  const title = values.title?.trim() ?? ''
+  const content = values.content?.trim() ?? ''
+
+  if (!title) {
+    errors.title = 'عنوان اطلاعیه الزامی است.'
+  } else if (title.length < 3) {
+    errors.title = 'عنوان اطلاعیه باید حداقل ۳ کاراکتر باشد.'
+  } else if (title.length > ANNOUNCEMENT_TITLE_MAX) {
+    errors.title = `عنوان اطلاعیه نمی‌تواند بیشتر از ${ANNOUNCEMENT_TITLE_MAX} کاراکتر باشد.`
+  }
+
+  if (!content) {
+    errors.content = 'متن اطلاعیه الزامی است.'
+  } else if (content.length < 10) {
+    errors.content = 'متن اطلاعیه باید حداقل ۱۰ کاراکتر باشد.'
+  } else if (content.length > ANNOUNCEMENT_CONTENT_MAX) {
+    errors.content = `متن اطلاعیه نمی‌تواند بیشتر از ${ANNOUNCEMENT_CONTENT_MAX} کاراکتر باشد.`
+  }
+
+  return errors
+}
+
 export function validateAmenity(values) {
   const errors = {}
 

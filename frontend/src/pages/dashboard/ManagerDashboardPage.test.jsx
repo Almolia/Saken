@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
-import { authApi } from '../../lib/api'
+import { authApi, managerApi } from '../../lib/api'
 import { ManagerDashboardPage } from './ManagerDashboardPage'
 
 const navigateMock = vi.fn()
@@ -16,6 +16,9 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../lib/api', () => ({
   authApi: {
     logout: vi.fn(),
+  },
+  managerApi: {
+    announcements: vi.fn(),
   },
 }))
 
@@ -131,6 +134,20 @@ describe('ManagerDashboardPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     authApi.logout.mockReset()
+    managerApi.announcements.mockReset()
+    managerApi.announcements.mockResolvedValue({
+      announcements: [
+        {
+          id: 1,
+          title: 'قطع آب ساختمان',
+          content: 'آب ساختمان فردا از ساعت ۹ تا ۱۲ قطع خواهد بود.',
+          author_name: 'مدیر ساختمان',
+          is_active: true,
+          created_at: '2026-08-16T09:00:00Z',
+          updated_at: '2026-08-16T09:00:00Z',
+        },
+      ],
+    })
   })
 
   it('renders manager dashboard shell with sidebar navigation items', () => {
@@ -142,6 +159,7 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getAllByText('تنظیمات ساختمان').length).toBeGreaterThan(0)
     expect(screen.getAllByText('فهرست واحدها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امکانات').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('اطلاعیه‌ها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امور مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('کاربران').length).toBeGreaterThan(0)
@@ -172,6 +190,17 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getByText('سوابق مالی واحدها')).toBeInTheDocument()
     expect(screen.getByText('شارژ ماهیانه')).toBeInTheDocument()
     expect(screen.getAllByText('500,000 تومان').length).toBeGreaterThan(0)
+  })
+
+  it('switches to the Announcements section and offers the publish action', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getAllByText('اطلاعیه‌ها')[0])
+
+    expect(screen.getByRole('heading', { name: 'اطلاعیه‌ها', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'انتشار اطلاعیه جدید' })).toBeInTheDocument()
+    expect(await screen.findByText('قطع آب ساختمان')).toBeInTheDocument()
   })
 
   it('handles manager logout', async () => {
