@@ -59,12 +59,33 @@ class ManagerServiceRequestListView(generics.ListAPIView):
         'created_at',
     ]
 
+    # Managers scan this list newest-first so the freshest requests need no
+    # scrolling; ?ordering=created_at flips it for working a backlog from the
+    # oldest entry. The id tiebreak keeps the order stable for requests that
+    # share a timestamp.
+    ORDERINGS = {
+        '-created_at': ('-created_at', '-id'),
+        'created_at': ('created_at', 'id'),
+    }
+    DEFAULT_ORDERING = '-created_at'
+
     def get_queryset(self):
-        return (
-            ServiceRequest.objects.select_related('resident', 'assigned_staff')
-            .prefetch_related('resident__units')
-            .order_by('status', 'id')
-        )
+        queryset = ServiceRequest.objects.select_related(
+            'resident', 'assigned_staff'
+        ).prefetch_related('resident__units')
+
+        # ?status=Pending narrows the list to one status. Matching case
+        # -insensitively lets ?status=pending work as well as the capitalised
+        # value the model stores; an unrecognised status simply matches
+        # nothing, which the UI renders as its empty state.
+        status_param = (self.request.query_params.get('status') or '').strip()
+        if status_param:
+            queryset = queryset.filter(status__iexact=status_param)
+
+        ordering_param = (self.request.query_params.get('ordering') or '').strip()
+        ordering = self.ORDERINGS.get(ordering_param, self.ORDERINGS[self.DEFAULT_ORDERING])
+
+        return queryset.order_by(*ordering)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
