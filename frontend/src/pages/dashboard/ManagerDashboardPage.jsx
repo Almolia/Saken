@@ -5,6 +5,7 @@ import {
   FileSpreadsheet,
   Landmark,
   LogOut,
+  Megaphone,
   PieChart,
   Receipt,
   ShieldCheck,
@@ -20,6 +21,7 @@ import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
 import { AdminProfile } from './admin/AdminProfile'
 import { AmenitiesSection } from './manager/AmenitiesSection'
+import { AnnouncementsSection } from './manager/AnnouncementsSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
 import { ReportsSection } from './manager/ReportsSection'
@@ -34,6 +36,7 @@ const sectionTitles = {
   building: 'تنظیمات ساختمان',
   units: 'فهرست واحدها',
   amenities: 'امکانات',
+  announcements: 'اطلاعیه‌ها',
   financials: 'امور مالی',
   reports: 'گزارش مالی',
   users: 'کاربران',
@@ -92,6 +95,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               label="امکانات"
               active={activeSection === 'amenities'}
               onClick={() => setActiveSection('amenities')}
+            />
+            <SideNavItem
+              icon={Megaphone}
+              label="اطلاعیه‌ها"
+              active={activeSection === 'announcements'}
+              onClick={() => setActiveSection('announcements')}
             />
             <SideNavItem
               icon={Receipt}
@@ -165,6 +174,11 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                 label="امکانات"
               />
               <MobileTab
+                active={activeSection === 'announcements'}
+                onClick={() => setActiveSection('announcements')}
+                label="اطلاعیه‌ها"
+              />
+              <MobileTab
                 active={activeSection === 'financials'}
                 onClick={() => setActiveSection('financials')}
                 label="امور مالی"
@@ -193,6 +207,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <UnitsSection users={userData.users} />
             ) : activeSection === 'amenities' ? (
               <AmenitiesSection />
+            ) : activeSection === 'announcements' ? (
+              <AnnouncementsSection />
             ) : activeSection === 'financials' ? (
               <FinancialsSection />
             ) : activeSection === 'reports' ? (
