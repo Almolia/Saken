@@ -214,6 +214,29 @@ export const managerApi = {
       method: 'DELETE',
     })
   },
+  // Announcements. The list answers { announcements: [...] } newest-first and
+  // includes the archived ones; the write endpoints answer { message,
+  // announcement }. Residents only ever see the records with is_active true.
+  announcements() {
+    return request('/manager/announcements/')
+  },
+  createAnnouncement(payload) {
+    return request('/manager/announcements/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  updateAnnouncement(announcementId, payload) {
+    return request(`/manager/announcements/${announcementId}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  deleteAnnouncement(announcementId) {
+    return request(`/manager/announcements/${announcementId}/`, {
+      method: 'DELETE',
+    })
+  },
 }
 
 export { API_BASE_URL, request }
