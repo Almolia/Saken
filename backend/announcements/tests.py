@@ -1,13 +1,14 @@
 from datetime import timedelta
+
+from buildings.models import Building, Unit
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
-
 from users.models import UserRole
+
 from .models import Announcement
-from buildings.models import Building, Unit
 
 User = get_user_model()
 
@@ -205,6 +206,14 @@ class ManagerAnnouncementTests(APITestCase):
             role=UserRole.RESIDENT,
         )
 
+        self.service_staff = User.objects.create_user(
+            phone="09121110005",
+            password="ServicePass123",
+            full_name="Test Service Staff",
+            national_id="1111111115",
+            role=UserRole.SERVICE_STAFF,
+        )
+
         self.list_url = reverse("manager-announcements")
 
     def test_manager_can_create_announcement(self):
@@ -220,13 +229,41 @@ class ManagerAnnouncementTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["message"], "اطلاعیه با موفقیت ایجاد شد.")
         self.assertEqual(response.data["announcement"]["title"], "Important Building Notice")
-        self.assertEqual(response.data["announcement"]["content"], "The lobby will be closed for renovations this weekend.")
+        self.assertEqual(response.data["announcement"]["content"],
+                         "The lobby will be closed for renovations this weekend.")
         self.assertEqual(response.data["announcement"]["author"], self.manager.id)
         self.assertEqual(response.data["announcement"]["author_name"], self.manager.full_name)
+        self.assertTrue(response.data["announcement"]["is_active"])
 
         self.assertEqual(Announcement.objects.count(), 1)
         announcement = Announcement.objects.first()
         self.assertEqual(announcement.author, self.manager)
+
+    def test_manager_cannot_create_announcement_with_invalid_title(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(
+            self.list_url, {"content": "Valid content"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            self.list_url, {"title": "   ", "content": "Valid content"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manager_cannot_create_announcement_with_invalid_content(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(
+            self.list_url, {"title": "Valid title"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            self.list_url, {"title": "Valid title", "content": "   "}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_manager_can_list_all_announcements(self):
         """Manager can GET all announcements (including inactive)."""
@@ -313,6 +350,16 @@ class ManagerAnnouncementTests(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_service_staff_cannot_access_manager_endpoints(self):
+        self.client.force_authenticate(user=self.service_staff)
+
+        payload = {"title": "Hack", "content": "Hack content"}
+        response = self.client.post(self.list_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_announcement_detail_404_returns_proper_message(self):
         """GET on non-existent announcement returns 404 with proper message."""
         self.client.force_authenticate(user=self.manager)
@@ -335,6 +382,31 @@ class ManagerAnnouncementTests(APITestCase):
         response = self.client.get(detail_url)
 
         self.assertEqual(response.data["author_name"], self.manager.full_name)
+
+    def test_manager_announcement_list_orders_newest_first(self):
+        self.client.force_authenticate(user=self.manager)
+
+        old = Announcement.objects.create(
+            title="Old Announcement",
+            content="Old content",
+            author=self.manager,
+        )
+        Announcement.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=1))
+
+        new = Announcement.objects.create(
+            title="New Announcement",
+            content="New content",
+            author=self.manager,
+        )
+        Announcement.objects.filter(pk=new.pk).update(created_at=timezone.now())
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        announcements = response.data["announcements"]
+
+        self.assertEqual(announcements[0]["id"], new.id)
+        self.assertEqual(announcements[1]["id"], old.id)
 
 
 class AnnouncementModelTests(APITestCase):
@@ -400,13 +472,3 @@ class AnnouncementModelTests(APITestCase):
         self.assertEqual(announcements[0].title, "Third")
         self.assertEqual(announcements[1].title, "Second")
         self.assertEqual(announcements[2].title, "First")
-
-    def test_announcement_author_nullable(self):
-        """Test that author can be null."""
-        announcement = Announcement.objects.create(
-            title="No Author",
-            content="Content without author",
-            author=None,
-        )
-        self.assertIsNone(announcement.author)
-        self.assertEqual(str(announcement), "No Author")

@@ -12,7 +12,7 @@ from .serializers import (
     ManagerServiceRequestSerializer,
     ServiceRequestSerializer,
     SettleServiceRequestSerializer,
-    StaffServiceRequestSerializer,
+    StaffServiceRequestSerializer, ManagerServiceRequestFilterSerializer,
 )
 
 
@@ -62,7 +62,7 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     # Managers scan this list newest-first so the freshest requests need no
     # scrolling; ?ordering=created_at flips it for working a backlog from the
     # oldest entry. The id tiebreak keeps the order stable for requests that
-    # share a timestamp.
+    # share a timestamp, and an unrecognised value falls back to the default.
     ORDERINGS = {
         '-created_at': ('-created_at', '-id'),
         'created_at': ('created_at', 'id'),
@@ -70,22 +70,25 @@ class ManagerServiceRequestListView(generics.ListAPIView):
     DEFAULT_ORDERING = '-created_at'
 
     def get_queryset(self):
-        queryset = ServiceRequest.objects.select_related(
-            'resident', 'assigned_staff'
-        ).prefetch_related('resident__units')
-
-        # ?status=Pending narrows the list to one status. Matching case
-        # -insensitively lets ?status=pending work as well as the capitalised
-        # value the model stores; an unrecognised status simply matches
-        # nothing, which the UI renders as its empty state.
-        status_param = (self.request.query_params.get('status') or '').strip()
-        if status_param:
-            queryset = queryset.filter(status__iexact=status_param)
-
         ordering_param = (self.request.query_params.get('ordering') or '').strip()
         ordering = self.ORDERINGS.get(ordering_param, self.ORDERINGS[self.DEFAULT_ORDERING])
 
-        return queryset.order_by(*ordering)
+        queryset = (
+            ServiceRequest.objects.select_related('resident', 'assigned_staff')
+            .prefetch_related('resident__units')
+            .order_by(*ordering)
+        )
+
+        filter_serializer = ManagerServiceRequestFilterSerializer(
+            data=self.request.query_params
+        )
+        filter_serializer.is_valid(raise_exception=True)
+
+        request_status = filter_serializer.validated_data.get('status')
+        if request_status:
+            queryset = queryset.filter(status=request_status)
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())

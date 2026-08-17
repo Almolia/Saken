@@ -33,6 +33,8 @@ class ValidationMessages:
     CURRENT_PASSWORD_INVALID = "گذرواژه فعلی نادرست است."
     NEW_PASSWORD_REQUIRED = "رمز جدید الزامی است."
     NEW_PASSWORD_CONFIRMATION_MISMATCH = "تکرار رمز جدید با رمز جدید مطابقت ندارد."
+    ANNOUNCEMENT_TITLE_REQUIRED = "عنوان اطلاعیه نمی‌تواند خالی باشد."
+    ANNOUNCEMENT_CONTENT_REQUIRED = "محتوای اطلاعیه نمی‌تواند خالی باشد."
 
 
 class UnitMessages:
@@ -68,6 +70,7 @@ class ServiceRequestMessages:
     STAFF_NOT_FOUND = "کاربر ارجاعی یافت نشد."
     STAFF_INVALID_ROLE = "کاربر انتخابی جزو کارکنان خدمات نیست."
     ASSIGNED_STAFF_REQUIRED = "انتخاب کارکنان خدمات الزامی است."
+    INVALID_STATUS = "وضعیت درخواست خدمات نامعتبر است."
 
 
 class SettlementMessages:

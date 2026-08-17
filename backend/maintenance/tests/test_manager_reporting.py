@@ -1,10 +1,12 @@
-from django.contrib.auth import get_user_model
-from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APITestCase
+from datetime import timedelta
 
 from buildings.models import Building, Unit
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.utils import timezone
 from maintenance.models import RequestStatus, ServiceRequest
+from rest_framework import status
+from rest_framework.test import APITestCase
 from users.models import UserRole
 
 User = get_user_model()
@@ -166,3 +168,63 @@ class ManagerReportingAndSearchTests(APITestCase):
 
         self.assertEqual(summary_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(list_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_service_staff_cannot_access_manager_reports(self):
+        self.client.force_authenticate(user=self.staff_smith)
+
+        summary_response = self.client.get(self.summary_url)
+        list_response = self.client.get(self.list_url)
+
+        self.assertEqual(summary_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(list_response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_filter_by_status(self):
+        self.client.force_authenticate(user=self.manager)
+
+        for request_status in RequestStatus.values:
+            response = self.client.get(self.list_url, {'status': request_status}, )
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            requests = response.data['requests']
+
+            self.assertTrue(requests)
+            self.assertTrue(
+                all(item['status'] == request_status for item in requests)
+            )
+
+    def test_manager_request_list_orders_newest_first(self):
+        self.client.force_authenticate(user=self.manager)
+
+        old = ServiceRequest.objects.create(
+            title='Old Request',
+            description='Old request',
+            resident=self.resident_john,
+        )
+        new = ServiceRequest.objects.create(
+            title='New Request',
+            description='New request',
+            resident=self.resident_john,
+        )
+
+        now = timezone.now()
+        ServiceRequest.objects.filter(pk=old.pk).update(created_at=now - timedelta(days=1))
+        ServiceRequest.objects.filter(pk=new.pk).update(created_at=now)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        requests = response.data['requests']
+        request_ids = [item['id'] for item in requests]
+
+        self.assertLess(
+            request_ids.index(new.id),
+            request_ids.index(old.id),
+        )
+
+    def test_invalid_status_returns_400(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.list_url, {'status': 'Invalid'}, )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('status', response.data)

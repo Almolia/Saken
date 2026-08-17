@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatArea, formatCurrency, formatDate, resolveHomePath } from './helpers'
+import { formatArea, formatCurrency, formatDate, formatRelativeDate, resolveHomePath } from './helpers'
 
 describe('helpers', () => {
   describe('resolveHomePath', () => {
@@ -25,6 +25,38 @@ describe('helpers', () => {
       expect(formatDate('')).toBe('')
       expect(formatDate(null)).toBe('')
       expect(formatDate('2026-09-20')).toBeTruthy()
+    })
+  })
+
+  describe('formatRelativeDate', () => {
+    const now = new Date('2026-08-17T12:00:00Z').getTime()
+    const ago = (seconds) => new Date(now - seconds * 1000).toISOString()
+
+    it('returns empty for empty input and echoes an unparsable value', () => {
+      expect(formatRelativeDate('', now)).toBe('')
+      expect(formatRelativeDate(null, now)).toBe('')
+      expect(formatRelativeDate('not-a-date', now)).toBe('not-a-date')
+    })
+
+    it('calls anything under a minute "just now"', () => {
+      expect(formatRelativeDate(ago(5), now)).toBe('هم‌اکنون')
+      expect(formatRelativeDate(ago(59), now)).toBe('هم‌اکنون')
+    })
+
+    it('counts minutes, hours and days while they stay readable', () => {
+      expect(formatRelativeDate(ago(5 * 60), now)).toBe('۵ دقیقه پیش')
+      expect(formatRelativeDate(ago(3 * 3600), now)).toBe('۳ ساعت پیش')
+      expect(formatRelativeDate(ago(24 * 3600), now)).toBe('دیروز')
+      expect(formatRelativeDate(ago(3 * 24 * 3600), now)).toBe('۳ روز پیش')
+    })
+
+    it('falls back to the absolute date once a week has passed', () => {
+      const old = ago(30 * 24 * 3600)
+      expect(formatRelativeDate(old, now)).toBe(formatDate(old))
+    })
+
+    it('treats a future timestamp from clock skew as "just now"', () => {
+      expect(formatRelativeDate(ago(-30), now)).toBe('هم‌اکنون')
     })
   })
 
