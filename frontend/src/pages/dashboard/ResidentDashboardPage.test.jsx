@@ -4,9 +4,16 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
 import { amenityApi } from '../../lib/amenityApi'
+import { residentAnnouncementApi } from '../../lib/announcementApi'
 import { residentChargeApi } from '../../lib/billingApi'
 import { unitApi } from '../../lib/unitApi'
 import { ResidentDashboardPage } from './ResidentDashboardPage'
+
+vi.mock('../../lib/announcementApi', () => ({
+  residentAnnouncementApi: {
+    list: vi.fn(),
+  },
+}))
 
 vi.mock('../../lib/unitApi', () => ({
   unitApi: {
@@ -124,6 +131,9 @@ const octoberCharge = {
 
 describe('ResidentDashboardPage', () => {
   beforeEach(() => {
+    residentAnnouncementApi.list.mockReset()
+    residentAnnouncementApi.list.mockResolvedValue([])
+
     unitApi.myUnit.mockReset()
     residentChargeApi.pending.mockReset()
     residentChargeApi.history.mockReset()
@@ -138,6 +148,36 @@ describe('ResidentDashboardPage', () => {
     amenityApi.list.mockResolvedValue({ amenities: [] })
     amenityApi.getSlots.mockResolvedValue({ slots: [] })
     amenityApi.myReservations.mockResolvedValue({ reservations: [] })
+  })
+
+  it('shows the building announcement feed above the resident\'s own details', async () => {
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentAnnouncementApi.list.mockResolvedValue([
+      {
+        id: 5,
+        title: 'قطع آب ساختمان',
+        content: 'آب ساختمان فردا از ساعت ۹ تا ۱۲ قطع خواهد بود.',
+        author_name: 'مدیر ساختمان',
+        created_at: new Date(Date.now() - 3 * HOUR).toISOString(),
+      },
+    ])
+    renderPage()
+
+    const feed = screen.getByRole('region', { name: 'اطلاعیه‌های ساختمان' })
+    expect(await within(feed).findByText('قطع آب ساختمان')).toBeInTheDocument()
+    expect(within(feed).getByText('۳ ساعت پیش')).toBeInTheDocument()
+
+    // Building-wide news is read before the resident's own unit and charges.
+    const charges = screen.getByRole('region', { name: 'شارژهای پرداخت‌نشده' })
+    expect(feed.compareDocumentPosition(charges) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('falls back to the empty state when nothing has been published', async () => {
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    renderPage()
+
+    const feed = screen.getByRole('region', { name: 'اطلاعیه‌های ساختمان' })
+    expect(await within(feed).findByText('در حال حاضر اطلاعیه‌ای وجود ندارد')).toBeInTheDocument()
   })
 
   it('renders the resident profile info from auth state', async () => {
