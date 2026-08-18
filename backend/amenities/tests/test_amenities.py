@@ -1,13 +1,14 @@
 from datetime import datetime, timedelta
-from django.utils import timezone
-from django.urls import reverse
-from rest_framework import status
-from rest_framework.test import APITestCase
-from rest_framework.exceptions import ValidationError
-from django.contrib.auth import get_user_model
+
 from amenities.models import Amenity, Reservation, ReservationStatus
 from amenities.services import check_booking_conflict
 from common.constants import AmenityMessages
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.exceptions import ValidationError
+from rest_framework.test import APITestCase
 
 User = get_user_model()
 
@@ -510,7 +511,8 @@ class ConflictResolutionServiceTests(APITestCase):
             role="resident",
         )
         self.amenity = Amenity.objects.create(name="زمین تنیس", is_active=True)
-        self.base_time = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0, microsecond=0) + timedelta(days=2)
+        self.base_time = timezone.localtime(timezone.now()).replace(hour=10, minute=0, second=0,
+                                                                    microsecond=0) + timedelta(days=2)
 
     def test_no_conflict_when_empty(self):
         # Should not raise any exception
@@ -601,7 +603,8 @@ class ResidentReservationAPITests(APITestCase):
         )
         self.amenity = Amenity.objects.create(name="باشگاه", operating_rules="08:00 تا 22:00", is_active=True)
         self.list_url = reverse("resident-reservations")
-        self.base_time = timezone.localtime(timezone.now()).replace(hour=14, minute=0, second=0, microsecond=0) + timedelta(days=3)
+        self.base_time = timezone.localtime(timezone.now()).replace(hour=14, minute=0, second=0,
+                                                                    microsecond=0) + timedelta(days=3)
 
     def test_resident_can_create_reservation(self):
         self.client.force_authenticate(user=self.resident)
@@ -679,7 +682,10 @@ class AmenitySlotsAPITests(APITestCase):
         )
         self.amenity = Amenity.objects.create(name="لابی", is_active=True)
         self.target_date = timezone.localtime(timezone.now()).date() + timedelta(days=5)
-        self.base_time = timezone.make_aware(datetime.combine(self.target_date, datetime.min.time())).replace(hour=10, minute=0, second=0, microsecond=0)
+        self.base_time = timezone.make_aware(datetime.combine(self.target_date, datetime.min.time())).replace(hour=10,
+                                                                                                              minute=0,
+                                                                                                              second=0,
+                                                                                                              microsecond=0)
 
     def test_get_slots(self):
         self.client.force_authenticate(user=self.resident)
@@ -1171,6 +1177,7 @@ class ResidentReservationIsolationAndCancellationTests(APITestCase):
         reservation.refresh_from_db()
         self.assertEqual(reservation.status, ReservationStatus.CANCELED)
 
+
 class ReservationCancelParityTests(APITestCase):
     """DELETE and PATCH must enforce identical cancellation rules.
 
@@ -1320,3 +1327,255 @@ class ReservationCancelParityTests(APITestCase):
         )
         past_reservation.refresh_from_db()
         self.assertEqual(past_reservation.status, ReservationStatus.ACTIVE)
+
+
+class ManagerReservationReportTests(APITestCase):
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            phone="09120000001",
+            password="ManagerPass123",
+            full_name="Test Manager",
+            national_id="1000000001",
+            role="manager",
+        )
+        self.admin = User.objects.create_user(
+            phone="09120000002",
+            password="AdminPass123",
+            full_name="Test Admin",
+            national_id="1000000002",
+            role="admin",
+        )
+        self.resident = User.objects.create_user(
+            phone="09120000003",
+            password="ResidentPass123",
+            full_name="Alice Resident",
+            national_id="1000000003",
+            role="resident",
+        )
+        self.other_resident = User.objects.create_user(
+            phone="09120000004",
+            password="ResidentPass123",
+            full_name="Bob Resident",
+            national_id="1000000004",
+            role="resident",
+        )
+        self.service_staff = User.objects.create_user(
+            phone="09120000005",
+            password="StaffPass123",
+            full_name="Service Staff",
+            national_id="1000000005",
+            role="service_staff",
+        )
+
+        self.pool = Amenity.objects.create(name="Pool", operating_rules="08:00 تا 22:00", is_active=True)
+        self.gym = Amenity.objects.create(name="Gym", operating_rules="08:00 تا 22:00", is_active=True)
+        self.tennis = Amenity.objects.create(name="Tennis Court", operating_rules="08:00 تا 22:00", is_active=True)
+
+        self.list_url = reverse("manager-reservations")
+        self.base_time = timezone.localtime(timezone.now()).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        ) + timedelta(days=5)
+
+    def create_reservation(self, amenity, resident, start_time, duration=1, status=ReservationStatus.ACTIVE):
+        return Reservation.objects.create(
+            amenity=amenity,
+            resident=resident,
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=duration),
+            status=status,
+        )
+
+    def test_manager_can_list_all_reservations(self):
+        self.create_reservation(self.pool, self.resident, self.base_time)
+        self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(hours=2))
+        self.create_reservation(self.tennis, self.resident, self.base_time + timedelta(hours=4))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["reservations"]), 3)
+
+        returned_ids = {reservation["id"] for reservation in response.data["reservations"]}
+        self.assertEqual(returned_ids, set(Reservation.objects.values_list("id", flat=True)))
+
+    def test_admin_can_list_all_reservations(self):
+        self.create_reservation(self.pool, self.resident, self.base_time)
+
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["reservations"]), 1)
+
+    def test_resident_cannot_access_manager_reservation_report(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_service_staff_cannot_access_manager_reservation_report(self):
+        self.client.force_authenticate(user=self.service_staff)
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_search_by_amenity_name(self):
+        pool_reservation = self.create_reservation(self.pool, self.resident, self.base_time)
+        self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(hours=2))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"search": "Pool"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [pool_reservation.id])
+
+    def test_search_by_status(self):
+        active_reservation = self.create_reservation(
+            self.pool, self.resident, self.base_time, status=ReservationStatus.ACTIVE
+        )
+        canceled_reservation = self.create_reservation(
+            self.gym,
+            self.other_resident,
+            self.base_time + timedelta(hours=2),
+            status=ReservationStatus.CANCELED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"search": ReservationStatus.CANCELED})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [canceled_reservation.id])
+        self.assertNotIn(active_reservation.id, returned_ids)
+
+    def test_search_by_resident_full_name(self):
+        alice_reservation = self.create_reservation(self.pool, self.resident, self.base_time)
+        self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(hours=2))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"search": "Alice Resident"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [alice_reservation.id])
+
+    def test_multi_term_search_uses_and_semantics(self):
+        matching_reservation = self.create_reservation(
+            self.pool,
+            self.resident,
+            self.base_time,
+            status=ReservationStatus.CANCELED,
+        )
+        self.create_reservation(
+            self.pool,
+            self.resident,
+            self.base_time + timedelta(hours=2),
+            status=ReservationStatus.ACTIVE,
+        )
+        self.create_reservation(
+            self.gym,
+            self.other_resident,
+            self.base_time + timedelta(hours=4),
+            status=ReservationStatus.CANCELED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"search": "Pool Canceled"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [matching_reservation.id])
+
+    def test_amenity_filter(self):
+        pool_reservation = self.create_reservation(self.pool, self.resident, self.base_time)
+        self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(hours=2))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"amenity": self.pool.id})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [pool_reservation.id])
+
+    def test_date_filter(self):
+        target_date = self.base_time.date()
+
+        reservation_on_target_date = self.create_reservation(self.pool, self.resident, self.base_time)
+        self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(days=1))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url, {"date": target_date.isoformat()})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [reservation_on_target_date.id])
+
+    def test_amenity_and_search_filters_work_together(self):
+        matching_reservation = self.create_reservation(
+            self.pool,
+            self.resident,
+            self.base_time,
+            status=ReservationStatus.CANCELED,
+        )
+        self.create_reservation(
+            self.pool,
+            self.resident,
+            self.base_time + timedelta(hours=2),
+            status=ReservationStatus.ACTIVE,
+        )
+        self.create_reservation(
+            self.gym,
+            self.other_resident,
+            self.base_time + timedelta(hours=4),
+            status=ReservationStatus.CANCELED,
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(
+            self.list_url,
+            {"amenity": self.pool.id, "search": "Canceled"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [matching_reservation.id])
+
+    def test_reservations_are_ordered_newest_first(self):
+        newest = self.create_reservation(self.pool, self.resident, self.base_time)
+        oldest = self.create_reservation(self.gym, self.other_resident, self.base_time + timedelta(hours=3))
+        middle = self.create_reservation(self.tennis, self.resident, self.base_time + timedelta(hours=1))
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        returned_ids = [reservation["id"] for reservation in response.data["reservations"]]
+        self.assertEqual(returned_ids, [newest.id, middle.id, oldest.id])
+
+    def test_report_contains_required_reservation_data(self):
+        self.create_reservation(self.pool, self.resident, self.base_time)
+
+        self.client.force_authenticate(user=self.manager)
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        reservation = response.data["reservations"][0]
+        self.assertIn("amenity_name", reservation)
+        self.assertIn("resident_name", reservation)
+        self.assertIn("start_time", reservation)
+        self.assertIn("end_time", reservation)
+        self.assertIn("status", reservation)
+        self.assertIn("created_at", reservation)
