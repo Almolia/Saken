@@ -1,13 +1,15 @@
 from datetime import datetime, time
-from rest_framework import serializers, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
-from django.utils import timezone
 
 from common.constants import AmenityMessages
+from django.db.models import Q
+from django.utils import timezone
+from rest_framework import serializers, status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from users.permissions import IsManagerOrAdmin, IsResident
-from .models import Amenity, Reservation, ReservationStatus
+
+from .models import Amenity, Reservation
 from .serializers import (
     AmenitySerializer,
     AmenityCreateSerializer,
@@ -373,6 +375,15 @@ class ManagerReservationListView(APIView):
             except ValueError:
                 pass
 
-        reservations = queryset.order_by("-start_time", "-id")
+        search = request.query_params.get("search")
+        if search:
+            for term in search.split():
+                queryset = queryset.filter(
+                    Q(amenity__name__icontains=term)
+                    | Q(status__icontains=term)
+                    | Q(resident__full_name__icontains=term)
+                )
+
+        reservations = queryset.order_by("start_time", "-id")
         serializer = ReservationSerializer(reservations, many=True)
         return Response({"reservations": serializer.data})
