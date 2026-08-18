@@ -37,7 +37,9 @@ export function DeleteAnnouncementModal({ open, announcement, onClose, onDeleted
       open={open}
       title="حذف اطلاعیه"
       description="این اطلاعیه برای همیشه حذف می‌شود و قابل بازیابی نیست."
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <div className="space-y-4">
         <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">

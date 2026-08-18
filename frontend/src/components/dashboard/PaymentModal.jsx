@@ -54,7 +54,9 @@ export function PaymentModal({ open, charges, unitDebt, onClose, onPaid, onFaile
       open={open}
       title="پرداخت شارژ"
       description={`${charges.length} صورت‌حساب برای پرداخت انتخاب شده است`}
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <div className="space-y-5">
         <ul aria-label="صورت‌حساب‌های انتخاب‌شده" className="max-h-52 space-y-2 overflow-y-auto pl-1">

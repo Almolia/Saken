@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Modal } from '../ui/Modal'
 import { InputField } from '../ui/InputField'
 import { PrimaryButton } from '../ui/PrimaryButton'
@@ -28,15 +29,28 @@ export function AmenityFormModal({ open, onClose, amenity, onSubmit }) {
     },
   })
 
-  // Update form values when amenity changes
-  if (open && amenity && form.values.name !== (amenity.name ?? '') && !form.loading) {
-    form.setValues({
-      name: amenity.name ?? '',
-      description: amenity.description ?? '',
-      operating_rules: amenity.operating_rules ?? '',
-      is_active: amenity.is_active ?? true,
+  const previousTargetRef = useRef(null)
+  const setValues = form.setValues
+
+  // Re-sync only when the modal opens or its record identity changes. Parent
+  // re-renders for the same record must not overwrite edits already in progress.
+  useEffect(() => {
+    if (!open) {
+      previousTargetRef.current = null
+      return
+    }
+
+    const targetId = amenity?.id ?? 'new'
+    if (previousTargetRef.current === targetId) return
+
+    previousTargetRef.current = targetId
+    setValues({
+      name: amenity?.name ?? '',
+      description: amenity?.description ?? '',
+      operating_rules: amenity?.operating_rules ?? '',
+      is_active: amenity?.is_active ?? true,
     })
-  }
+  }, [amenity, open, setValues])
 
   return (
     <Modal
@@ -48,6 +62,8 @@ export function AmenityFormModal({ open, onClose, amenity, onSubmit }) {
           : 'مشخصات امکان جدید را وارد کنید.'
       }
       onClose={onClose}
+      loading={form.loading}
+      closeOnBackdrop={false}
     >
       <form className="space-y-4" onSubmit={form.handleSubmit}>
         <InputField

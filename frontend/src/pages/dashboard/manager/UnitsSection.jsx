@@ -281,7 +281,14 @@ export function UnitsSection({ users }) {
         )}
       </section>
 
-      <Modal open={createOpen} title="ثبت واحد جدید" description="مشخصات واحد را وارد کنید." onClose={() => setCreateOpen(false)}>
+      <Modal
+        open={createOpen}
+        title="ثبت واحد جدید"
+        description="مشخصات واحد را وارد کنید."
+        onClose={() => setCreateOpen(false)}
+        loading={unitForm.loading}
+        closeOnBackdrop={false}
+      >
         <form className="space-y-4" onSubmit={unitForm.handleSubmit}>
           <InputField label="شماره واحد" name="unit_number" type="text" value={unitForm.values.unit_number} onChange={unitForm.handleChange} error={unitForm.errors.unit_number} placeholder="مثلاً 102" />
           <InputField label="طبقه" name="floor" type="text" value={unitForm.values.floor} onChange={unitForm.handleChange} error={unitForm.errors.floor} placeholder="مثلاً 1" />
@@ -300,6 +307,8 @@ export function UnitsSection({ users }) {
             : 'یکی از کاربران بدون واحد را انتخاب کنید.'
         }
         onClose={() => setAssignTarget(null)}
+        loading={assignState.loading}
+        closeOnBackdrop={false}
       >
         {unassignedResidents.length === 0 ? (
           <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium leading-7 text-slate-600">

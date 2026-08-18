@@ -140,7 +140,9 @@ function IssueChargeModalContent({
       open
       title="صدور شارژ جدید"
       description="مشخصات شارژ دوره‌ای را وارد کرده و واحدهای مشمول را مشخص کنید."
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <form onSubmit={handleSubmit} noValidate className="space-y-4 max-h-[75vh] overflow-y-auto px-1">
         {/* Title */}

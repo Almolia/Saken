@@ -45,7 +45,9 @@ export function UnitOccupancyModal({ open, unit, onClose, onUpdated }) {
       open={open}
       title={`ویرایش واحد ${unit.unit_number}`}
       description="وضعیت سکونت این واحد را انتخاب کنید."
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
         <fieldset className="space-y-2">

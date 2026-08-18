@@ -135,6 +135,34 @@ describe('AnnouncementFormModal', () => {
     expect(titleField()).toHaveValue('قطع آب ساختمان')
   })
 
+  it('syncs fields when the edited announcement identity changes', async () => {
+    const onClose = vi.fn()
+    const onSubmit = vi.fn()
+    const first = {
+      id: 1,
+      title: 'اطلاعیه اول',
+      content: 'متن کامل اطلاعیه اول ساختمان',
+      is_active: true,
+    }
+    const second = {
+      id: 2,
+      title: 'اطلاعیه دوم',
+      content: 'متن کامل اطلاعیه دوم ساختمان',
+      is_active: false,
+    }
+    const { rerender } = render(
+      <AnnouncementFormModal open announcement={first} onClose={onClose} onSubmit={onSubmit} />,
+    )
+
+    rerender(
+      <AnnouncementFormModal open announcement={second} onClose={onClose} onSubmit={onSubmit} />,
+    )
+
+    await waitFor(() => expect(titleField()).toHaveValue('اطلاعیه دوم'))
+    expect(contentField()).toHaveValue('متن کامل اطلاعیه دوم ساختمان')
+    expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
+  })
+
   it('prefills the fields when editing an existing announcement', async () => {
     const user = userEvent.setup()
     const { onSubmit } = renderModal({

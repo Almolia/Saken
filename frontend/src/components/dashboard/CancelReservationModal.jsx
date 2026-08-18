@@ -40,7 +40,9 @@ export function CancelReservationModal({ open, reservation, onClose, onCanceled 
       open={open}
       title="لغو رزرو"
       description="آیا از لغو این رزرو اطمینان دارید؟"
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <div className="space-y-4">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">

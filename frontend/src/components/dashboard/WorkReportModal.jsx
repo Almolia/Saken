@@ -64,7 +64,9 @@ export function WorkReportModal({ open, serviceRequest, onClose, onSubmitted }) 
       open={open}
       title={isEditing ? 'ویرایش گزارش کار' : 'ثبت گزارش کار'}
       description={serviceRequest.title}
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

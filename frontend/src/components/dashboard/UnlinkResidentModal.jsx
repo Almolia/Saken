@@ -36,7 +36,9 @@ export function UnlinkResidentModal({ open, unit, onClose, onUpdated }) {
       open={open}
       title="حذف ساکن واحد"
       description={`آیا از حذف ساکن واحد ${unit.unit_number} اطمینان دارید؟`}
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       <div className="space-y-4">
         <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">

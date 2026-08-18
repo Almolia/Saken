@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Modal } from '../ui/Modal'
 import { InputField } from '../ui/InputField'
 import { PrimaryButton } from '../ui/PrimaryButton'
@@ -10,9 +11,6 @@ import {
   validateAnnouncement,
 } from '../../lib/validators'
 
-// Publishes a new announcement, or edits an existing one when `announcement` is
-// given. The caller mounts this fresh per target (via a React key), so the
-// initial values below are the whole story — there is no value to re-sync.
 export function AnnouncementFormModal({ open, announcement, onClose, onSubmit }) {
   const isEdit = Boolean(announcement?.id)
 
@@ -33,6 +31,28 @@ export function AnnouncementFormModal({ open, announcement, onClose, onSubmit })
     },
   })
 
+  const previousTargetRef = useRef(null)
+  const setValues = form.setValues
+
+  // Do not rely on the parent remounting this component. A new identity is
+  // synchronized, while a same-record parent render preserves in-progress text.
+  useEffect(() => {
+    if (!open) {
+      previousTargetRef.current = null
+      return
+    }
+
+    const targetId = announcement?.id ?? 'new'
+    if (previousTargetRef.current === targetId) return
+
+    previousTargetRef.current = targetId
+    setValues({
+      title: announcement?.title ?? '',
+      content: announcement?.content ?? '',
+      is_active: announcement?.is_active ?? true,
+    })
+  }, [announcement, open, setValues])
+
   const titleLength = form.values.title.trim().length
   const contentLength = form.values.content.trim().length
 
@@ -45,9 +65,9 @@ export function AnnouncementFormModal({ open, announcement, onClose, onSubmit })
           ? 'متن اطلاعیه را ویرایش کنید. تغییرات بلافاصله برای ساکنان قابل مشاهده است.'
           : 'عنوان و متن اطلاعیه را وارد کنید تا برای همه ساکنان منتشر شود.'
       }
-      // Closing mid-request would leave the manager without the result of a
-      // save that is still on its way.
-      onClose={form.loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={form.loading}
+      closeOnBackdrop={false}
     >
       <form className="space-y-4" onSubmit={form.handleSubmit} noValidate>
         <InputField

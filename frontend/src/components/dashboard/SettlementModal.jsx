@@ -62,7 +62,9 @@ export function SettlementModal({ open, serviceRequest, onClose, onSettled }) {
       open={open}
       title="تسویه هزینه"
       description={serviceRequest.title}
-      onClose={loading ? () => {} : onClose}
+      onClose={onClose}
+      loading={loading}
+      closeOnBackdrop={false}
     >
       {/* noValidate so the Persian messages below are what the user sees,
           rather than the browser's native constraint bubbles. */}
