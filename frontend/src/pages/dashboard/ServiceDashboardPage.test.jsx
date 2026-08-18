@@ -89,15 +89,17 @@ describe('ServiceDashboardPage', () => {
     expect(await screen.findByText('از حساب خارج شدید.')).toBeInTheDocument()
   })
 
-  it('keeps the session and reports the error when logout fails', async () => {
+  it('clears the local session and redirects even when server logout fails', async () => {
     const user = userEvent.setup()
     authApi.logout.mockRejectedValue(new Error('ارتباط با سرور برقرار نشد.'))
     const { setAuthState } = renderPage()
 
     await user.click(screen.getAllByRole('button', { name: /خروج/ })[0])
 
-    expect(await screen.findByText('ارتباط با سرور برقرار نشد.')).toBeInTheDocument()
-    expect(setAuthState).not.toHaveBeenCalled()
-    expect(navigateMock).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(setAuthState).toHaveBeenCalledWith({ loading: false, user: null }),
+    )
+    expect(navigateMock).toHaveBeenCalledWith('/login', { replace: true })
+    expect(await screen.findByText('از حساب خارج شدید.')).toBeInTheDocument()
   })
 })

@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import serializers
 
 from common.constants import AmenityMessages
@@ -81,6 +82,9 @@ class ReservationCreateSerializer(serializers.Serializer):
 
         if attrs["start_time"] >= attrs["end_time"]:
             raise serializers.ValidationError("زمان پایان باید بعد از زمان شروع باشد.")
+
+        if attrs["start_time"] <= timezone.now():
+            raise serializers.ValidationError(AmenityMessages.PAST_RESERVATION_NOT_ALLOWED)
 
         return attrs
 

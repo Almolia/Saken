@@ -12,10 +12,8 @@ import {
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from '../../components/ToastProvider'
+import { useLogout } from '../../hooks/useLogout'
 import { useUserDirectory } from '../../hooks/useUserDirectory'
-import { authApi } from '../../lib/api'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
@@ -43,17 +41,10 @@ const sectionTitles = {
 }
 
 export function ManagerDashboardPage({ authState, setAuthState }) {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('requests')
   const { data: userData, actionState, changeRole } = useUserDirectory()
 
-  async function handleLogout() {
-    await authApi.logout()
-    setAuthState({ loading: false, user: null })
-    showToast('از حساب خارج شدید.')
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = useLogout(setAuthState)
 
   const pageTitle = sectionTitles[activeSection]
 

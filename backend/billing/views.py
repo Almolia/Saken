@@ -2,11 +2,13 @@ from decimal import Decimal
 
 from common.constants import ChargeMessages, PaymentMessages
 from django.db.models import F, Sum
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, generics, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsManagerOrAdmin, IsResident
 
+from .filters import UnitChargeReportFilter
 from .models import MasterCharge, UnitCharge, UnitChargeStatus
 from .serializers import (
     MasterChargeSerializer,
@@ -212,25 +214,19 @@ class ManagerFinancialSummaryView(APIView):
 class ManagerChargeSearchListView(generics.ListAPIView):
     """Return the complete per-unit financial ledger for manager reports.
 
-    DRF's SearchFilter treats whitespace-separated words as an AND query while
-    allowing each word to match any searchable column.  Keep every value shown
-    by the report table searchable so the single frontend field behaves like a
-    true global search rather than only a title filter.
+    Text search covers actual text columns only. Status, creation dates and
+    numeric amounts are filtered through explicit, validated query parameters.
     """
 
     permission_classes = [IsManagerOrAdmin]
     serializer_class = UnitChargeSearchSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = UnitChargeReportFilter
     pagination_class = None
     search_fields = [
         'unit__unit_number',
-        'unit__floor',
-        'status',
-        'amount',
         'master_charge__title',
         'master_charge__description',
-        'master_charge__due_date',
-        'created_at',
     ]
     queryset = (
         UnitCharge.objects.select_related('unit', 'master_charge')

@@ -1,3 +1,4 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import generics, status, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,13 +11,14 @@ from billing.services import (
 )
 from common.constants import ServiceRequestMessages, SettlementMessages
 from users.permissions import IsManager, IsManagerOrAdmin, IsResident, IsServiceStaff
+from .filters import ServiceRequestReportFilter
 from .models import RequestStatus, ServiceRequest
 from .serializers import (
     AssignServiceRequestSerializer,
     ManagerServiceRequestSerializer,
     ServiceRequestSerializer,
     SettleServiceRequestSerializer,
-    StaffServiceRequestSerializer, ManagerServiceRequestFilterSerializer,
+    StaffServiceRequestSerializer,
 )
 
 
@@ -46,13 +48,12 @@ class ManagerServiceRequestSummaryView(APIView):
 class ManagerServiceRequestListView(generics.ListAPIView):
     permission_classes = [IsManager]
     serializer_class = ManagerServiceRequestSerializer
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = ServiceRequestReportFilter
     pagination_class = None
-    # This endpoint powers both the operational manager view and the global
-    # search in Service Reports. Include every textual value rendered by the
-    # report table, including the secondary phone values and creation date.
+    # Free-text search is intentionally limited to textual fields. Status and
+    # calendar boundaries have typed query parameters handled by the FilterSet.
     search_fields = [
-        'status',
         'title',
         'description',
         'resident__full_name',
@@ -60,7 +61,6 @@ class ManagerServiceRequestListView(generics.ListAPIView):
         'resident__units__unit_number',
         'assigned_staff__full_name',
         'assigned_staff__phone',
-        'created_at',
     ]
 
     # Managers scan this list newest-first so the freshest requests need no
@@ -82,15 +82,6 @@ class ManagerServiceRequestListView(generics.ListAPIView):
             .prefetch_related('resident__units')
             .order_by(*ordering)
         )
-
-        filter_serializer = ManagerServiceRequestFilterSerializer(
-            data=self.request.query_params
-        )
-        filter_serializer.is_valid(raise_exception=True)
-
-        request_status = filter_serializer.validated_data.get('status')
-        if request_status:
-            queryset = queryset.filter(status=request_status)
 
         return queryset
 

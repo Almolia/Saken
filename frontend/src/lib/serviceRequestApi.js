@@ -17,17 +17,28 @@ export const serviceRequestApi = {
 // Manager-facing service request endpoints for viewing, assigning, summarizing, and searching requests.
 export const managerServiceRequestApi = {
   // Accepts either a bare search string (the original call shape, kept for the
-  // reports view) or { search, status, ordering }. The endpoint answers
+  // reports view) or typed filters. The endpoint answers
   // newest-first unless ordering says otherwise, and omitting status returns
   // every request.
   listAll(options = '') {
-    const { search = '', status = '', ordering = '' } =
-      typeof options === 'string' ? { search: options } : options || {}
+    const {
+      search = '',
+      status = '',
+      ordering = '',
+      createdAfter = '',
+      createdBefore = '',
+    } = typeof options === 'string' ? { search: options } : options || {}
 
     const params = new URLSearchParams()
     if (typeof search === 'string' && search.trim()) params.set('search', search.trim())
     if (typeof status === 'string' && status.trim()) params.set('status', status.trim())
     if (typeof ordering === 'string' && ordering.trim()) params.set('ordering', ordering.trim())
+    if (typeof createdAfter === 'string' && createdAfter.trim()) {
+      params.set('created_after', createdAfter.trim())
+    }
+    if (typeof createdBefore === 'string' && createdBefore.trim()) {
+      params.set('created_before', createdBefore.trim())
+    }
 
     const query = params.toString()
     return request(`/manager/requests/${query ? `?${query}` : ''}`)

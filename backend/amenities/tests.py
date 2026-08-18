@@ -619,6 +619,23 @@ class ResidentReservationAPITests(APITestCase):
         res = Reservation.objects.first()
         self.assertEqual(res.resident, self.resident)
 
+    def test_past_start_time_returns_400_with_persian_message(self):
+        self.client.force_authenticate(user=self.resident)
+        start_time = timezone.now() - timedelta(hours=2)
+        response = self.client.post(
+            self.list_url,
+            {
+                "amenity": self.amenity.id,
+                "start_time": start_time.isoformat(),
+                "end_time": (start_time + timedelta(hours=1)).isoformat(),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(AmenityMessages.PAST_RESERVATION_NOT_ALLOWED, str(response.data))
+        self.assertFalse(Reservation.objects.exists())
+
     def test_conflict_returns_400(self):
         # Existing reservation
         Reservation.objects.create(
@@ -690,6 +707,19 @@ class AmenitySlotsAPITests(APITestCase):
         slot_11 = next(s for s in response.data["slots"] if s["start_time_formatted"] == "11:00")
         self.assertFalse(slot_11["is_booked"])
         self.assertTrue(slot_11["is_available"])
+
+    def test_past_slots_are_disabled_by_backend(self):
+        self.client.force_authenticate(user=self.resident)
+        past_date = timezone.localdate() - timedelta(days=1)
+        url = reverse("amenity-slots", kwargs={"pk": self.amenity.id})
+
+        response = self.client.get(f"{url}?date={past_date.isoformat()}")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(all(slot["is_past"] for slot in response.data["slots"]))
+        self.assertTrue(all(slot["disabled"] for slot in response.data["slots"]))
+        self.assertTrue(all(slot["is_booked"] for slot in response.data["slots"]))
+        self.assertTrue(all(not slot["is_available"] for slot in response.data["slots"]))
 
 
 class DoubleBookingAndLogicTests(APITestCase):

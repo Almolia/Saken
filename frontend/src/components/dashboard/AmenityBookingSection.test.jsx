@@ -32,8 +32,8 @@ const sampleAmenities = [
 
 const sampleSlots = [
   {
-    start_time: '2026-08-09T08:00:00+03:30',
-    end_time: '2026-08-09T09:00:00+03:30',
+    start_time: '2099-08-09T08:00:00+03:30',
+    end_time: '2099-08-09T09:00:00+03:30',
     start_time_formatted: '08:00',
     end_time_formatted: '09:00',
     label: '08:00 تا 09:00',
@@ -41,8 +41,8 @@ const sampleSlots = [
     is_available: true,
   },
   {
-    start_time: '2026-08-09T09:00:00+03:30',
-    end_time: '2026-08-09T10:00:00+03:30',
+    start_time: '2099-08-09T09:00:00+03:30',
+    end_time: '2099-08-09T10:00:00+03:30',
     start_time_formatted: '09:00',
     end_time_formatted: '10:00',
     label: '09:00 تا 10:00',
@@ -96,7 +96,7 @@ describe('AmenityBookingSection', () => {
     const user = userEvent.setup()
     amenityApi.createReservation.mockResolvedValue({
       message: 'رزرو با موفقیت انجام شد.',
-      reservation: { id: 10, amenity: 1, start_time: '2026-08-09T08:00:00+03:30', end_time: '2026-08-09T09:00:00+03:30' },
+      reservation: { id: 10, amenity: 1, start_time: '2099-08-09T08:00:00+03:30', end_time: '2099-08-09T09:00:00+03:30' },
     })
 
     renderSection()
@@ -112,10 +112,33 @@ describe('AmenityBookingSection', () => {
 
     expect(amenityApi.createReservation).toHaveBeenCalledWith({
       amenity: 1,
-      start_time: '2026-08-09T08:00:00+03:30',
-      end_time: '2026-08-09T09:00:00+03:30',
+      start_time: '2099-08-09T08:00:00+03:30',
+      end_time: '2099-08-09T09:00:00+03:30',
     })
     expect(await screen.findByText('رزرو با موفقیت انجام شد.')).toBeInTheDocument()
+  })
+
+  it('rejects a selected slot whose end time is already past', async () => {
+    const user = userEvent.setup()
+    amenityApi.getSlots.mockResolvedValue({
+      slots: [
+        {
+          ...sampleSlots[0],
+          start_time: '2020-01-01T08:00:00Z',
+          end_time: '2020-01-01T09:00:00Z',
+        },
+      ],
+    })
+
+    renderSection()
+
+    await user.click(await screen.findByRole('button', { name: /08:00.*09:00/ }))
+    await user.click(screen.getByRole('button', { name: /تأیید و ثبت رزرو/ }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'امکان رزرو بازه زمانی گذشته وجود ندارد.',
+    )
+    expect(amenityApi.createReservation).not.toHaveBeenCalled()
   })
 
   it('handles booking conflict error when someone books the slot milliseconds earlier', async () => {
@@ -142,8 +165,8 @@ describe('AmenityBookingSection', () => {
       id: 10,
       amenity: 1,
       amenity_name: 'باشگاه ورزشی',
-      start_time: '2026-08-09T08:00:00+03:30',
-      end_time: '2026-08-09T09:00:00+03:30',
+      start_time: '2099-08-09T08:00:00+03:30',
+      end_time: '2099-08-09T09:00:00+03:30',
       status: 'Active',
     }
     amenityApi.createReservation.mockResolvedValue({

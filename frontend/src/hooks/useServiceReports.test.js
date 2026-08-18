@@ -77,7 +77,7 @@ describe('useServiceReports', () => {
     await waitFor(() => expect(result.current.loading).toBe(false))
 
     expect(managerServiceRequestApi.summary).toHaveBeenCalledTimes(1)
-    expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('')
+    expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({ search: '' })
     expect(result.current.summary.Pending).toBe(1)
     expect(result.current.summary.Assigned).toBe(1)
     expect(result.current.summary.Completed).toBe(1)
@@ -97,22 +97,42 @@ describe('useServiceReports', () => {
     })
 
     expect(result.current.isDebouncing).toBe(true)
-    expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith('101')
+    expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith({ search: '101' })
 
     act(() => {
       vi.advanceTimersByTime(299)
     })
-    expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith('101')
+    expect(managerServiceRequestApi.listAll).not.toHaveBeenCalledWith({ search: '101' })
 
     act(() => {
       vi.advanceTimersByTime(1)
     })
 
     await waitFor(() => {
-      expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('101')
+      expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({ search: '101' })
       expect(result.current.requests).toEqual([sampleRequests[0]])
     })
     expect(managerServiceRequestApi.summary).toHaveBeenCalledTimes(1)
+  })
+
+  it('turns Persian status labels and Jalali dates into typed filters', async () => {
+    const { result } = renderHook(() => useServiceReports())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => result.current.setSearch('در انتظار بررسی'))
+    act(() => vi.advanceTimersByTime(300))
+    await waitFor(() =>
+      expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({ status: 'در انتظار بررسی' }),
+    )
+
+    act(() => result.current.setSearch('۱۴۰۵/۰۵/۲۷'))
+    act(() => vi.advanceTimersByTime(300))
+    await waitFor(() =>
+      expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({
+        createdAfter: '۱۴۰۵/۰۵/۲۷',
+        createdBefore: '۱۴۰۵/۰۵/۲۷',
+      }),
+    )
   })
 
   it('keeps the newest result when an older search response arrives late', async () => {
@@ -122,18 +142,18 @@ describe('useServiceReports', () => {
     const firstSearch = deferred()
     const secondSearch = deferred()
     managerServiceRequestApi.listAll.mockImplementation((query) => {
-      if (query === 'اول') return firstSearch.promise
-      if (query === 'دوم') return secondSearch.promise
+      if (query.search === 'اول') return firstSearch.promise
+      if (query.search === 'دوم') return secondSearch.promise
       return Promise.resolve({ requests: sampleRequests })
     })
 
     act(() => result.current.setSearch('اول'))
     act(() => vi.advanceTimersByTime(300))
-    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('اول'))
+    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({ search: 'اول' }))
 
     act(() => result.current.setSearch('دوم'))
     act(() => vi.advanceTimersByTime(300))
-    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith('دوم'))
+    await waitFor(() => expect(managerServiceRequestApi.listAll).toHaveBeenCalledWith({ search: 'دوم' }))
 
     await act(async () => {
       secondSearch.resolve({ requests: [sampleRequests[1]] })

@@ -1,7 +1,7 @@
 import { Crown, LogOut, Search, Settings, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../components/ToastProvider'
+import { useLogout } from '../../hooks/useLogout'
 import { useForm } from '../../hooks/useForm'
 import { useUserDirectory } from '../../hooks/useUserDirectory'
 import { authApi } from '../../lib/api'
@@ -15,7 +15,6 @@ import { RolesSection } from './admin/RolesSection'
 import { SettingsSection } from './admin/SettingsSection'
 
 export function AdminDashboardPage({ authState, setAuthState }) {
-  const navigate = useNavigate()
   const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('roles')
   const [search, setSearch] = useState('')
@@ -60,12 +59,7 @@ export function AdminDashboardPage({ authState, setAuthState }) {
     )
   }, [data.users, search])
 
-  async function handleLogout() {
-    await authApi.logout()
-    setAuthState({ loading: false, user: null })
-    showToast('از حساب خارج شدید.')
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = useLogout(setAuthState)
 
   const pageTitle = activeSection === 'roles' ? 'تغییر نقش‌ها' : 'تنظیمات'
 

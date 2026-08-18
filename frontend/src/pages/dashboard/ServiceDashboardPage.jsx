@@ -1,12 +1,10 @@
 import { ClipboardList, LogOut, ShieldCheck, UserRound, Users, Wrench } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from '../../components/ToastProvider'
+import { useLogout } from '../../hooks/useLogout'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
-import { authApi } from '../../lib/api'
 import { roleLabels } from '../../utils/constants'
 import { AdminProfile } from './admin/AdminProfile'
 import { StaffTasksSection } from './service/StaffTasksSection'
@@ -17,21 +15,9 @@ const sectionTitles = {
 }
 
 export function ServiceDashboardPage({ authState, setAuthState }) {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('tasks')
 
-  async function handleLogout() {
-    try {
-      await authApi.logout()
-    } catch (error) {
-      showToast(error.message, 'error')
-      return
-    }
-    setAuthState({ loading: false, user: null })
-    showToast('از حساب خارج شدید.')
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = useLogout(setAuthState)
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">

@@ -70,6 +70,7 @@ DJANGO_APPS = [
 
 THIRD_PARTY_APPS = [
     "corsheaders",
+    "django_filters",
     "rest_framework",
 ]
 

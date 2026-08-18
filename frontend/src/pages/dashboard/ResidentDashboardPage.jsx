@@ -1,7 +1,6 @@
 import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from '../../components/ToastProvider'
+import { useLogout } from '../../hooks/useLogout'
 import { AnnouncementFeed } from '../../components/dashboard/AnnouncementFeed'
 import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
 import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
@@ -20,12 +19,9 @@ import { useMyUnit } from '../../hooks/useMyUnit'
 import { usePaymentHistory } from '../../hooks/usePaymentHistory'
 import { usePendingCharges } from '../../hooks/usePendingCharges'
 import { useServiceRequests } from '../../hooks/useServiceRequests'
-import { authApi } from '../../lib/api'
 import { roleLabels } from '../../utils/constants'
 
 export function ResidentDashboardPage({ authState, setAuthState }) {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
   const { unit, loading, error, retry, refresh: refreshUnit } = useMyUnit()
   const {
     charges: pendingCharges,
@@ -85,12 +81,7 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
     setFreedSlotsToken((current) => current + 1)
   }
 
-  async function handleLogout() {
-    await authApi.logout()
-    setAuthState({ loading: false, user: null })
-    showToast('از حساب خارج شدید.')
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = useLogout(setAuthState)
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">

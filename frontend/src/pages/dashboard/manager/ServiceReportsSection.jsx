@@ -116,7 +116,7 @@ export function ServiceReportsSection() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="جستجو بر اساس واحد، ساکن، کارمند خدمات، وضعیت، عنوان یا تاریخ..."
+              placeholder="عنوان، واحد، ساکن، وضعیت فارسی یا تاریخ شمسی (مثلاً ۱۴۰۵/۰۵/۲۷)..."
               autoComplete="off"
               aria-controls="service-requests-report-table"
               aria-describedby="service-request-count"

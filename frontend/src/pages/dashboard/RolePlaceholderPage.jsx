@@ -1,9 +1,7 @@
 import { LogOut, ShieldCheck, UserRound, Users } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
-import { useToast } from '../../components/ToastProvider'
+import { useLogout } from '../../hooks/useLogout'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
-import { authApi } from '../../lib/api'
 import { roleLabels, UserRole } from '../../utils/constants'
 
 const dashboardTitles = {
@@ -13,15 +11,8 @@ const dashboardTitles = {
 }
 
 export function RolePlaceholderPage({ authState, setAuthState }) {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
 
-  async function handleLogout() {
-    await authApi.logout()
-    setAuthState({ loading: false, user: null })
-    showToast('از حساب خارج شدید.')
-    navigate('/login', { replace: true })
-  }
+  const handleLogout = useLogout(setAuthState)
 
   const roleTitle = dashboardTitles[authState.user.role] || 'پنل کاربری'
   const description =

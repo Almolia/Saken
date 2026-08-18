@@ -59,16 +59,6 @@ class ManagerServiceRequestSerializer(serializers.ModelSerializer):
         return units[0].unit_number if units else None
 
 
-class ManagerServiceRequestFilterSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(
-        choices=RequestStatus.choices,
-        required=False,
-        error_messages={
-            "invalid_choice": ServiceRequestMessages.INVALID_STATUS,
-        },
-    )
-
-
 class SettleServiceRequestSerializer(serializers.Serializer):
     cost = serializers.DecimalField(
         max_digits=12,

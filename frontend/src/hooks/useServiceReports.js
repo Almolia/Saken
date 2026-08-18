@@ -24,6 +24,33 @@ function errorMessage(error, fallback) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
+const STATUS_LABELS = new Set([
+  'pending',
+  'assigned',
+  'completed',
+  'در انتظار',
+  'در انتظار بررسی',
+  'ارجاع شده',
+  'ارجاع‌شده',
+  'تکمیل شده',
+  'تکمیل‌شده',
+])
+
+function typedReportFilters(value) {
+  const query = value.trim()
+  const normalized = query.replace(/\u200c/g, ' ').replace(/\s+/g, ' ').toLocaleLowerCase('fa-IR')
+  if (STATUS_LABELS.has(normalized)) return { status: query }
+
+  const latinDate = query
+    .replace(/[۰-۹]/g, (digit) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(latinDate)) {
+    return { createdAfter: query, createdBefore: query }
+  }
+
+  return { search: query }
+}
+
 export function useServiceReports() {
   const hasLoaded = useRef(false)
   const lastSummaryReloadKey = useRef(null)
@@ -67,7 +94,7 @@ export function useServiceReports() {
       summaryError: shouldFetchSummary ? '' : current.summaryError,
     }))
 
-    const listRequest = managerServiceRequestApi.listAll(debouncedSearch)
+    const listRequest = managerServiceRequestApi.listAll(typedReportFilters(debouncedSearch))
     // Summary counts represent all requests, not only the search results. Fetch
     // them on mount and explicit refreshes, but do not repeat that request after
     // every keystroke.

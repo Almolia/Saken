@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from buildings.models import Building, Unit
 from django.contrib.auth import get_user_model
@@ -98,7 +98,7 @@ class ManagerReportingAndSearchTests(APITestCase):
     def test_search_single_term(self):
         self.client.force_authenticate(user=self.manager)
 
-        response = self.client.get(self.list_url, {'search': 'Pending'})
+        response = self.client.get(self.list_url, {'status': 'Pending'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         requests = response.data['requests']
@@ -110,7 +110,7 @@ class ManagerReportingAndSearchTests(APITestCase):
 
         response = self.client.get(
             self.list_url,
-            {'search': 'Completed Smith 101'},
+            {'search': 'Smith 101', 'status': 'Completed'},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -191,6 +191,34 @@ class ManagerReportingAndSearchTests(APITestCase):
             self.assertTrue(
                 all(item['status'] == request_status for item in requests)
             )
+
+    def test_persian_status_label_maps_to_stored_enum(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.list_url, {'status': 'در انتظار بررسی'})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['requests']), 1)
+        self.assertEqual(response.data['requests'][0]['id'], self.pending_request.id)
+
+    def test_jalali_created_date_filters_real_datetime_field(self):
+        self.client.force_authenticate(user=self.manager)
+        target = timezone.make_aware(datetime.combine(datetime(2026, 8, 18).date(), time(12)))
+        ServiceRequest.objects.filter(pk=self.pending_request.pk).update(created_at=target)
+        ServiceRequest.objects.exclude(pk=self.pending_request.pk).update(
+            created_at=target + timedelta(days=1),
+        )
+
+        response = self.client.get(
+            self.list_url,
+            {'created_after': '۱۴۰۵/۰۵/۲۷', 'created_before': '۱۴۰۵/۰۵/۲۷'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [item['id'] for item in response.data['requests']],
+            [self.pending_request.id],
+        )
 
     def test_manager_request_list_orders_newest_first(self):
         self.client.force_authenticate(user=self.manager)

@@ -110,7 +110,7 @@ describe('ServiceReportsSection', () => {
     const user = userEvent.setup()
     const { setSearch } = renderSection()
 
-    const searchInput = screen.getByPlaceholderText(/جستجو بر اساس واحد، ساکن/)
+    const searchInput = screen.getByRole('searchbox', { name: 'جستجو در درخواست‌های خدمات' })
     expect(searchInput).toBeInTheDocument()
 
     await user.type(searchInput, 'احمدی')

@@ -42,6 +42,9 @@ def create_reservation(resident, amenity_id, start_time, end_time):
     if not amenity.is_active:
         raise serializers.ValidationError(AmenityMessages.AMENITY_NOT_ACTIVE)
 
+    if start_time <= timezone.now():
+        raise serializers.ValidationError(AmenityMessages.PAST_RESERVATION_NOT_ALLOWED)
+
     check_booking_conflict(amenity.id, start_time, end_time)
 
     reservation = Reservation.objects.create(
@@ -107,15 +110,18 @@ def get_amenity_slots(amenity, target_date):
         end_time__gt=day_start,
     ).order_by("start_time", "id")
 
+    now = timezone.now()
     slots = []
     for hour in range(8, 22):
         slot_start = timezone.make_aware(datetime.combine(target_date, time(hour, 0)), tz)
         slot_end = timezone.make_aware(datetime.combine(target_date, time(hour + 1, 0)), tz)
 
-        is_booked = any(
+        has_reservation = any(
             res.start_time < slot_end and res.end_time > slot_start
             for res in reservations
         )
+        is_past = slot_start <= now
+        is_disabled = has_reservation or is_past
 
         slots.append({
             "start_time": slot_start.isoformat(),
@@ -123,17 +129,28 @@ def get_amenity_slots(amenity, target_date):
             "start_time_formatted": f"{hour:02d}:00",
             "end_time_formatted": f"{hour + 1:02d}:00",
             "label": f"{hour:02d}:00 تا {hour + 1:02d}:00",
-            "is_booked": is_booked,
-            "is_available": not is_booked,
+            "is_booked": is_disabled,
+            "is_past": is_past,
+            "disabled": is_disabled,
+            "is_available": not is_disabled,
+            "has_reservation": has_reservation,
         })
 
+    unavailable_slots = [
+        {
+            "start_time": slot["start_time"],
+            "end_time": slot["end_time"],
+        }
+        for slot in slots
+        if slot["disabled"]
+    ]
     booked_slots = [
         {
             "start_time": slot["start_time"],
             "end_time": slot["end_time"],
         }
         for slot in slots
-        if slot["is_booked"]
+        if slot["has_reservation"]
     ]
 
     return {
@@ -151,6 +168,6 @@ def get_amenity_slots(amenity, target_date):
             for res in reservations
         ],
         "slots": slots,
-        "unavailable_slots": booked_slots,
+        "unavailable_slots": unavailable_slots,
         "booked_slots": booked_slots,
     }

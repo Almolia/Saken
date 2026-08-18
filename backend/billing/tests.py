@@ -1,3 +1,4 @@
+from datetime import datetime, time
 from decimal import Decimal
 
 from buildings.models import Building, Unit
@@ -1331,29 +1332,42 @@ class ChargeSearchAPITests(BaseChargeTestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]['unit_number'], '101')
 
-    def test_manager_can_search_by_status(self):
-        """Searching by charge status returns matching records."""
+    def test_manager_can_filter_by_persian_status_label(self):
         self.client.force_authenticate(user=self.manager)
 
-        response = self.client.get(self.url, {'search': 'Paid'})
+        response = self.client.get(self.url, {'status': 'پرداخت‌شده'})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]['status'], 'Paid')
+        self.assertEqual(response.data[0]['status'], UnitChargeStatus.PAID)
 
-    def test_manager_can_search_visible_amount_and_due_date_columns(self):
-        """The global search covers values rendered in the report table."""
+    def test_manager_can_filter_by_numeric_amount_range(self):
         self.client.force_authenticate(user=self.manager)
 
-        amount_response = self.client.get(self.url, {'search': '150000'})
-        date_response = self.client.get(self.url, {'search': '2026-10-20'})
+        response = self.client.get(
+            self.url,
+            {'min_amount': '120000', 'max_amount': '160000'},
+        )
 
-        self.assertEqual(amount_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(amount_response.data), 1)
-        self.assertEqual(amount_response.data[0]['amount'], '150000.00')
-        self.assertEqual(date_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(date_response.data), 2)
-        self.assertTrue(all(item['due_date'] == '2026-10-20' for item in date_response.data))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['amount'], '150000.00')
+
+    def test_manager_can_filter_created_date_with_persian_jalali_digits(self):
+        self.client.force_authenticate(user=self.manager)
+        target = timezone.make_aware(datetime.combine(datetime(2026, 8, 18).date(), time(12)))
+        UnitCharge.objects.filter(pk=self.charge_1.pk).update(created_at=target)
+        UnitCharge.objects.filter(pk__in=[self.charge_2.pk, self.charge_3.pk]).update(
+            created_at=target.replace(day=19),
+        )
+
+        response = self.client.get(
+            self.url,
+            {'created_after': '۱۴۰۵/۰۵/۲۷', 'created_before': '۱۴۰۵/۰۵/۲۷'},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual([item['id'] for item in response.data], [self.charge_1.id])
 
     def test_manager_can_search_description_and_multiple_columns(self):
         """Whitespace-separated terms may match different ledger columns."""
@@ -1361,7 +1375,10 @@ class ChargeSearchAPITests(BaseChargeTestCase):
 
         self.charge_oct.description = 'هزینه نظافت مشاعات'
         self.charge_oct.save(update_fields=['description'])
-        response = self.client.get(self.url, {'search': 'نظافت 102 Pending'})
+        response = self.client.get(
+            self.url,
+            {'search': 'نظافت 102', 'status': 'پرداخت‌نشده'},
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)

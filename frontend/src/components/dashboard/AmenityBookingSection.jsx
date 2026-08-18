@@ -12,33 +12,6 @@ function getTodayISO() {
   return `${y}-${m}-${day}`
 }
 
-function generateDefaultSlots(dateStr, unavailableList = []) {
-  const slots = []
-  for (let hour = 8; hour < 22; hour++) {
-    const startStr = `${dateStr}T${String(hour).padStart(2, '0')}:00:00+03:30`
-    const endStr = `${dateStr}T${String(hour + 1).padStart(2, '0')}:00:00+03:30`
-    const label = `${String(hour).padStart(2, '0')}:00 تا ${String(hour + 1).padStart(2, '0')}:00`
-
-    const isBooked = unavailableList.some((item) => {
-      const itemStart = item.start_time || item.start
-      const itemEnd = item.end_time || item.end
-      if (!itemStart || !itemEnd) return false
-      return new Date(itemStart) < new Date(endStr) && new Date(itemEnd) > new Date(startStr)
-    })
-
-    slots.push({
-      start_time: startStr,
-      end_time: endStr,
-      start_time_formatted: `${String(hour).padStart(2, '0')}:00`,
-      end_time_formatted: `${String(hour + 1).padStart(2, '0')}:00`,
-      label,
-      is_booked: isBooked,
-      is_available: !isBooked,
-    })
-  }
-  return slots
-}
-
 // The booking half of the amenities feature. What the resident has already
 // booked lives in MyReservationsSection: onBookingCreated hands it the new
 // booking, and bumping slotsRefreshToken re-reads the grid after a cancellation
@@ -86,14 +59,10 @@ export function AmenityBookingSection({ onBookingCreated = () => {}, slotsRefres
     amenityApi
       .getSlots(amenityId, dateStr)
       .then((data) => {
-        let parsedSlots
-        if (Array.isArray(data?.slots) && data.slots.length > 0) {
-          parsedSlots = data.slots
-        } else {
-          const unavailable = data?.unavailable_slots || data?.booked_slots || data?.reservations || []
-          parsedSlots = generateDefaultSlots(dateStr, unavailable)
+        if (!Array.isArray(data?.slots)) {
+          throw new Error('پاسخ بازه‌های زمانی از سرور معتبر نیست.')
         }
-        setSlots(parsedSlots)
+        setSlots(data.slots)
         setLoadingSlots(false)
         setSlotsError('')
       })
@@ -117,6 +86,16 @@ export function AmenityBookingSection({ onBookingCreated = () => {}, slotsRefres
 
   async function handleConfirmBooking() {
     if (!selectedAmenity || !selectedSlot) return
+
+    const slotEnd = new Date(selectedSlot.end_time).getTime()
+    if (!Number.isFinite(slotEnd) || slotEnd <= Date.now()) {
+      const message = 'امکان رزرو بازه زمانی گذشته وجود ندارد.'
+      setSelectedSlot(null)
+      setBookingError(message)
+      showToast(message, 'error')
+      return
+    }
+
     setBookingLoading(true)
     setBookingError('')
 
@@ -244,7 +223,7 @@ export function AmenityBookingSection({ onBookingCreated = () => {}, slotsRefres
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-slate-600">
-                  ۳. انتخاب ساعت (۸:۰۰ صبح تا ۲۲:۰۰ شب):
+                  ۳. انتخاب ساعت:
                 </label>
                 <button
                   type="button"
@@ -274,7 +253,7 @@ export function AmenityBookingSection({ onBookingCreated = () => {}, slotsRefres
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
                   {slots.map((slot, i) => {
                     const isSelected = selectedSlot?.start_time === slot.start_time
-                    const isBooked = slot.is_booked
+                    const isBooked = slot.is_booked || slot.disabled || slot.is_available === false
 
                     return (
                       <button
@@ -306,7 +285,7 @@ export function AmenityBookingSection({ onBookingCreated = () => {}, slotsRefres
                                 : 'bg-emerald-50 text-emerald-700'
                           }`}
                         >
-                          {isBooked ? 'رزرو شده' : 'قابل رزرو'}
+                          {slot.is_past ? 'گذشته' : isBooked ? 'رزرو شده' : 'قابل رزرو'}
                         </span>
                       </button>
                     )

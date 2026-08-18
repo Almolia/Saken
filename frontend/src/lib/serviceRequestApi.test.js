@@ -53,6 +53,16 @@ describe('managerServiceRequestApi.listAll', () => {
     expect(calledPath()).toBe(`/manager/requests/?search=${encodeURIComponent('نشتی')}`)
   })
 
+  it('sends explicit creation date boundaries', () => {
+    managerServiceRequestApi.listAll({
+      createdAfter: '۱۴۰۵/۰۵/۲۷',
+      createdBefore: '۱۴۰۵/۰۵/۲۷',
+    })
+    const query = new URLSearchParams(calledPath().split('?')[1])
+    expect(query.get('created_after')).toBe('۱۴۰۵/۰۵/۲۷')
+    expect(query.get('created_before')).toBe('۱۴۰۵/۰۵/۲۷')
+  })
+
   it('encodes values that need it', () => {
     managerServiceRequestApi.listAll({ search: 'a&b=c' })
     expect(calledPath()).toBe('/manager/requests/?search=a%26b%3Dc')
