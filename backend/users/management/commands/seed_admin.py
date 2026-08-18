@@ -2,7 +2,7 @@ import os
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import models, transaction
 
 from users.models import UserRole
 
@@ -32,23 +32,43 @@ class Command(BaseCommand):
             raise CommandError('SAKEN_ADMIN_PASSWORD must contain at least 8 characters.')
 
         phone = values['SAKEN_ADMIN_PHONE']
+        national_id = values['SAKEN_ADMIN_NATIONAL_ID']
+        username = os.getenv('SAKEN_ADMIN_USERNAME', '').strip() or phone
         User = get_user_model()
 
         with transaction.atomic():
-            existing = User.objects.filter(phone=phone).first()
-            if existing:
-                if existing.role != UserRole.ADMIN or not existing.is_superuser:
-                    raise CommandError(
-                        f'A non-admin user already exists with phone {phone}; no account was changed.'
+            # All three fields are unique. Treat a match on any of them as the
+            # same seed account when it is already an admin; this keeps deploys
+            # idempotent even if an environment value (for example the phone)
+            # changed after the first seed.
+            identity_matches = User.objects.filter(
+                models.Q(phone=phone)
+                | models.Q(national_id=national_id)
+                | models.Q(username=username)
+            )
+            existing_admin = identity_matches.filter(
+                role=UserRole.ADMIN,
+                is_superuser=True,
+            ).first()
+            if existing_admin:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'Admin {existing_admin.phone} already exists; nothing to do.'
                     )
-                self.stdout.write(self.style.WARNING(f'Admin {phone} already exists; nothing to do.'))
+                )
                 return
+
+            if identity_matches.exists():
+                raise CommandError(
+                    'A non-admin user already uses the configured phone, username, '
+                    'or national ID; no account was changed.'
+                )
 
             User.objects.create_superuser(
                 phone=phone,
-                username=os.getenv('SAKEN_ADMIN_USERNAME', '').strip() or phone,
+                username=username,
                 full_name=values['SAKEN_ADMIN_FULL_NAME'],
-                national_id=values['SAKEN_ADMIN_NATIONAL_ID'],
+                national_id=national_id,
                 password=password,
             )
 
