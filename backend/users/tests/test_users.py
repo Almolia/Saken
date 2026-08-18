@@ -245,3 +245,109 @@ class AuthenticationTests(TestCase):
         response = self.client.get(sample_manager_endpoint)
 
         self.assertEqual(response.status_code, 403)
+
+    def test_service_staff_can_update_own_profile(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'service_staff', 'password': 'Service123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/service-staff/profile/',
+            {
+                'full_name': 'نیروی خدمات ویرایش شده',
+                'username': 'staff-edited',
+                'phone': '09123335555',
+                'national_id': '1234567893',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.service_staff.refresh_from_db()
+        self.assertEqual(self.service_staff.full_name, 'نیروی خدمات ویرایش شده')
+        self.assertEqual(self.service_staff.username, 'staff-edited')
+        self.assertEqual(self.service_staff.phone, '09123335555')
+        self.assertEqual(response.data['user']['full_name'], 'نیروی خدمات ویرایش شده')
+        self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
+
+    def test_service_staff_can_update_profile_and_change_password(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'service_staff', 'password': 'Service123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/service-staff/profile/',
+            {
+                'full_name': 'نیروی خدمات',
+                'username': 'service_staff',
+                'phone': '09122222222',
+                'national_id': '1234567893',
+                'current_password': 'Service123',
+                'new_password': 'Service12345',
+                'new_password_confirmation': 'Service12345',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.service_staff.refresh_from_db()
+        self.assertTrue(self.service_staff.check_password('Service12345'))
+
+    def test_service_staff_can_change_own_password(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'service_staff', 'password': 'Service123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.post(
+            '/api/auth/service-staff/change-password/',
+            {
+                'current_password': 'Service123',
+                'new_password': 'NewService123',
+                'new_password_confirmation': 'NewService123',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.service_staff.refresh_from_db()
+        self.assertTrue(self.service_staff.check_password('NewService123'))
+
+    def test_service_staff_rejects_wrong_current_password(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'service_staff', 'password': 'Service123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.post(
+            '/api/auth/service-staff/change-password/',
+            {
+                'current_password': 'WrongPass123',
+                'new_password': 'NewService123',
+                'new_password_confirmation': 'NewService123',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_resident_cannot_access_service_staff_profile_endpoints(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'resident', 'password': 'Resident123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/service-staff/profile/',
+            {
+                'full_name': 'سارا احمدی',
+                'username': 'resident',
+                'phone': '09121111111',
+                'national_id': '1234567891',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)

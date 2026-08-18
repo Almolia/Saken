@@ -15,7 +15,7 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
         <div className="relative z-10 max-w-3xl">
           <p className="text-sm font-bold text-teal-200">مدیریت نقش‌ها</p>
           <h2 className="mt-3 text-3xl font-black leading-tight tracking-tight sm:text-4xl">تعیین نقش کاربران سامانه</h2>
-          <p className="mt-4 text-sm leading-8 text-slate-300">نقش کاربران غیرادمین را می‌توانید بین «ساکن»، «مدیر» و «کارکنان خدمات» تغییر دهید.</p>
+          <p className="mt-4 text-sm leading-8 text-slate-300">نقش کاربران غیرادمین را می‌توانید بین «ساکن»، «مدیر» و «کارکنان خدمات» تغییر دهید و حساب هر کاربر را فعال یا غیرفعال کنید.</p>
         </div>
       </section>
 
@@ -43,13 +43,12 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-right lg:min-w-0">
+            <table className="w-full min-w-[900px] text-right">
               <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                 <tr>
                   <th className="px-6 py-4">کاربر</th>
                   <th className="px-6 py-4">نام کاربری</th>
-                  <th className="hidden px-6 py-4 lg:table-cell">شماره موبایل</th>
-                  <th className="hidden px-6 py-4 xl:table-cell">کد ملی</th>
+                  <th className="px-6 py-4">شماره موبایل</th>
                   <th className="px-6 py-4">نقش فعلی</th>
                   <th className="px-6 py-4">وضعیت حساب</th>
                   <th className="px-6 py-4">تغییر نقش</th>
@@ -61,22 +60,29 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                   const roleLoading = Boolean(actionState[`role-${user.id}`])
                   const statusLoading = Boolean(actionState[`status-${user.id}`])
                   const isAdmin = user.role === 'admin'
+                  const isActive = user.is_active !== false
+                  const statusLocked = isSelf || isAdmin
+
                   return (
                     <tr key={user.id} className="transition hover:bg-slate-50/70">
                       <td className="px-6 py-4"><UserCell user={user} isSelf={isSelf} /></td>
                       <td className="px-6 py-4 font-bold" dir="ltr">{user.username || '—'}</td>
-                      <td className="hidden px-6 py-4 font-bold lg:table-cell" dir="ltr">{user.phone}</td>
-                      <td className="hidden px-6 py-4 font-bold xl:table-cell" dir="ltr">{user.national_id}</td>
+                      <td className="px-6 py-4 font-bold" dir="ltr">{user.phone}</td>
                       <td className="px-6 py-4"><RoleBadge role={user.role} /></td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           <Toggle
-                            checked={user.is_active !== false}
+                            checked={isActive}
                             onChange={(isActive) => changeStatus(user, isActive)}
-                            disabled={isSelf || isAdmin || statusLoading}
-                            label={`وضعیت حساب ${user.full_name}`}
+                            disabled={statusLocked}
+                            loading={statusLoading}
+                            ariaLabel={isSelf ? 'امکان تغییر وضعیت حساب جاری وجود ندارد.' : `تغییر وضعیت حساب ${user.full_name}`}
+                            title={isSelf ? 'امکان تغییر وضعیت حساب جاری وجود ندارد.' : undefined}
                           />
-                          <span className={`text-xs font-bold ${user.is_active !== false ? 'text-emerald-700' : 'text-rose-600'}`}>{user.is_active !== false ? 'فعال' : 'غیرفعال'}</span>
+                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black ring-1 ${isActive ? 'bg-emerald-50 text-emerald-700 ring-emerald-100' : 'bg-rose-50 text-rose-600 ring-rose-100'}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                            {isActive ? 'فعال' : 'غیرفعال'}
+                          </span>
                         </div>
                       </td>
                       <td className="px-6 py-4">

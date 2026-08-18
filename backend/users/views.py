@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from common.constants import UserMessages
 from .models import User, UserRole
-from .permissions import IsAdminUserRole, IsManagerOrAdmin
+from .permissions import IsAdminUserRole, IsManagerOrAdmin, IsServiceStaff
 from .serializers import (
     AdminPasswordChangeSerializer,
     AdminProfileUpdateSerializer,
@@ -151,6 +151,34 @@ class AdminPasswordChangeView(APIView):
             request=request,
             user=user,
             message=UserMessages.ADMIN_PASSWORD_CHANGED,
+        )
+
+
+class ServiceStaffProfileUpdateView(APIView):
+    permission_classes = [IsServiceStaff]
+
+    def patch(self, request):
+        serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PROFILE_UPDATED,
+        )
+
+
+class ServiceStaffPasswordChangeView(APIView):
+    permission_classes = [IsServiceStaff]
+
+    def post(self, request):
+        serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PASSWORD_CHANGED,
         )
 
 

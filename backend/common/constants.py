@@ -14,6 +14,8 @@ class UserMessages:
     ADMIN_PROFILE_UPDATED = "اطلاعات حساب با موفقیت ذخیره شد."
     ADMIN_ONLY_PASSWORD_CHANGE = "فقط ادمین می‌تواند گذرواژه ادمین را تغییر دهد."
     ADMIN_PASSWORD_CHANGED = "گذرواژه ادمین با موفقیت تغییر کرد."
+    PROFILE_UPDATED = "اطلاعات حساب با موفقیت ذخیره شد."
+    PASSWORD_CHANGED = "گذرواژه با موفقیت تغییر کرد."
 
 
 class ValidationMessages:

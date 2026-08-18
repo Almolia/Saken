@@ -141,6 +141,18 @@ export const authApi = {
       body: JSON.stringify(payload),
     })
   },
+  updateServiceStaffProfile(payload) {
+    return request('/auth/service-staff/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  changeServiceStaffPassword(payload) {
+    return request('/auth/service-staff/change-password/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 export const managerApi = {

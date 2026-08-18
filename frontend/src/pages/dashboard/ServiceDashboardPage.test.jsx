@@ -16,6 +16,8 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../lib/api', () => ({
   authApi: {
     logout: vi.fn(),
+    updateServiceStaffProfile: vi.fn(),
+    changeServiceStaffPassword: vi.fn(),
   },
 }))
 
@@ -51,6 +53,8 @@ describe('ServiceDashboardPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     authApi.logout.mockReset()
+    authApi.updateServiceStaffProfile.mockReset()
+    authApi.changeServiceStaffPassword.mockReset()
   })
 
   it('renders the service staff shell with the task list', () => {
@@ -74,6 +78,46 @@ describe('ServiceDashboardPage', () => {
     expect(main.getByText('متین محمودی')).toBeInTheDocument()
     expect(main.getByText('09120000001')).toBeInTheDocument()
     expect(main.getByText('کارکنان خدمات')).toBeInTheDocument()
+  })
+
+  it('edits the profile from the account section', async () => {
+    const user = userEvent.setup()
+    authApi.updateServiceStaffProfile.mockResolvedValue({
+      message: 'اطلاعات حساب با موفقیت ذخیره شد.',
+      user: {
+        id: 12,
+        full_name: 'متین محمودی ویرایش شده',
+        username: 'matin-edited',
+        phone: '09120000001',
+        national_id: '1234567891',
+        role: 'service_staff',
+      },
+    })
+    const { setAuthState } = renderPage()
+
+    await user.click(screen.getAllByRole('button', { name: 'حساب کاربری' })[0])
+
+    const nameInput = screen.getByLabelText('نام و نام خانوادگی')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'متین محمودی ویرایش شده')
+    await user.type(screen.getByLabelText('نام کاربری'), 'matin-edited')
+    await user.type(screen.getByLabelText('کد ملی'), '1234567891')
+
+    await user.click(screen.getByRole('button', { name: 'ذخیره تغییرات' }))
+
+    await waitFor(() => expect(authApi.updateServiceStaffProfile).toHaveBeenCalledTimes(1))
+    expect(authApi.updateServiceStaffProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        full_name: 'متین محمودی ویرایش شده',
+        username: 'matin-edited',
+        national_id: '1234567891',
+      }),
+    )
+    expect(setAuthState).toHaveBeenCalledWith({
+      loading: false,
+      user: expect.objectContaining({ full_name: 'متین محمودی ویرایش شده' }),
+    })
+    expect(await screen.findByText('اطلاعات حساب با موفقیت ذخیره شد.')).toBeInTheDocument()
   })
 
   it('logs the user out and redirects to the login page', async () => {

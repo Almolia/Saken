@@ -51,12 +51,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-l border-white/10 bg-slate-950 p-5 text-white xl:flex">
+        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-slate-950 p-5 text-white xl:flex">
           <div className="rounded-[1.5rem] bg-white/5 p-4 ring-1 ring-white/10">
             <BrandMark dark compact />
           </div>
 
-          <nav className="mt-7 flex flex-1 flex-col gap-2">
+          <nav aria-label="منوی مدیریت" className="mt-7 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-4 pr-1 [scrollbar-color:#334155_transparent] [scrollbar-width:thin]">
             <SideNavItem
               icon={ClipboardList}
               label="درخواست‌های خدمات"
