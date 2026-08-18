@@ -32,6 +32,23 @@ class SeedAdminCommandTests(TestCase):
         self.assertTrue(admin.is_superuser)
         self.assertTrue(admin.check_password(ADMIN_ENV['SAKEN_ADMIN_PASSWORD']))
 
+    def test_existing_admin_with_same_national_id_is_not_duplicated(self):
+        User = get_user_model()
+        existing = User.objects.create_superuser(
+            phone='09120000000',
+            username='old-admin',
+            full_name='Existing Admin',
+            national_id=ADMIN_ENV['SAKEN_ADMIN_NATIONAL_ID'],
+            password='ExistingPassword!42',
+        )
+
+        with patch.dict('os.environ', ADMIN_ENV, clear=False):
+            call_command('seed_admin', stdout=StringIO())
+
+        self.assertEqual(User.objects.filter(role=UserRole.ADMIN).count(), 1)
+        self.assertTrue(User.objects.filter(pk=existing.pk).exists())
+        self.assertFalse(User.objects.filter(phone=ADMIN_ENV['SAKEN_ADMIN_PHONE']).exists())
+
     def test_command_refuses_to_run_without_credentials(self):
         empty_env = {name: '' for name in ADMIN_ENV}
         with patch.dict('os.environ', empty_env, clear=False):
