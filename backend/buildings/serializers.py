@@ -17,7 +17,7 @@ class UnitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Unit
-        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'unit_debt']
+        fields = ['id', 'unit_number', 'floor', 'area', 'details', 'unit_debt']
 
 class UnitOwnerSerializer(serializers.ModelSerializer):
     class Meta:
@@ -29,7 +29,7 @@ class ManagerUnitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Unit
-        fields = ['id', 'unit_number', 'floor', 'area', 'building', 'details', 'owner', 'occupancy_status']
+        fields = ['id', 'unit_number', 'floor', 'area', 'details', 'owner', 'occupancy_status']
 
 class UnitAssignSerializer(serializers.ModelSerializer):
     user_id = serializers.PrimaryKeyRelatedField(
@@ -55,7 +55,11 @@ class ManagerBuildingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'total_units']
 
     def get_total_units(self, obj):
-        return obj.units.count()
+        # Every unit belongs to the one building this app manages, so the total
+        # is simply how many units exist. It used to be counted through a
+        # `building` foreign key on Unit, which the unit form never filled in —
+        # so a building with dozens of units still reported zero.
+        return Unit.objects.count()
 
     def validate_name(self, value):
         if not value or not value.strip():

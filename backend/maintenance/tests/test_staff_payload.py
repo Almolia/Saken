@@ -25,8 +25,7 @@ class StaffRequestPayloadTests(APITestCase):
         )
         self.building = Building.objects.create(name='برج اول')
         self.unit = Unit.objects.create(
-            owner=self.resident, building=self.building,
-            unit_number='102', floor=1, area='85.00',
+            owner=self.resident, unit_number='102', floor=1, area='85.00',
         )
         self.service_request = ServiceRequest.objects.create(
             title='Fix Sink', description='Leaking',
@@ -59,8 +58,7 @@ class StaffRequestPayloadTests(APITestCase):
 
     def test_lowest_unit_number_is_reported_for_multi_unit_residents(self):
         Unit.objects.create(
-            owner=self.resident, building=self.building,
-            unit_number='101', floor=1, area='70.00',
+            owner=self.resident, unit_number='101', floor=1, area='70.00',
         )
         self.client.force_authenticate(user=self.staff)
 

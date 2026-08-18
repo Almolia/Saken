@@ -21,7 +21,6 @@ class ResidentUnitAPITests(APITestCase):
         )
         self.unit_a = Unit.objects.create(
             owner=self.user_a, 
-            building=self.building,
             unit_number="101",
             floor=1,
             area=75.50
@@ -35,7 +34,6 @@ class ResidentUnitAPITests(APITestCase):
         )
         self.unit_b = Unit.objects.create(
             owner=self.user_b, 
-            building=self.building,
             unit_number="102",
             floor=1,
             area=85.00
@@ -151,7 +149,7 @@ class ManagerAdminAPITests(APITestCase):
         )
 
         self.unit = Unit.objects.create(
-            unit_number="101", floor=1, area="75.00", building=self.building, owner=self.resident
+            unit_number="101", floor=1, area="75.00", owner=self.resident
         )
 
         self.building_url = reverse('manager-building')
@@ -338,3 +336,102 @@ class ManagerAdminAPITests(APITestCase):
 
         self.assertEqual(building_response.status_code, status.HTTP_200_OK)
         self.assertEqual(unit_response.status_code, status.HTTP_200_OK)
+
+class SingleBuildingModelTests(APITestCase):
+    """The Building table holds exactly one row, and Unit carries no building.
+
+    The app manages a single building. Units used to point at it through a
+    nullable foreign key that no form ever filled in, which broke unit counting,
+    charge issuing, settlement and payment for every unit created through the UI.
+    """
+
+    def test_unit_has_no_building_field(self):
+        field_names = {field.name for field in Unit._meta.get_fields()}
+        self.assertNotIn("building", field_names)
+
+    def test_creating_a_building_twice_updates_the_same_row(self):
+        """A second create() must not add a row — it rewrites the only one."""
+        first = Building.objects.create(name="اولی", building_wallet_balance="10.00")
+        second = Building.objects.create(name="دومی", building_wallet_balance="20.00")
+
+        self.assertEqual(Building.objects.count(), 1)
+        self.assertEqual(first.pk, second.pk)
+        self.assertEqual(Building.objects.get().name, "دومی")
+
+    def test_the_building_always_uses_the_canonical_id(self):
+        building = Building.objects.create(name="برج ساکن")
+        self.assertEqual(building.pk, 1)
+
+    def test_get_solo_creates_the_record_when_missing(self):
+        """Money flows must not depend on the manager filling the form in."""
+        Building.objects.all().delete()
+
+        building = Building.get_solo()
+
+        self.assertEqual(building.pk, 1)
+        self.assertEqual(Building.objects.count(), 1)
+
+    def test_get_solo_never_overwrites_a_registered_name(self):
+        Building.objects.create(name="برج ساکن", building_wallet_balance="99.00")
+
+        building = Building.get_solo()
+
+        self.assertEqual(building.name, "برج ساکن")
+        self.assertEqual(str(building.building_wallet_balance), "99.00")
+
+    def test_get_solo_or_none_reports_a_missing_building(self):
+        Building.objects.all().delete()
+        self.assertIsNone(Building.get_solo_or_none())
+
+
+class BuildingUnitCountTests(APITestCase):
+    """Regression: the unit total reported zero however many units existed.
+
+    `total_units` was counted through the `Unit.building` foreign key, but the
+    manager's unit form never sent one, so every unit was invisible to the count.
+    """
+
+    def setUp(self):
+        self.manager = User.objects.create_user(
+            phone='09120000501', full_name='مدیر', national_id='1234500501',
+            role='manager', password='pw',
+        )
+        self.building_url = reverse('manager-building')
+        self.units_url = reverse('manager-units')
+        Building.objects.create(name="برج ساکن")
+
+    def test_total_units_counts_units_created_through_the_api(self):
+        self.client.force_authenticate(user=self.manager)
+
+        for index in range(5):
+            response = self.client.post(
+                self.units_url,
+                data={"unit_number": f"10{index}", "floor": 1, "area": "80.00"},
+                format="json",
+            )
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.get(self.building_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["total_units"], 5)
+
+    def test_total_units_is_zero_only_when_there_are_no_units(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.building_url)
+
+        self.assertEqual(response.data["total_units"], 0)
+
+    def test_unit_payloads_no_longer_expose_a_building(self):
+        self.client.force_authenticate(user=self.manager)
+        self.client.post(
+            self.units_url,
+            data={"unit_number": "101", "floor": 1, "area": "80.00"},
+            format="json",
+        )
+
+        listed = self.client.get(self.units_url).data["units"][0]
+
+        self.assertNotIn("building", listed)
+        self.assertEqual(listed["unit_number"], "101")

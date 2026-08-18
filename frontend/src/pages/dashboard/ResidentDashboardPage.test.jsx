@@ -55,7 +55,6 @@ const sampleUnit = {
   unit_number: '102',
   floor: 1,
   area: '85.00',
-  building: 1,
   details: '',
   unit_debt: '0.00',
 }

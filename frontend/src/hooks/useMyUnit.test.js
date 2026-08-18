@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { useMyUnit } from './useMyUnit'
 
-const sampleUnit = { id: 1, unit_number: '102', floor: 1, area: '85.00', building: 1, details: '' }
+const sampleUnit = { id: 1, unit_number: '102', floor: 1, area: '85.00', details: '' }
 
 describe('useMyUnit', () => {
   it('starts in the loading state', () => {

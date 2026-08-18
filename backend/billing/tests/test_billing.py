@@ -56,7 +56,6 @@ class BaseChargeTestCase(APITestCase):
 
         self.unit1 = Unit.objects.create(
             owner=self.resident,
-            building=self.building,
             unit_number="101",
             floor=1,
             area=80.00,
@@ -65,7 +64,6 @@ class BaseChargeTestCase(APITestCase):
 
         self.unit2 = Unit.objects.create(
             owner=self.other_resident,
-            building=self.building,
             unit_number="102",
             floor=1,
             area=90.00,
@@ -73,7 +71,6 @@ class BaseChargeTestCase(APITestCase):
         )
 
         self.unit3 = Unit.objects.create(
-            building=self.building,
             unit_number="201",
             floor=2,
             area=100.00,
@@ -668,23 +665,25 @@ class ResidentPaymentIntegrityTests(BaseChargeTestCase):
         self.assertEqual(self.unit1.debt, Decimal("500000.00"))
         self.assertEqual(self.building.building_wallet_balance, Decimal("1000.00"))
 
-    def test_charge_on_a_unit_without_a_building_is_rejected(self):
-        """The wallet credit has nowhere to land, so the payment must not apply.
+    def test_a_newly_created_unit_can_pay_its_charges(self):
+        """Regression: paying used to fail with "the building is unknown".
 
-        Without the guard the debt would fall while no building received the
-        money, silently destroying it.
+        Units carried a nullable `building` foreign key that the manager unit
+        form never filled in, and the payment flow refused any charge whose
+        unit had no building. Every unit created through the UI was therefore
+        unable to pay. With the column gone the payment simply goes through
+        and the money lands in the one shared fund.
         """
-        orphan_unit = Unit.objects.create(
+        new_unit = Unit.objects.create(
             owner=self.resident,
-            building=None,
             unit_number="909",
             floor=9,
             area=70.00,
             debt=Decimal("120000.00"),
         )
-        orphan_charge = UnitCharge.objects.create(
+        new_charge = UnitCharge.objects.create(
             master_charge=self.master_charge1,
-            unit=orphan_unit,
+            unit=new_unit,
             amount=Decimal("120000.00"),
             status=UnitChargeStatus.PENDING,
         )
@@ -693,19 +692,53 @@ class ResidentPaymentIntegrityTests(BaseChargeTestCase):
 
         response = self.client.post(
             self.url,
-            data={"charge_ids": [orphan_charge.id]},
+            data={"charge_ids": [new_charge.id]},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        orphan_charge.refresh_from_db()
-        orphan_unit.refresh_from_db()
+        new_charge.refresh_from_db()
+        new_unit.refresh_from_db()
         self.building.refresh_from_db()
 
-        self.assertEqual(orphan_charge.status, UnitChargeStatus.PENDING)
-        self.assertEqual(orphan_unit.debt, Decimal("120000.00"))
-        self.assertEqual(self.building.building_wallet_balance, Decimal("1000.00"))
+        self.assertEqual(new_charge.status, UnitChargeStatus.PAID)
+        self.assertIsNotNone(new_charge.paid_at)
+        self.assertEqual(new_unit.debt, Decimal("0.00"))
+        self.assertEqual(
+            self.building.building_wallet_balance,
+            Decimal("1000.00") + Decimal("120000.00"),
+        )
+
+    def test_payment_registers_the_shared_fund_when_it_does_not_exist_yet(self):
+        """A resident must be able to pay before the manager fills the form in.
+
+        The building record only carries a display name and the shared fund
+        balance. If it has not been created yet, the payment creates it rather
+        than failing, so the credited money is never lost.
+        """
+        Building.objects.all().delete()
+
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.post(
+            self.url,
+            data={"charge_ids": [self.resident_charge1.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.resident_charge1.refresh_from_db()
+        self.unit1.refresh_from_db()
+
+        self.assertEqual(self.resident_charge1.status, UnitChargeStatus.PAID)
+        self.assertEqual(self.unit1.debt, Decimal("200000.00"))
+
+        building = Building.objects.get()
+        self.assertEqual(
+            building.building_wallet_balance, self.resident_charge1.amount
+        )
 
     def test_a_single_already_paid_charge_rolls_back_the_whole_batch(self):
         """Mixed batches are all-or-nothing: the pending sibling must not settle."""
@@ -739,7 +772,6 @@ class ResidentPaymentIntegrityTests(BaseChargeTestCase):
         """A resident can own several units; each debt must fall by its own share."""
         second_unit = Unit.objects.create(
             owner=self.resident,
-            building=self.building,
             unit_number="103",
             floor=1,
             area=75.00,
@@ -1279,14 +1311,12 @@ class ChargeSearchAPITests(BaseChargeTestCase):
 
         self.unit_101 = Unit.objects.create(
             owner=self.resident,
-            building=self.building,
             unit_number="101",
             floor=1,
             area=80.00,
         )
         self.unit_102 = Unit.objects.create(
             owner=self.other_resident,
-            building=self.building,
             unit_number="102",
             floor=1,
             area=90.00,
@@ -1524,3 +1554,110 @@ class SettledRequestPaymentFlowTests(BaseChargeTestCase):
 
         self.unit1.refresh_from_db()
         self.assertEqual(self.unit1.debt, Decimal("0.00"))
+
+
+class SingleBuildingBillingRegressionTests(BaseChargeTestCase):
+    """The building id must never gate billing again.
+
+    Units used to carry a nullable `building` foreign key that no form filled
+    in. Charges applied "to all units" skipped those units, settlements were
+    refused with "the building of this request is unknown", and residents could
+    not pay. None of those flows may depend on a building reference any more.
+    """
+
+    def test_apply_to_all_bills_every_registered_unit(self):
+        self.client.force_authenticate(user=self.manager)
+
+        # A unit created straight through the API, exactly as the manager UI does.
+        created = self.client.post(
+            reverse("manager-units"),
+            data={"unit_number": "301", "floor": 3, "area": "70.00"},
+            format="json",
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(
+            reverse("manager-charges"),
+            data={
+                "title": "شارژ ماهانه",
+                "amount": "100000.00",
+                "due_date": "2026-09-20",
+                "apply_to_all": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # Three units from the fixture plus the one just created.
+        self.assertEqual(Unit.objects.count(), 4)
+        self.assertEqual(response.data["charge"]["units_count"], 4)
+        self.assertEqual(
+            UnitCharge.objects.filter(
+                master_charge_id=response.data["charge"]["id"]
+            ).count(),
+            4,
+        )
+
+    def test_apply_to_all_works_without_a_registered_building(self):
+        """Issuing charges must not require the settings form to be filled in."""
+        Building.objects.all().delete()
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(
+            reverse("manager-charges"),
+            data={
+                "title": "شارژ ماهانه",
+                "amount": "100000.00",
+                "due_date": "2026-09-20",
+                "apply_to_all": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["charge"]["units_count"], 3)
+
+    def test_settling_and_paying_never_mentions_an_unknown_building(self):
+        """End to end: settle a request, then let the resident pay the result."""
+        service_request = ServiceRequest.objects.create(
+            title="تعمیر آسانسور",
+            description="موتور تعویض شد.",
+            resident=self.resident,
+            status=RequestStatus.COMPLETED,
+            work_report="انجام شد.",
+        )
+
+        self.client.force_authenticate(user=self.manager)
+        settle_response = self.client.post(
+            reverse("manager-service-request-settle", kwargs={"pk": service_request.pk}),
+            {"cost": "300000.00", "payment_method": PaymentMethod.EQUAL_SPLIT},
+            format="json",
+        )
+        self.assertEqual(settle_response.status_code, status.HTTP_200_OK)
+
+        # All three units of the app share the cost.
+        for unit in (self.unit1, self.unit2, self.unit3):
+            unit.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("600000.00"))
+        self.assertEqual(self.unit2.debt, Decimal("400000.00"))
+        self.assertEqual(self.unit3.debt, Decimal("100000.00"))
+
+        # The resident sees their share and can settle it.
+        self.client.force_authenticate(user=self.resident)
+        pending = self.client.get(reverse("resident-pending-charges")).data["charges"]
+        self.assertEqual(len(pending), 1)
+
+        pay_response = self.client.post(
+            reverse("resident-pay-charges"),
+            {"charge_ids": [pending[0]["id"]]},
+            format="json",
+        )
+        self.assertEqual(pay_response.status_code, status.HTTP_200_OK)
+
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("500000.00"))
+        self.building.refresh_from_db()
+        self.assertEqual(
+            self.building.building_wallet_balance,
+            Decimal("1000.00") + Decimal("100000.00"),
+        )

@@ -36,7 +36,6 @@ class AnnouncementResidentTests(APITestCase):
         self.building = Building.objects.create(name="Announcements Test Building")
         self.unit = Unit.objects.create(
             owner=self.resident,
-            building=self.building,
             unit_number="ANNOUNCE-101",
             floor=1,
             area=75.50

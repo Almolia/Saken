@@ -82,7 +82,6 @@ class SettlementMessages:
     ALREADY_SETTLED = "هزینه این درخواست قبلاً تسویه شده است."
     NO_UNITS_TO_SPLIT = "هیچ واحدی برای تقسیم هزینه ثبت نشده است."
     REQUESTER_HAS_NO_UNIT = "برای ثبت‌کننده این درخواست واحدی ثبت نشده است."
-    BUILDING_NOT_RESOLVED = "ساختمان مربوط به این درخواست مشخص نیست."
     INSUFFICIENT_WALLET_BALANCE = "موجودی صندوق ساختمان برای پرداخت این هزینه کافی نیست."
 
 
@@ -92,10 +91,6 @@ class PaymentMessages:
     CHARGE_NOT_OWNED = "برخی از شارژهای انتخاب‌شده متعلق به شما نیستند."
     CHARGE_ALREADY_PAID = "برخی از شارژهای انتخاب‌شده قبلاً پرداخت شده‌اند."
     DUPLICATE_CHARGE_IDS = "هر شارژ تنها یک بار می‌تواند در فهرست پرداخت باشد."
-    BUILDING_NOT_RESOLVED = (
-        "ساختمان مربوط به برخی از شارژهای انتخاب‌شده مشخص نیست؛ "
-        "لطفاً با مدیر ساختمان تماس بگیرید."
-    )
 
 
 class ChargeMessages:

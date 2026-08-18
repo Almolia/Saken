@@ -25,12 +25,10 @@ class SettlementServiceTests(TestCase):
         self.neighbour = make_resident('0102', '00102')
 
         self.requester_unit = Unit.objects.create(
-            owner=self.requester, building=self.building,
-            unit_number='101', floor=1, area='80.00',
+            owner=self.requester, unit_number='101', floor=1, area='80.00',
         )
         self.neighbour_unit = Unit.objects.create(
-            owner=self.neighbour, building=self.building,
-            unit_number='102', floor=1, area='80.00',
+            owner=self.neighbour, unit_number='102', floor=1, area='80.00',
         )
 
         self.service_request = ServiceRequest.objects.create(
@@ -88,8 +86,7 @@ class SettlementServiceTests(TestCase):
                     # is scoped to the requester's building, resolved through
                     # their own unit.
                     Unit.objects.create(
-                        owner=self.requester,
-                        building=self.building, unit_number=f'{index:03d}',
+                        owner=self.requester, unit_number=f'{index:03d}',
                         floor=1, area='70.00',
                     )
                 self.service_request.is_settled = False
@@ -221,41 +218,37 @@ class SettlementServiceTests(TestCase):
         self.assertEqual(self.service_request.cost, Decimal('300.50'))
 
 
-class TwoBuildingSettlementTests(TestCase):
-    """Settlement costs must never leak across building boundaries.
+class SingleBuildingSettlementScopeTests(TestCase):
+    """Settlement covers every unit of the one building this app manages.
 
-    Before the fix, EQUAL_SPLIT updated every Unit row in the database, so the
-    moment a second building existed, settling a request in one building
-    corrupted the balances of every other building.
+    The schema used to carry a `building` foreign key on Unit, and every
+    unit-scoped routing rule filtered on it. Units created without one — which
+    the manager UI never filled in — were skipped by Equal Split and made
+    settlement fail outright with "the building of this request is unknown".
+    With the column gone, the whole Unit table is the building.
     """
 
     def setUp(self):
-        self.building_a = Building.objects.create(
-            name='برج الف', building_wallet_balance=Decimal('1000.00'),
-        )
-        self.building_b = Building.objects.create(
-            name='برج ب', building_wallet_balance=Decimal('2000.00'),
+        self.building = Building.objects.create(
+            name='برج ساکن', building_wallet_balance=Decimal('1000.00'),
         )
 
         self.requester = make_resident('0201', '00201')
-        self.neighbour_b = make_resident('0202', '00202')
+        self.neighbour = make_resident('0202', '00202')
 
-        self.unit_a1 = Unit.objects.create(
-            owner=self.requester, building=self.building_a,
-            unit_number='101', floor=1, area='80.00',
+        self.unit_1 = Unit.objects.create(
+            owner=self.requester, unit_number='101', floor=1, area='80.00',
         )
-        self.unit_a2 = Unit.objects.create(
-            building=self.building_a,
+        self.unit_2 = Unit.objects.create(
             unit_number='102', floor=1, area='80.00',
         )
-        self.unit_b1 = Unit.objects.create(
-            owner=self.neighbour_b, building=self.building_b,
-            unit_number='201', floor=2, area='90.00',
+        self.unit_3 = Unit.objects.create(
+            owner=self.neighbour, unit_number='201', floor=2, area='90.00',
         )
-        self.unit_b2 = Unit.objects.create(
-            building=self.building_b,
+        self.unit_4 = Unit.objects.create(
             unit_number='202', floor=2, area='90.00',
         )
+        self.units = (self.unit_1, self.unit_2, self.unit_3, self.unit_4)
 
         self.service_request = ServiceRequest.objects.create(
             title='نشتی آب', description='چکه می‌کند.',
@@ -267,54 +260,72 @@ class TwoBuildingSettlementTests(TestCase):
         return process_request_settlement(self.service_request.pk, cost, method)
 
     def refresh(self):
-        for unit in (self.unit_a1, self.unit_a2, self.unit_b1, self.unit_b2):
+        for unit in self.units:
             unit.refresh_from_db()
-        self.building_a.refresh_from_db()
-        self.building_b.refresh_from_db()
+        self.building.refresh_from_db()
 
-    def test_equal_split_only_touches_the_requesters_building(self):
+    def test_equal_split_reaches_every_registered_unit(self):
         self.settle('300.00', PaymentMethod.EQUAL_SPLIT)
         self.refresh()
 
-        # Building A's units split the cost between themselves.
-        self.assertEqual(self.unit_a1.debt, Decimal('150.00'))
-        self.assertEqual(self.unit_a2.debt, Decimal('150.00'))
+        for unit in self.units:
+            self.assertEqual(unit.debt, Decimal('75.00'))
 
-        # Building B must be completely untouched.
-        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
-        self.assertEqual(self.building_b.building_wallet_balance, Decimal('2000.00'))
+        # Splitting across units never touches the shared fund.
+        self.assertEqual(self.building.building_wallet_balance, Decimal('1000.00'))
 
-    def test_requester_only_never_touches_other_buildings(self):
+    def test_equal_split_works_without_any_building_record(self):
+        """No registered building must not block a unit-billed settlement.
+
+        Equal Split moves money between units only, so it may never depend on
+        the manager having filled in the building settings form.
+        """
+        Building.objects.all().delete()
+
+        self.settle('300.00', PaymentMethod.EQUAL_SPLIT)
+
+        for unit in self.units:
+            unit.refresh_from_db()
+            self.assertEqual(unit.debt, Decimal('75.00'))
+
+        # A unit-billed settlement moves no money into the shared fund, so it
+        # must not have created the building record either.
+        self.assertFalse(Building.objects.exists())
+
+    def test_requester_only_charges_only_the_requesting_unit(self):
         self.settle('250.00', PaymentMethod.REQUESTER_ONLY)
         self.refresh()
 
-        self.assertEqual(self.unit_a1.debt, Decimal('250.00'))
-        self.assertEqual(self.unit_a2.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_1.debt, Decimal('250.00'))
+        for unit in (self.unit_2, self.unit_3, self.unit_4):
+            self.assertEqual(unit.debt, Decimal('0.00'))
 
-    def test_building_wallet_only_moves_the_requesters_building_fund(self):
+    def test_wallet_settlement_moves_the_shared_fund_only(self):
         self.settle('400.00', PaymentMethod.BUILDING_WALLET)
         self.refresh()
 
-        self.assertEqual(self.building_a.building_wallet_balance, Decimal('600.00'))
-        self.assertEqual(self.building_b.building_wallet_balance, Decimal('2000.00'))
-        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+        self.assertEqual(self.building.building_wallet_balance, Decimal('600.00'))
+        for unit in self.units:
+            self.assertEqual(unit.debt, Decimal('0.00'))
 
-    def test_equal_split_rejects_a_requester_whose_unit_has_no_building(self):
-        self.unit_a1.building = None
-        self.unit_a1.save(update_fields=['building'])
+    def test_wallet_settlement_registers_the_building_when_missing(self):
+        """The wallet is the one building's fund, so it is created on demand.
 
-        with self.assertRaises(SettlementError):
-            self.settle('100.00', PaymentMethod.EQUAL_SPLIT)
+        A wallet settlement against an unregistered building has no funds, so
+        it is refused for lack of balance — never with an "unknown building"
+        error — and nothing moves.
+        """
+        Building.objects.all().delete()
 
-        # Nothing may have moved anywhere.
-        self.refresh()
-        self.assertEqual(self.unit_a2.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+        with self.assertRaises(SettlementError) as caught:
+            self.settle('400.00', PaymentMethod.BUILDING_WALLET)
+
+        self.assertEqual(
+            str(caught.exception),
+            'موجودی صندوق ساختمان برای پرداخت این هزینه کافی نیست.',
+        )
+        self.service_request.refresh_from_db()
+        self.assertFalse(self.service_request.is_settled)
 
 
 class SettlementLedgerTests(TestCase):
@@ -338,12 +349,10 @@ class SettlementLedgerTests(TestCase):
         self.neighbour = make_resident('0302', '00302')
 
         self.requester_unit = Unit.objects.create(
-            owner=self.requester, building=self.building,
-            unit_number='101', floor=1, area='80.00',
+            owner=self.requester, unit_number='101', floor=1, area='80.00',
         )
         self.neighbour_unit = Unit.objects.create(
-            owner=self.neighbour, building=self.building,
-            unit_number='102', floor=1, area='80.00',
+            owner=self.neighbour, unit_number='102', floor=1, area='80.00',
         )
 
         self.service_request = ServiceRequest.objects.create(
@@ -445,12 +454,10 @@ class ReconcileUnitDebtsCommandTests(TestCase):
         self.building = Building.objects.create(name='برج ساکن')
         self.owner = make_resident('0401', '00401')
         self.drifted_unit = Unit.objects.create(
-            owner=self.owner, building=self.building,
-            unit_number='101', floor=1, area='80.00',
+            owner=self.owner, unit_number='101', floor=1, area='80.00',
             debt=Decimal('75.00'),  # includes a pre-fix settlement with no rows
         )
         self.clean_unit = Unit.objects.create(
-            building=self.building,
             unit_number='102', floor=1, area='80.00',
             debt=Decimal('0.00'),
         )

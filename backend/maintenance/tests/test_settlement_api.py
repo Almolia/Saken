@@ -13,7 +13,7 @@ from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 
 __all__ = [
     'SettlementEndpointTests',
-    'TwoBuildingSettlementEndpointTests',
+    'EqualSplitScopeEndpointTests',
     'SettlementConcurrencyTests',
 ]
 
@@ -42,8 +42,7 @@ class SettlementEndpointTests(APITestCase):
             name='برج ساکن', building_wallet_balance=Decimal('500.00'),
         )
         self.unit = Unit.objects.create(
-            owner=self.resident, building=self.building,
-            unit_number='101', floor=1, area='80.00',
+            owner=self.resident, unit_number='101', floor=1, area='80.00',
         )
         self.service_request = ServiceRequest.objects.create(
             title='نشتی آب', description='چکه می‌کند.',
@@ -193,8 +192,13 @@ class SettlementEndpointTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class TwoBuildingSettlementEndpointTests(APITestCase):
-    """Settling a request in building A must never touch building B's money."""
+class EqualSplitScopeEndpointTests(APITestCase):
+    """Equal Split through the API bills every registered unit.
+
+    Units used to carry a `building` foreign key that the unit form never
+    filled in, so those units were skipped by the split and the settlement
+    could even be refused with "the building of this request is unknown".
+    """
 
     def setUp(self):
         self.manager = User.objects.create_user(
@@ -213,26 +217,19 @@ class TwoBuildingSettlementEndpointTests(APITestCase):
             role='resident',
         )
 
-        self.building_a = Building.objects.create(
-            name='برج الف', building_wallet_balance=Decimal('500.00'),
+        self.building = Building.objects.create(
+            name='برج ساکن', building_wallet_balance=Decimal('500.00'),
         )
-        self.building_b = Building.objects.create(
-            name='برج ب', building_wallet_balance=Decimal('700.00'),
+        self.unit_1 = Unit.objects.create(
+            owner=self.resident_a, unit_number='101', floor=1, area='80.00',
         )
-        self.unit_a1 = Unit.objects.create(
-            owner=self.resident_a, building=self.building_a,
-            unit_number='101', floor=1, area='80.00',
-        )
-        self.unit_a2 = Unit.objects.create(
-            building=self.building_a,
+        self.unit_2 = Unit.objects.create(
             unit_number='102', floor=1, area='80.00',
         )
-        self.unit_b1 = Unit.objects.create(
-            owner=self.resident_b, building=self.building_b,
-            unit_number='201', floor=2, area='90.00',
+        self.unit_3 = Unit.objects.create(
+            owner=self.resident_b, unit_number='201', floor=2, area='90.00',
         )
-        self.unit_b2 = Unit.objects.create(
-            building=self.building_b,
+        self.unit_4 = Unit.objects.create(
             unit_number='202', floor=2, area='90.00',
         )
 
@@ -243,7 +240,7 @@ class TwoBuildingSettlementEndpointTests(APITestCase):
         )
         self.url = reverse('manager-service-request-settle', kwargs={'pk': self.service_request.pk})
 
-    def test_equal_split_in_building_a_leaves_building_b_untouched(self):
+    def test_equal_split_bills_all_four_units_and_spares_the_wallet(self):
         self.client.force_authenticate(user=self.manager)
 
         response = self.client.post(
@@ -254,20 +251,12 @@ class TwoBuildingSettlementEndpointTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        self.unit_a1.refresh_from_db()
-        self.unit_a2.refresh_from_db()
-        self.unit_b1.refresh_from_db()
-        self.unit_b2.refresh_from_db()
-        self.building_b.refresh_from_db()
+        for unit in (self.unit_1, self.unit_2, self.unit_3, self.unit_4):
+            unit.refresh_from_db()
+            self.assertEqual(unit.debt, Decimal('75.00'))
 
-        # Only building A's units share the cost.
-        self.assertEqual(self.unit_a1.debt, Decimal('150.00'))
-        self.assertEqual(self.unit_a2.debt, Decimal('150.00'))
-
-        # Building B's debts and wallet are completely untouched.
-        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
-        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
-        self.assertEqual(self.building_b.building_wallet_balance, Decimal('700.00'))
+        self.building.refresh_from_db()
+        self.assertEqual(self.building.building_wallet_balance, Decimal('500.00'))
 
 
 class SettlementConcurrencyTests(TransactionTestCase):
@@ -294,8 +283,7 @@ class SettlementConcurrencyTests(TransactionTestCase):
             name='برج ساکن', building_wallet_balance=Decimal('500.00'),
         )
         self.unit = Unit.objects.create(
-            owner=self.resident, building=self.building,
-            unit_number='101', floor=1, area='80.00',
+            owner=self.resident, unit_number='101', floor=1, area='80.00',
         )
         self.service_request = ServiceRequest.objects.create(
             title='نشتی آب', description='چکه می‌کند.',

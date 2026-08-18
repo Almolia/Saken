@@ -44,7 +44,6 @@ class ManagerReportingAndSearchTests(APITestCase):
             unit_number='101',
             floor=1,
             area='50.00',
-            building=self.building,
             owner=self.resident_john,
         )
 

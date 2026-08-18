@@ -21,6 +21,14 @@ Every flow in this module therefore moves money by creating/flipping
 
 Costs routed through the building wallet never touch unit debt, so they never
 create charge rows either.
+
+Single building
+---------------
+The app manages exactly one building, so nothing here is scoped by a building
+id: "all units" means the whole Unit table, and the shared fund is the one
+``Building`` row (see ``Building.get_solo``). Units no longer carry a building
+reference — the nullable one they used to have was never populated by the UI,
+which made charges skip units and blocked settlements and payments outright.
 """
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
@@ -66,7 +74,7 @@ def _clean_cost(cost, message=SettlementMessages.COST_MUST_BE_POSITIVE):
 
 
 def _totals_by(charges, key):
-    """Total the charge amounts per unit (or per building).
+    """Total the charge amounts per key (in practice, per unit).
 
     Lets each affected row be updated once instead of once per charge, which
     matters as soon as a resident owns more than one unit.
@@ -105,19 +113,6 @@ def _resolve_requester_unit(service_request):
     if unit is None:
         raise SettlementError(SettlementMessages.REQUESTER_HAS_NO_UNIT)
     return unit
-
-
-def _resolve_building_id(service_request):
-    """Resolve the building a request's cost belongs to, via the requester's unit.
-
-    Every unit-scoped routing rule must stay inside one building: splitting a
-    cost across ALL units would corrupt every other building's balances the
-    moment a second building exists.
-    """
-    unit = _resolve_requester_unit(service_request)
-    if unit.building_id is None:
-        raise SettlementError(SettlementMessages.BUILDING_NOT_RESOLVED)
-    return unit.building_id
 
 
 def _record_unit_charges(service_request, settled_by, unit_amounts, apply_to_all):
@@ -163,17 +158,17 @@ def _record_unit_charges(service_request, settled_by, unit_amounts, apply_to_all
 
 
 def _charge_every_unit(service_request, cost, settled_by):
-    """Split the cost across every unit of the requester's building.
+    """Split the cost across every unit.
 
-    Scoped by building on purpose: before the fix this updated every Unit row
-    in the database, which corrupted all other buildings once more than one
-    existed.
+    The app manages a single building, so "every unit" is exactly the whole
+    Unit table — no building scoping is involved, and the split can no longer
+    be blocked by a unit that has no building recorded.
     """
-    building_id = _resolve_building_id(service_request)
+    # The requester must still own a unit: settling a request from someone who
+    # lives nowhere is a data problem the manager needs to see.
+    _resolve_requester_unit(service_request)
 
-    units = list(
-        Unit.objects.filter(building_id=building_id).order_by("unit_number", "id")
-    )
+    units = list(Unit.objects.order_by("unit_number", "id"))
     if not units:
         raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
 
@@ -193,12 +188,11 @@ def _charge_requester(service_request, cost, settled_by):
 
 
 def _charge_building_wallet(service_request, cost, settled_by):
-    unit = _resolve_requester_unit(service_request)
-    if unit.building_id is None:
-        raise SettlementError(SettlementMessages.BUILDING_NOT_RESOLVED)
+    # The requester must own a unit, exactly as for the other routing rules.
+    _resolve_requester_unit(service_request)
 
     # Locked so two concurrent settlements cannot both pass the funds check.
-    building = Building.objects.select_for_update().get(pk=unit.building_id)
+    building = Building.get_solo(for_update=True)
     if building.building_wallet_balance < cost:
         raise SettlementError(SettlementMessages.INSUFFICIENT_WALLET_BALANCE)
 
@@ -251,19 +245,6 @@ def process_request_settlement(request_id, cost, method, settled_by=None):
     return service_request
 
 
-def _resolve_building(building_id):
-    """Pick the building a building-wide action applies to.
-
-    The app is modelled around a single building (the manager settings refuse
-    to create a second one), so when no explicit building is passed the first
-    registered building wins — mirroring the building detail endpoint's
-    fallback. Explicit ids that do not exist resolve to no building at all.
-    """
-    if building_id:
-        return Building.objects.filter(pk=building_id).first()
-    return Building.objects.order_by("id").first()
-
-
 @transaction.atomic
 def create_periodic_charge(
         manager_user,
@@ -273,13 +254,11 @@ def create_periodic_charge(
         description="",
         apply_to_all=True,
         unit_ids=None,
-        building_id=None,
 ):
     """Issues a master periodic charge, creates unit charge invoices, and increments unit debt.
 
-    ``apply_to_all`` is scoped to a single building (``building_id``, or the
-    app's primary building when omitted) — it must never reach units of other
-    buildings. All mutations execute in a single atomic transaction.
+    ``apply_to_all`` means every registered unit, since the app manages a
+    single building. All mutations execute in a single atomic transaction.
     """
     amount = _clean_cost(amount_per_unit)
     title = (title or "").strip()
@@ -289,12 +268,10 @@ def create_periodic_charge(
         raise SettlementError(ChargeMessages.DUE_DATE_REQUIRED)
 
     if apply_to_all:
-        building = _resolve_building(building_id)
-        if building is None:
-            raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
-        targeted_units = list(
-            Unit.objects.filter(building=building).order_by("floor", "unit_number")
-        )
+        # Every unit in the app, with no building filter: a unit that has no
+        # building recorded used to be skipped here, so residents silently
+        # stopped being billed.
+        targeted_units = list(Unit.objects.order_by("floor", "unit_number"))
         if not targeted_units:
             raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
     else:
@@ -361,11 +338,11 @@ def process_resident_payment(user, charge_ids):
     if any(charge.status != UnitChargeStatus.PENDING for charge in charges):
         raise SettlementError(PaymentMessages.CHARGE_ALREADY_PAID)
 
-    # Unit.building is nullable. Crediting a null building id would match no
-    # rows, so the debt would fall with nothing to receive the money and the
-    # payment would quietly vanish from the building's books.
-    if any(charge.unit.building_id is None for charge in charges):
-        raise SettlementError(PaymentMessages.BUILDING_NOT_RESOLVED)
+    # All money lands in the one building's shared fund. The row is locked (and
+    # created if the manager has not registered the building yet) before the
+    # charges flip, so the credit can never be lost — this used to reject the
+    # payment outright whenever a unit had no building recorded.
+    building = Building.get_solo(for_update=True)
 
     paid_at = timezone.now()
     UnitCharge.objects.filter(pk__in=unique_ids).update(
@@ -376,10 +353,10 @@ def process_resident_payment(user, charge_ids):
     for unit_id, amount in _totals_by(charges, lambda charge: charge.unit_id).items():
         Unit.objects.filter(pk=unit_id).update(debt=F("debt") - amount)
 
-    for building_id, amount in _totals_by(charges, lambda charge: charge.unit.building_id).items():
-        Building.objects.filter(pk=building_id).update(
-            building_wallet_balance=F("building_wallet_balance") + amount
-        )
+    total_paid = sum((charge.amount for charge in charges), Decimal("0.00"))
+    Building.objects.filter(pk=building.pk).update(
+        building_wallet_balance=F("building_wallet_balance") + total_paid
+    )
 
     for charge in charges:
         charge.status = UnitChargeStatus.PAID

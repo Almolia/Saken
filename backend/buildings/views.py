@@ -34,7 +34,7 @@ class ManagerUnitListCreateView(APIView):
     permission_classes = [IsManagerOrAdmin]
 
     def get(self, request):
-        units = Unit.objects.select_related("owner", "building").order_by("floor", "unit_number")
+        units = Unit.objects.select_related("owner").order_by("floor", "unit_number")
         return Response({"units": ManagerUnitSerializer(units, many=True).data})
 
     def post(self, request):
@@ -53,9 +53,13 @@ class ManagerBuildingDetailView(APIView):
     permission_classes = [IsManagerOrAdmin]
 
     def get_object(self, pk=None):
-        if pk:
-            return Building.objects.filter(pk=pk).first()
-        return Building.objects.first()  # Fallback for generic /api/manager/building/ route
+        """Return the one building, or None when it is not registered yet.
+
+        The `pk` captured by the legacy detail route is ignored on purpose:
+        there is only ever one building, so /manager/building/ and
+        /manager/building/<pk>/ address the very same record.
+        """
+        return Building.get_solo_or_none()
 
     def get(self, request, pk=None):
         building = self.get_object(pk)
@@ -69,8 +73,8 @@ class ManagerBuildingDetailView(APIView):
     def post(self, request, pk=None):
         """
         Registers the building record. The app models a single building, so this
-        is only available while none exists — otherwise the settings form would
-        silently create a second one the rest of the app never reads.
+        is only available while none exists — the settings form switches to
+        PATCH once the record is there.
         """
         if Building.objects.exists():
             return Response(
@@ -159,7 +163,7 @@ class ManagerUnitAssignView(APIView):
 
     def patch(self, request, pk):
         try:
-            unit = Unit.objects.select_related("owner", "building").get(pk=pk)
+            unit = Unit.objects.select_related("owner").get(pk=pk)
         except Unit.DoesNotExist:
             return Response(
                 {"detail": UnitMessages.UNIT_NOT_FOUND},
