@@ -5,9 +5,10 @@ import { RoleSelect } from '../../../components/ui/RoleSelect'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { EmptyState } from '../../../components/ui/EmptyState'
 import { UserCell } from '../../../components/ui/UserCell'
+import { Toggle } from '../../../components/ui/Toggle'
 import { ServerError } from '../../../components/ui/ServerError'
 
-export function RolesSection({ data, filteredUsers, search, setSearch, authState, actionState, changeRole }) {
+export function RolesSection({ data, filteredUsers, search, setSearch, authState, actionState, changeRole, changeStatus }) {
   return (
     <>
       <section className="admin-hero overflow-hidden rounded-[2rem] bg-slate-950 p-6 text-white shadow-2xl shadow-slate-300/60 sm:p-8">
@@ -50,6 +51,7 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                   <th className="px-6 py-4">شماره موبایل</th>
                   <th className="px-6 py-4">کد ملی</th>
                   <th className="px-6 py-4">نقش فعلی</th>
+                  <th className="px-6 py-4">وضعیت حساب</th>
                   <th className="px-6 py-4">تغییر نقش</th>
                 </tr>
               </thead>
@@ -57,6 +59,7 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                 {filteredUsers.map((user) => {
                   const isSelf = user.id === authState.user.id
                   const roleLoading = Boolean(actionState[`role-${user.id}`])
+                  const statusLoading = Boolean(actionState[`status-${user.id}`])
                   const isAdmin = user.role === 'admin'
                   return (
                     <tr key={user.id} className="transition hover:bg-slate-50/70">
@@ -65,6 +68,17 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                       <td className="px-6 py-4 font-bold" dir="ltr">{user.phone}</td>
                       <td className="px-6 py-4 font-bold" dir="ltr">{user.national_id}</td>
                       <td className="px-6 py-4"><RoleBadge role={user.role} /></td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <Toggle
+                            checked={user.is_active !== false}
+                            onChange={(isActive) => changeStatus(user, isActive)}
+                            disabled={isSelf || isAdmin || statusLoading}
+                            label={`وضعیت حساب ${user.full_name}`}
+                          />
+                          <span className={`text-xs font-bold ${user.is_active !== false ? 'text-emerald-700' : 'text-rose-600'}`}>{user.is_active !== false ? 'فعال' : 'غیرفعال'}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4">
                         {!isAdmin ? (
                           <RoleSelect

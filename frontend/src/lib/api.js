@@ -153,6 +153,12 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
+  updateUserStatus(userId, isActive) {
+    return request(`/manager/users/${userId}/status/`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_active: isActive }),
+    })
+  },
   units() {
     return request('/manager/units/')
   },

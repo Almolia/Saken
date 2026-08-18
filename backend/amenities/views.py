@@ -1,6 +1,7 @@
 from datetime import datetime, time
 
 from common.constants import AmenityMessages
+from common.filter_utils import parse_api_date
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -214,8 +215,8 @@ class AmenitySlotsView(APIView):
             target_date = timezone.localtime(timezone.now()).date()
         else:
             try:
-                target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-            except ValueError:
+                target_date = parse_api_date(date_str)
+            except serializers.ValidationError:
                 return Response(
                     {"detail": AmenityMessages.INVALID_DATE_FORMAT},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -367,12 +368,12 @@ class ManagerReservationListView(APIView):
         date_str = request.query_params.get("date")
         if date_str:
             try:
-                target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                target_date = parse_api_date(date_str)
                 tz = timezone.get_current_timezone()
                 day_start = timezone.make_aware(datetime.combine(target_date, time.min), tz)
                 day_end = timezone.make_aware(datetime.combine(target_date, time.max), tz)
                 queryset = queryset.filter(start_time__lt=day_end, end_time__gt=day_start)
-            except ValueError:
+            except serializers.ValidationError:
                 pass
 
         search = request.query_params.get("search")

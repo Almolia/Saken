@@ -49,5 +49,25 @@ export function useUserDirectory() {
     [showToast],
   )
 
-  return { data, setData, actionState, changeRole }
+  const changeStatus = useCallback(
+    async (user, isActive) => {
+      if (isActive === user.is_active) return
+      setActionState((current) => ({ ...current, [`status-${user.id}`]: true }))
+      try {
+        const response = await managerApi.updateUserStatus(user.id, isActive)
+        setData((current) => {
+          const users = current.users.map((item) => (item.id === user.id ? response.user : item))
+          return { ...current, users, stats: buildStats(users) }
+        })
+        showToast(response.message)
+      } catch (error) {
+        showToast(error.message, 'error')
+      } finally {
+        setActionState((current) => ({ ...current, [`status-${user.id}`]: false }))
+      }
+    },
+    [showToast],
+  )
+
+  return { data, setData, actionState, changeRole, changeStatus }
 }

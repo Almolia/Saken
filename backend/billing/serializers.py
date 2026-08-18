@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from common.constants import ChargeMessages
+from common.serializers import JalaliCompatibleDateField
 from rest_framework import serializers
 
 from .models import MasterCharge, UnitCharge
@@ -60,6 +61,7 @@ class UnitChargeSerializer(serializers.ModelSerializer):
 
 
 class MasterChargeSerializer(serializers.ModelSerializer):
+    due_date = JalaliCompatibleDateField()
     amount_per_unit = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,
@@ -162,7 +164,7 @@ class MasterChargeUpdateSerializer(serializers.Serializer):
     # validate() below with the Persian message, not DRF's English default.
     title = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
-    due_date = serializers.DateField(required=False)
+    due_date = JalaliCompatibleDateField(required=False)
     amount_per_unit = serializers.DecimalField(
         max_digits=12,
         decimal_places=2,

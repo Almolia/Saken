@@ -1,7 +1,7 @@
 from django.db.models import Q
 from rest_framework import serializers
 
-from common.constants import ValidationMessages
+from common.constants import UserMessages, ValidationMessages
 from .models import User, UserRole
 from .validators import (
     validate_national_id_value,
@@ -20,7 +20,7 @@ class AuthUserSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "full_name", "username", "phone", "national_id", "role", "date_joined")
+        fields = ("id", "full_name", "username", "phone", "national_id", "role", "is_active", "date_joined")
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -76,10 +76,16 @@ class LoginSerializer(serializers.Serializer):
         if not user or not user.check_password(password):
             raise serializers.ValidationError({"detail": ValidationMessages.LOGIN_INVALID})
         if not user.is_active:
-            raise serializers.ValidationError({"detail": ValidationMessages.INACTIVE_ACCOUNT})
+            raise serializers.ValidationError({"detail": UserMessages.INACTIVE_ACCOUNT})
 
         attrs["user"] = user
         return attrs
+
+
+class UserStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("is_active",)
 
 
 class UserRoleUpdateSerializer(serializers.ModelSerializer):

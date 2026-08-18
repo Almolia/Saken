@@ -82,6 +82,16 @@ def parse_filter_date(value, field_name):
         raise ValidationError({field_name: 'تاریخ واردشده معتبر نیست.'}) from error
 
 
+def parse_api_date(value, field_name='date'):
+    """Parse a date accepted by write APIs.
+
+    Gregorian ISO dates remain valid for existing clients and stored data;
+    Jalali dates (including Persian/Arabic digits) are converted before Django
+    persists them in its standard Gregorian ``DateField``.
+    """
+    return parse_filter_date(value, field_name)
+
+
 def map_status(value, aliases, field_name='status'):
     normalized = normalize_persian_text(value).replace('-', ' ')
     normalized = re.sub(r'\s+', ' ', normalized).strip()

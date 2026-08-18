@@ -18,7 +18,7 @@ export function AdminDashboardPage({ authState, setAuthState }) {
   const { showToast } = useToast()
   const [activeSection, setActiveSection] = useState('roles')
   const [search, setSearch] = useState('')
-  const { data, setData, actionState, changeRole } = useUserDirectory()
+  const { data, setData, actionState, changeRole, changeStatus } = useUserDirectory()
 
   const profileForm = useForm({
     initialValues: {
@@ -66,12 +66,12 @@ export function AdminDashboardPage({ authState, setAuthState }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <div className="flex min-h-screen">
-        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col border-l border-white/10 bg-slate-950 p-5 text-white xl:flex">
+        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-slate-950 p-5 text-white xl:flex">
           <div className="rounded-[1.5rem] bg-white/5 p-4 ring-1 ring-white/10">
             <BrandMark dark compact />
           </div>
 
-          <nav className="mt-7 flex flex-1 flex-col gap-2">
+          <nav className="mt-7 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-4">
             <SideNavItem icon={Users} label="تغییر نقش‌ها" active={activeSection === 'roles'} onClick={() => setActiveSection('roles')} />
             <SideNavItem icon={Settings} label="تنظیمات" active={activeSection === 'settings'} onClick={() => setActiveSection('settings')} />
           </nav>
@@ -118,7 +118,7 @@ export function AdminDashboardPage({ authState, setAuthState }) {
 
           <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
             {activeSection === 'roles' ? (
-              <RolesSection data={data} filteredUsers={filteredUsers} search={search} setSearch={setSearch} authState={authState} actionState={actionState} changeRole={changeRole} />
+              <RolesSection data={data} filteredUsers={filteredUsers} search={search} setSearch={setSearch} authState={authState} actionState={actionState} changeRole={changeRole} changeStatus={changeStatus} />
             ) : (
               <SettingsSection user={authState.user} profileForm={profileForm} />
             )}

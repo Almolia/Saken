@@ -6,6 +6,7 @@ import { ServerError } from '../ui/ServerError'
 import { managerChargeApi } from '../../lib/billingApi'
 import { managerApi } from '../../lib/api'
 import { validateCharge } from '../../lib/validators'
+import { JalaliDateInput } from '../ui/JalaliDateInput'
 
 const EMPTY_UNITS = []
 
@@ -224,19 +225,17 @@ function IssueChargeModalContent({
             <label htmlFor="charge-due-date" className="mb-2 block text-sm font-bold text-slate-700">
               مهلت پرداخت
             </label>
-            <input
+            <JalaliDateInput
               id="charge-due-date"
               name="due_date"
-              type="date"
               value={dueDate}
-              onChange={(e) => {
-                setDueDate(e.target.value)
+              onChange={(value) => {
+                setDueDate(value)
                 if (fieldErrors.due_date) setFieldErrors((prev) => ({ ...prev, due_date: '' }))
               }}
+              onInvalid={(message) => setFieldErrors((prev) => ({ ...prev, due_date: message }))}
               disabled={loading}
-              className={`h-12 w-full rounded-2xl border bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-50 ${
-                fieldErrors.due_date ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'
-              }`}
+              className={fieldErrors.due_date ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}
             />
             {fieldErrors.due_date ? (
               <small className="mt-1.5 block text-xs font-medium text-rose-600">{fieldErrors.due_date}</small>

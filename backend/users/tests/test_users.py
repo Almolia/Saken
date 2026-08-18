@@ -122,19 +122,33 @@ class AuthenticationTests(TestCase):
         response = self.client.get('/api/manager/users/')
         self.assertEqual(response.status_code, 403)
 
-    def test_status_toggle_endpoint_is_removed(self):
+    def test_admin_can_deactivate_account_and_deactivated_user_cannot_login(self):
         login_response = self.client.post(
             '/api/auth/login/',
-            {'login': 'manager', 'password': 'Manager123'},
+            {'login': 'admin2', 'password': 'admin123'},
             format='json',
         )
         self.client.cookies = login_response.cookies
         response = self.client.patch(
             f'/api/manager/users/{self.resident.id}/status/',
-            {'is_disabled': True},
+            {'is_active': False},
             format='json',
         )
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['user']['is_active'])
+        self.resident.refresh_from_db()
+        self.assertFalse(self.resident.is_active)
+
+        client = APIClient()
+        response = client.post('/api/auth/login/', {'login': 'resident', 'password': 'Resident123'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('حساب کاربری شما فعال نیست', str(response.data))
+
+    def test_manager_cannot_change_account_status(self):
+        login_response = self.client.post('/api/auth/login/', {'login': 'manager', 'password': 'Manager123'}, format='json')
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(f'/api/manager/users/{self.resident.id}/status/', {'is_active': False}, format='json')
+        self.assertEqual(response.status_code, 403)
 
     def test_admin_can_change_resident_role_to_manager(self):
         login_response = self.client.post(

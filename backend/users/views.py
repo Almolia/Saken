@@ -12,6 +12,7 @@ from .serializers import (
     LoginSerializer,
     RegisterSerializer,
     UserRoleUpdateSerializer,
+    UserStatusUpdateSerializer,
     UserSerializer,
 )
 from .services import build_auth_success_response, get_user_stats, logout_response
@@ -75,6 +76,24 @@ class UserListView(APIView):
                 "users": UserSerializer(users, many=True).data,
             }
         )
+
+
+class UserStatusUpdateView(generics.UpdateAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserStatusUpdateSerializer
+    permission_classes = [IsAdminUserRole]
+
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Prevent lockout and preserve the break-glass administrator account.
+        if instance.pk == request.user.pk:
+            return Response({"detail": UserMessages.SELF_STATUS_IMMUTABLE}, status=status.HTTP_400_BAD_REQUEST)
+        if instance.role == UserRole.ADMIN:
+            return Response({"detail": UserMessages.ADMIN_STATUS_IMMUTABLE}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response({"message": UserMessages.ACCOUNT_STATUS_UPDATED, "user": UserSerializer(user).data})
 
 
 class UserRoleUpdateView(generics.UpdateAPIView):
