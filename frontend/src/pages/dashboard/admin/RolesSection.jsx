@@ -43,13 +43,13 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
           <EmptyState />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-right">
+            <table className="w-full min-w-[760px] text-right lg:min-w-0">
               <thead className="bg-slate-50 text-xs font-bold text-slate-500">
                 <tr>
                   <th className="px-6 py-4">کاربر</th>
                   <th className="px-6 py-4">نام کاربری</th>
-                  <th className="px-6 py-4">شماره موبایل</th>
-                  <th className="px-6 py-4">کد ملی</th>
+                  <th className="hidden px-6 py-4 lg:table-cell">شماره موبایل</th>
+                  <th className="hidden px-6 py-4 xl:table-cell">کد ملی</th>
                   <th className="px-6 py-4">نقش فعلی</th>
                   <th className="px-6 py-4">وضعیت حساب</th>
                   <th className="px-6 py-4">تغییر نقش</th>
@@ -65,8 +65,8 @@ export function RolesSection({ data, filteredUsers, search, setSearch, authState
                     <tr key={user.id} className="transition hover:bg-slate-50/70">
                       <td className="px-6 py-4"><UserCell user={user} isSelf={isSelf} /></td>
                       <td className="px-6 py-4 font-bold" dir="ltr">{user.username || '—'}</td>
-                      <td className="px-6 py-4 font-bold" dir="ltr">{user.phone}</td>
-                      <td className="px-6 py-4 font-bold" dir="ltr">{user.national_id}</td>
+                      <td className="hidden px-6 py-4 font-bold lg:table-cell" dir="ltr">{user.phone}</td>
+                      <td className="hidden px-6 py-4 font-bold xl:table-cell" dir="ltr">{user.national_id}</td>
                       <td className="px-6 py-4"><RoleBadge role={user.role} /></td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
