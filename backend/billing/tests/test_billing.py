@@ -1,6 +1,7 @@
 from datetime import datetime, time
 from decimal import Decimal
 
+from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 from buildings.models import Building, Unit
 from django.contrib.auth import get_user_model
 from django.urls import reverse
@@ -9,8 +10,6 @@ from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import UserRole
-
-from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 
 User = get_user_model()
 
@@ -23,11 +22,19 @@ class BaseChargeTestCase(APITestCase):
         )
 
         self.manager = User.objects.create_user(
-            phone="09120000001",
+            phone="09120000000",
             password="ManagerPassword1",
             full_name="مدیر ساختمان",
-            national_id="0000000001",
+            national_id="0000000000",
             role=UserRole.MANAGER,
+        )
+
+        self.admin = User.objects.create_user(
+            phone="09120000001",
+            password="ManagerPassword1",
+            full_name="ادمین سیستم",
+            national_id="0000000001",
+            role=UserRole.ADMIN,
         )
 
         self.resident = User.objects.create_user(
@@ -623,7 +630,7 @@ class ResidentPaymentIntegrityTests(BaseChargeTestCase):
             status=UnitChargeStatus.PENDING,
         )
 
-    def test_payment_stamps_paid_at(self):
+    def test_payment_marks_charge_as_paid_and_stamps_paid_at(self):
         self.client.force_authenticate(user=self.resident)
 
         response = self.client.post(
@@ -635,6 +642,7 @@ class ResidentPaymentIntegrityTests(BaseChargeTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.resident_charge1.refresh_from_db()
+        self.assertEqual(self.resident_charge1.status, UnitChargeStatus.PAID)
         self.assertIsNotNone(self.resident_charge1.paid_at)
 
     def test_pending_charge_has_no_paid_at(self):
@@ -902,8 +910,23 @@ class ResidentPaymentHistoryTests(BaseChargeTestCase):
         self.assertEqual(response.data["charges"], [])
         self.assertEqual(response.data["total_paid"], "0.00")
 
-    def test_charges_paid_before_paid_at_existed_still_appear_last(self):
-        """Legacy rows carry no timestamp; they must sort last, not vanish."""
+    def test_history_orders_by_paid_at_descending_with_legacy_nulls_last(self):
+        older = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("20000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=timezone.make_aware(datetime(2026, 8, 10, 10, 0)),
+        )
+
+        newer = UnitCharge.objects.create(
+            master_charge=self.master_charge,
+            unit=self.unit1,
+            amount=Decimal("30000.00"),
+            status=UnitChargeStatus.PAID,
+            paid_at=timezone.make_aware(datetime(2026, 8, 18, 10, 0)),
+        )
+
         legacy = UnitCharge.objects.create(
             master_charge=self.master_charge,
             unit=self.unit1,
@@ -913,18 +936,26 @@ class ResidentPaymentHistoryTests(BaseChargeTestCase):
         )
 
         self.client.force_authenticate(user=self.resident)
+
         response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         returned_ids = [charge["id"] for charge in response.data["charges"]]
-        self.assertIn(legacy.id, returned_ids)
+
+        self.assertLess(returned_ids.index(newer.id), returned_ids.index(older.id))
         self.assertEqual(returned_ids[-1], legacy.id)
 
-    def test_manager_cannot_access_resident_history(self):
-        self.client.force_authenticate(user=self.manager)
+    def test_non_resident_roles_cannot_access_history(self):
+        for user in [self.manager, self.admin, self.service_staff]:
+            self.client.force_authenticate(user=user)
 
-        response = self.client.get(self.url)
+            response = self.client.get(self.url)
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_403_FORBIDDEN,
+            )
 
     def test_unauthenticated_request_is_rejected(self):
         response = self.client.get(self.url)
@@ -1447,6 +1478,7 @@ class ChargeSearchAPITests(BaseChargeTestCase):
             self.client.force_authenticate(user=user)
             response = self.client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
 
 class SettledRequestPaymentFlowTests(BaseChargeTestCase):
     """End-to-end: settle -> pending list -> pay -> debt returns to normal.
