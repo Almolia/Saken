@@ -39,6 +39,7 @@ class ValidationMessages:
 
 class UnitMessages:
     UNIT_CREATED = "واحد با موفقیت ایجاد شد."
+    NO_UNIT_ASSIGNED = "هیچ واحدی به این کاربر اختصاص داده نشده است."
     UNIT_UPDATED = "اطلاعات واحد با موفقیت به‌روزرسانی شد."
     UNIT_ASSIGNED = "واحد با موفقیت به کاربر اختصاص یافت."
     UNIT_UNASSIGNED = "واحد با موفقیت تخلیه شد."
@@ -105,6 +106,7 @@ class ChargeMessages:
     DUE_DATE_REQUIRED = "مهلت پرداخت الزامی است."
     AMOUNT_MUST_BE_POSITIVE = "مبلغ شارژ باید بزرگ‌تر از صفر باشد."
     NO_FIELDS_TO_UPDATE = "هیچ فیلدی برای به‌روزرسانی ارسال نشده است."
+    NO_UNITS_TO_APPLY = "هیچ واحدی برای اعمال شارژ یافت نشد."
     AMOUNT_LOCKED_AFTER_PAYMENT = (
         "مبلغ این شارژ قابل تغییر نیست، چون بخشی از آن پرداخت شده است."
     )
@@ -115,6 +117,10 @@ class ChargeMessages:
 
 class AmenityMessages:
     AMENITY_CREATED = "امکان با موفقیت ایجاد شد."
+    MANAGER_CREATE_ONLY = "فقط مدیران می‌توانند امکان جدید اضافه کنند."
+    MANAGER_UPDATE_ONLY = "فقط مدیران می‌توانند امکانات را ویرایش کنند."
+    MANAGER_DELETE_ONLY = "فقط مدیران می‌توانند امکانات را حذف کنند."
+    INVALID_DATE_FORMAT = "فرمت تاریخ نامعتبر است. فرمت صحیح YYYY-MM-DD می‌باشد."
     AMENITY_UPDATED = "امکان با موفقیت به‌روزرسانی شد."
     AMENITY_DELETED = "امکان با موفقیت حذف شد."
     AMENITY_NOT_FOUND = "امکان مورد نظر یافت نشد."

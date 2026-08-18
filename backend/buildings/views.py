@@ -20,7 +20,7 @@ class MyUnitView(APIView):
         units = user.units.all()
         if not units.exists():
             return Response(
-                {"detail": "No unit assigned to this user."},
+                {"detail": UnitMessages.NO_UNIT_ASSIGNED},
                 status=status.HTTP_404_NOT_FOUND
             )
         if units.count() == 1:

@@ -146,6 +146,29 @@ For the very first run:
 3. Log in via `/login`.  
 4. Regular users can now register via `/register`.  
 
+## Optional initial admin
+
+Database migrations never create a default admin. If an admin account is needed,
+set all of the following process environment variables (also documented in
+`backend/.env.example`) and use a strong, unique password:
+
+```bash
+cd backend
+export SAKEN_ADMIN_PHONE=0912xxxxxxx
+export SAKEN_ADMIN_USERNAME=admin
+export SAKEN_ADMIN_FULL_NAME="System Administrator"
+export SAKEN_ADMIN_NATIONAL_ID=xxxxxxxxxx
+export SAKEN_ADMIN_PASSWORD="replace-with-a-strong-password"
+python manage.py seed_admin
+```
+
+On PowerShell, use `$env:SAKEN_ADMIN_PHONE = "..."` (and the equivalent for
+each remaining variable) before running `python manage.py seed_admin`.
+
+The command is idempotent by phone, so running it again does not create a second
+admin. It refuses to run when required credentials are missing, and it will not
+promote or overwrite a non-admin account that already uses the configured phone.
+
 ---
 
 # Daily Development Workflow

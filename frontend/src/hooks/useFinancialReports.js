@@ -9,6 +9,9 @@ const STATUS_ALIASES = {
   pending: ['pending', 'بدهی', 'پرداخت‌نشده', 'پرداخت نشده', 'معوق', 'مانده'],
 }
 
+// The backend contract is a bare array today. Envelope support is intentional
+// defensive compatibility so enabling DRF pagination cannot silently blank the
+// report before the frontend and backend are deployed together.
 function normalizeRecords(data) {
   if (Array.isArray(data?.results)) return data.results
   if (Array.isArray(data?.charges)) return data.charges

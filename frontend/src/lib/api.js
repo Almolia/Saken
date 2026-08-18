@@ -44,6 +44,25 @@ function getCookie(name) {
   return ''
 }
 
+function collectErrorMessages(value, messages = []) {
+  if (typeof value === 'string') {
+    const message = value.trim()
+    if (message) messages.push(message)
+    return messages
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectErrorMessages(item, messages))
+    return messages
+  }
+
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => collectErrorMessages(item, messages))
+  }
+
+  return messages
+}
+
 async function request(path, options = {}) {
   const method = options.method || 'GET'
   const headers = {
@@ -79,9 +98,7 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const message =
-      data?.detail ||
-      data?.message ||
-      Object.values(data || {}).flat().join(' ') ||
+      collectErrorMessages(data).join(' ') ||
       'خطایی در ارتباط با سرور رخ داد.'
     const error = new Error(message)
     error.status = response.status

@@ -284,9 +284,9 @@ def create_periodic_charge(
     amount = _clean_cost(amount_per_unit)
     title = (title or "").strip()
     if not title:
-        raise SettlementError("عنوان شارژ الزامی است.")
+        raise SettlementError(ChargeMessages.TITLE_REQUIRED)
     if not due_date:
-        raise SettlementError("مهلت پرداخت الزامی است.")
+        raise SettlementError(ChargeMessages.DUE_DATE_REQUIRED)
 
     if apply_to_all:
         building = _resolve_building(building_id)
@@ -302,7 +302,7 @@ def create_periodic_charge(
         targeted_units = list(Unit.objects.filter(pk__in=unit_ids).order_by("floor", "unit_number"))
 
     if not targeted_units:
-        raise SettlementError("هیچ واحدی برای اعمال شارژ یافت نشد.")
+        raise SettlementError(ChargeMessages.NO_UNITS_TO_APPLY)
 
     master_charge = MasterCharge.objects.create(
         title=title,

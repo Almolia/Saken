@@ -88,7 +88,7 @@ class ManagerAmenityListCreateView(APIView):
         # Only managers and admins can create amenities
         if not (request.user.role in {"manager", "admin"}):
             return Response(
-                {"detail": "فقط مدیران می‌توانند امکان جدید اضافه کنند."},
+                {"detail": AmenityMessages.MANAGER_CREATE_ONLY},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -130,7 +130,7 @@ class ManagerAmenityDetailView(APIView):
         # Only managers and admins can update amenities
         if not (request.user.role in {"manager", "admin"}):
             return Response(
-                {"detail": "فقط مدیران می‌توانند امکانات را ویرایش کنند."},
+                {"detail": AmenityMessages.MANAGER_UPDATE_ONLY},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -157,7 +157,7 @@ class ManagerAmenityDetailView(APIView):
         # Only managers and admins can delete amenities
         if not (request.user.role in {"manager", "admin"}):
             return Response(
-                {"detail": "فقط مدیران می‌توانند امکانات را حذف کنند."},
+                {"detail": AmenityMessages.MANAGER_DELETE_ONLY},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -215,7 +215,7 @@ class AmenitySlotsView(APIView):
                 target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
             except ValueError:
                 return Response(
-                    {"detail": "فرمت تاریخ نامعتبر است. فرمت صحیح YYYY-MM-DD می‌باشد."},
+                    {"detail": AmenityMessages.INVALID_DATE_FORMAT},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 

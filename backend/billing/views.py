@@ -216,6 +216,10 @@ class ManagerChargeSearchListView(generics.ListAPIView):
 
     Text search covers actual text columns only. Status, creation dates and
     numeric amounts are filtered through explicit, validated query parameters.
+
+    Response contract: this report endpoint returns a bare JSON array. The
+    explicit ``list`` implementation below keeps that shape stable even if DRF
+    pagination is enabled globally in the future.
     """
 
     permission_classes = [IsManagerOrAdmin]
@@ -233,3 +237,8 @@ class ManagerChargeSearchListView(generics.ListAPIView):
         .all()
         .order_by('-created_at', '-id')
     )
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

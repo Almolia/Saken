@@ -132,7 +132,15 @@ function SettlementSummary({ serviceRequest }) {
   )
 }
 
-function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate, onStartSettlement }) {
+function ServiceRequestCard({
+  serviceRequest,
+  staff,
+  staffLoading,
+  staffError,
+  onRetryStaff,
+  onUpdate,
+  onStartSettlement,
+}) {
   const isCompleted = normalizeStatus(serviceRequest.status) === RequestStatus.COMPLETED
   const report = serviceRequest.work_report?.trim()
 
@@ -175,6 +183,17 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate, onS
             <LoaderCircle className="h-4 w-4 animate-spin" />
             در حال بارگذاری کارکنان خدمات...
           </div>
+        ) : staffError ? (
+          <div className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <span>{staffError}</span>
+            <button
+              type="button"
+              onClick={onRetryStaff}
+              className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-100"
+            >
+              تلاش مجدد برای دریافت کارکنان
+            </button>
+          </div>
         ) : staff.length > 0 ? (
           <AssignDropdown
             serviceRequest={serviceRequest}
@@ -183,8 +202,17 @@ function ServiceRequestCard({ serviceRequest, staff, staffLoading, onUpdate, onS
             onUpdate={onUpdate}
           />
         ) : (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            هیچ کارمند خدماتی ثبت نشده است. ابتدا از بخش کاربران، نقش کاربران را به «کارکنان خدمات» تغییر دهید.
+          <div className="mt-4 flex flex-col items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span>
+              هیچ کارمند خدماتی ثبت نشده است. ابتدا از بخش کاربران، نقش کاربران را به «کارکنان خدمات» تغییر دهید.
+            </span>
+            <button
+              type="button"
+              onClick={onRetryStaff}
+              className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
+            >
+              به‌روزرسانی فهرست کارکنان
+            </button>
           </div>
         )
       ) : null}
@@ -247,7 +275,12 @@ export function ServiceRequestsSection() {
     refresh,
     updateRequest,
   } = useManagerServiceRequests()
-  const { staff, loading: staffLoading } = useServiceStaff()
+  const {
+    staff,
+    loading: staffLoading,
+    error: staffError,
+    refresh: refreshStaff,
+  } = useServiceStaff()
   const [settlingRequest, setSettlingRequest] = useState(null)
 
   // The cards report the building-wide totals from the summary endpoint, so
@@ -401,6 +434,8 @@ export function ServiceRequestsSection() {
                 serviceRequest={serviceRequest}
                 staff={staff}
                 staffLoading={staffLoading}
+                staffError={staffError}
+                onRetryStaff={refreshStaff}
                 onUpdate={updateRequest}
                 onStartSettlement={setSettlingRequest}
               />

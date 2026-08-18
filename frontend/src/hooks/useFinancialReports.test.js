@@ -50,6 +50,15 @@ describe('useFinancialReports', () => {
     expect(result.current.filteredRecords).toHaveLength(2)
   })
 
+  it('also accepts a paginated results envelope without emptying the table', async () => {
+    managerChargeApi.search.mockResolvedValue({ count: records.length, results: records })
+
+    const { result } = renderHook(() => useFinancialReports())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(result.current.filteredRecords).toEqual(records)
+  })
+
   it('filters records instantly across all displayed columns', async () => {
     const { result } = renderHook(() => useFinancialReports())
     await waitFor(() => expect(result.current.loading).toBe(false))

@@ -71,7 +71,7 @@ const settledRequest = {
 
 const sampleSummary = { Pending: 4, Assigned: 2, Completed: 3 }
 
-function renderSection(requests, overrides = {}) {
+function renderSection(requests, overrides = {}, staffOverrides = {}) {
   const updateRequest = vi.fn()
   const setStatus = vi.fn()
   const setOrdering = vi.fn()
@@ -90,17 +90,20 @@ function renderSection(requests, overrides = {}) {
     updateRequest,
     ...overrides,
   })
+  const refreshStaff = vi.fn()
   useServiceStaff.mockReturnValue({
     staff: [staffMember, otherStaffMember],
     loading: false,
     error: '',
+    refresh: refreshStaff,
+    ...staffOverrides,
   })
   render(
     <ToastProvider>
       <ServiceRequestsSection />
     </ToastProvider>,
   )
-  return { updateRequest, setStatus, setOrdering, refresh }
+  return { updateRequest, setStatus, setOrdering, refresh, refreshStaff }
 }
 
 describe('ServiceRequestsSection', () => {
@@ -217,6 +220,30 @@ describe('ServiceRequestsSection', () => {
         (card) => within(card).getByRole('heading', { level: 3 }).textContent,
       )
       expect(titles).toEqual(['تعمیر آسانسور', 'نشتی آب', 'تعویض لامپ'])
+    })
+  })
+
+  describe('service staff loading', () => {
+    it('can refresh an empty staff list', async () => {
+      const user = userEvent.setup()
+      const { refreshStaff } = renderSection([pendingRequest], {}, { staff: [] })
+
+      await user.click(screen.getByRole('button', { name: 'به‌روزرسانی فهرست کارکنان' }))
+      expect(refreshStaff).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows the staff error and retries the dropdown request', async () => {
+      const user = userEvent.setup()
+      const { refreshStaff } = renderSection(
+        [pendingRequest],
+        {},
+        { staff: [], error: 'دریافت کارکنان ناموفق بود.' },
+      )
+
+      expect(screen.getByText('دریافت کارکنان ناموفق بود.')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'تلاش مجدد برای دریافت کارکنان' }))
+
+      expect(refreshStaff).toHaveBeenCalledTimes(1)
     })
   })
 

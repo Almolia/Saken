@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { managerApi } from '../lib/api'
 
 export function useServiceStaff() {
+  const [reloadKey, setReloadKey] = useState(0)
   const [state, setState] = useState({
     staff: [],
     loading: true,
@@ -30,7 +31,12 @@ export function useServiceStaff() {
     return () => {
       active = false
     }
+  }, [reloadKey])
+
+  const refresh = useCallback(() => {
+    setState((current) => ({ ...current, loading: true, error: '' }))
+    setReloadKey((current) => current + 1)
   }, [])
 
-  return state
+  return { ...state, refresh }
 }

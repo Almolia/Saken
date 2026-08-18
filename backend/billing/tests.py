@@ -1393,6 +1393,15 @@ class ChargeSearchAPITests(BaseChargeTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
 
+    def test_response_shape_is_a_bare_array_contract(self):
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        self.assertNotIsInstance(response.data, dict)
+
     def test_manager_can_get_all_charges_without_search_param(self):
         """Omitting the search parameter returns all charges."""
         self.client.force_authenticate(user=self.manager)
