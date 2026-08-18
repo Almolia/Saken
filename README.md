@@ -200,21 +200,49 @@ npm run dev
 
 ---
 
-# Backend Tests
+# Tests and CI
+
+Backend tests follow one layout in every Django app:
+
+```text
+backend/<app>/tests/__init__.py
+backend/<app>/tests/test_*.py
+```
+
+Run the complete backend suite in parallel:
 
 **Windows:**
 ```cmd
 cd backend
 .venv\Scripts\activate
-python manage.py test users
+python manage.py test --parallel
 ```
 
 **Linux / macOS:**
 ```bash
 cd backend
 source .venv/bin/activate
-python manage.py test users
+python manage.py test --parallel
 ```
+
+Run the complete frontend quality gate from a second terminal:
+
+```bash
+cd frontend
+npm ci
+npm run lint
+npm test
+npm run build
+```
+
+The GitHub Actions workflow runs two independent jobs in parallel:
+
+- `Django Tests`: migrations followed by the parallel Django test suite on PostgreSQL.
+- `Frontend Tests`: clean npm install, ESLint, Vitest, and the production Vite build.
+
+A failure in either job makes the CI workflow fail. In repository branch protection,
+mark both `Django Tests` and `Frontend Tests` as required status checks for `main`
+so a backend or frontend failure cannot be merged.
 
 ---
 

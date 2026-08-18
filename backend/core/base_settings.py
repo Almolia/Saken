@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -142,6 +143,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Test workers do not run collectstatic and therefore have no STATIC_ROOT yet.
+# Auto-refresh makes WhiteNoise use finders instead of scanning that generated
+# directory, avoiding one warning per parallel worker without creating files.
+WHITENOISE_AUTOREFRESH = DEBUG or "test" in sys.argv
 STORAGES = {
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",

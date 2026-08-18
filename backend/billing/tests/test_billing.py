@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import UserRole
 
-from .models import MasterCharge, UnitCharge, UnitChargeStatus
+from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
 
 User = get_user_model()
 

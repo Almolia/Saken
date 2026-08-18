@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import UserRole
 
-from .models import Announcement
+from announcements.models import Announcement
 
 User = get_user_model()
 
