@@ -1,5 +1,5 @@
 from datetime import datetime, time
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -20,8 +20,55 @@ from .services import (
     create_reservation,
     cancel_reservation,
     get_amenity_slots,
-    cancel_reservation_with_validation,
 )
+
+
+def _cancel_error_detail(error):
+    """Flatten a ValidationError from cancel_reservation into one user-facing message."""
+    detail = error.detail
+    if isinstance(detail, list) and detail:
+        return str(detail[0])
+    if isinstance(detail, dict) and detail:
+        first = next(iter(detail.values()))
+        if isinstance(first, list) and first:
+            return str(first[0])
+        return str(first)
+    return str(detail)
+
+
+def _cancel_reservation_response(request, pk):
+    """Shared cancellation flow for DELETE and POST cancel.
+
+    Fetches the resident's own reservation and routes the cancellation through
+    the single cancel_reservation service, so both methods enforce exactly the
+    same rules (ownership, future-dated, not already canceled) and answer with
+    identical status codes and messages as the PATCH path.
+    """
+    try:
+        reservation = (
+            Reservation.objects.select_related("amenity", "resident")
+            .get(pk=pk, resident=request.user)
+        )
+    except Reservation.DoesNotExist:
+        return Response(
+            {"detail": AmenityMessages.RESERVATION_NOT_FOUND},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    try:
+        reservation = cancel_reservation(reservation, request.user)
+    except serializers.ValidationError as error:
+        return Response(
+            {"detail": _cancel_error_detail(error)},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return Response(
+        {
+            "message": AmenityMessages.RESERVATION_CANCELED,
+            "reservation": ReservationSerializer(reservation).data,
+        }
+    )
 
 
 class ManagerAmenityListCreateView(APIView):
@@ -238,10 +285,12 @@ class ResidentReservationDetailView(APIView):
 
     def patch(self, request, pk):
         """
-                Update reservation status to Canceled with validation:
-                - Resident must own the reservation
-                - Reservation must be in the future (start_time > now)
-                """
+        Update reservation status to Canceled.
+
+        The business rules (ownership, future-dated, not already canceled)
+        live in the single cancel_reservation service — the same function the
+        DELETE path calls — so both methods answer identically.
+        """
         try:
             reservation = (
                 Reservation.objects.select_related("amenity", "resident")
@@ -253,7 +302,7 @@ class ResidentReservationDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Validate using the serializer
+        # Field-level shape validation only (status may only become Canceled).
         serializer = ReservationUpdateSerializer(
             reservation,
             data=request.data,
@@ -261,11 +310,13 @@ class ResidentReservationDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
 
-        # Perform the cancellation with validation
-        updated_reservation = cancel_reservation_with_validation(
-            reservation=reservation,
-            user=request.user
-        )
+        try:
+            updated_reservation = cancel_reservation(reservation, request.user)
+        except serializers.ValidationError as error:
+            return Response(
+                {"detail": _cancel_error_detail(error)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         return Response(
             {
@@ -276,32 +327,26 @@ class ResidentReservationDetailView(APIView):
 
     def delete(self, request, pk):
         """
-        Original DELETE behavior - cancels the reservation.
+        Cancel the reservation via DELETE.
+
+        Runs the exact same rules as PATCH through cancel_reservation, so a
+        past or already-canceled booking is rejected identically by both
+        methods (same status code, same message).
         """
-        reservation = cancel_reservation(reservation_id=pk, user=request.user)
-        return Response(
-            {
-                "message": AmenityMessages.RESERVATION_CANCELED,
-                "reservation": ReservationSerializer(reservation).data,
-            }
-        )
+        return _cancel_reservation_response(request, pk)
 
 
 class ResidentReservationCancelView(APIView):
     """
     POST: Cancel resident's reservation.
+
+    Shares the single cancel_reservation flow with PATCH and DELETE.
     """
 
     permission_classes = [IsResident]
 
     def post(self, request, pk):
-        reservation = cancel_reservation(reservation_id=pk, user=request.user)
-        return Response(
-            {
-                "message": AmenityMessages.RESERVATION_CANCELED,
-                "reservation": ReservationSerializer(reservation).data,
-            }
-        )
+        return _cancel_reservation_response(request, pk)
 
 
 class ManagerReservationListView(APIView):

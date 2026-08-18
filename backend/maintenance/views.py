@@ -3,7 +3,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.db.models import Count
 
-from billing.services import SettlementError, process_request_settlement
+from billing.services import (
+    ServiceRequestNotFoundError,
+    SettlementError,
+    process_request_settlement,
+)
 from common.constants import ServiceRequestMessages, SettlementMessages
 from users.permissions import IsManager, IsManagerOrAdmin, IsResident, IsServiceStaff
 from .models import RequestStatus, ServiceRequest
@@ -162,34 +166,25 @@ class ManagerServiceRequestSettleView(APIView):
     permission_classes = [IsManagerOrAdmin]
 
     def post(self, request, pk):
-        try:
-            service_request = ServiceRequest.objects.get(pk=pk)
-        except ServiceRequest.DoesNotExist:
-            return Response(
-                {'detail': ServiceRequestMessages.REQUEST_NOT_FOUND},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        if service_request.status != RequestStatus.COMPLETED:
-            return Response(
-                {'detail': SettlementMessages.REQUEST_NOT_COMPLETED},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if service_request.is_settled:
-            return Response(
-                {'detail': SettlementMessages.ALREADY_SETTLED},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+        # No existence/status checks here on purpose: validating outside the
+        # settlement transaction is a TOCTOU race (two concurrent settles can
+        # both pass the check before either commits). process_request_settlement
+        # is the single source of truth: it locks the row and re-validates
+        # inside one atomic transaction, and its exceptions map to 404/400.
         serializer = SettleServiceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         try:
             settled_request = process_request_settlement(
-                service_request.pk,
+                pk,
                 serializer.validated_data['cost'],
                 serializer.validated_data['payment_method'],
+                settled_by=request.user,
+            )
+        except ServiceRequestNotFoundError as error:
+            return Response(
+                {'detail': str(error)},
+                status=status.HTTP_404_NOT_FOUND,
             )
         except SettlementError as error:
             return Response({'detail': str(error)}, status=status.HTTP_400_BAD_REQUEST)

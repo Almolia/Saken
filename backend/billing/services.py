@@ -2,6 +2,25 @@
 
 Money is handled entirely in Decimal. Every routing rule runs inside a single
 transaction so a partially applied settlement or charge issue can never be committed.
+
+Ledger invariant
+----------------
+``Unit.debt`` must always equal the sum of that unit's PENDING ``UnitCharge``
+amounts::
+
+    Unit.debt == sum(UnitCharge.amount for PENDING charges on the unit)
+
+Every flow in this module therefore moves money by creating/flipping
+``UnitCharge`` rows and mirroring the exact same amounts on ``Unit.debt``:
+
+* periodic charges create Pending rows and raise debt by the same amounts;
+* settlements that bill units (Equal Split / Requester Only) also create
+  Pending rows first, then raise debt — a settled cost must stay payable;
+* payments flip rows to Paid and lower debt by the same amounts;
+* edits and deletions realign debt with whatever the rows now describe.
+
+Costs routed through the building wallet never touch unit debt, so they never
+create charge rows either.
 """
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation, ROUND_DOWN
@@ -30,6 +49,10 @@ class ChargeNotFoundError(SettlementError):
     """Raised when the targeted charge does not exist, so views can answer 404."""
 
 
+class ServiceRequestNotFoundError(SettlementError):
+    """Raised when the service request being settled does not exist, so views can answer 404."""
+
+
 def _clean_cost(cost, message=SettlementMessages.COST_MUST_BE_POSITIVE):
     try:
         amount = Decimal(str(cost))
@@ -54,6 +77,25 @@ def _totals_by(charges, key):
     return totals
 
 
+def _split_cost(cost, unit_count):
+    """Split the cost into one amount per unit, in order.
+
+    The per-unit share is rounded down, then the leftover cents are handed out
+    one each to the first units. That keeps the total charged exactly equal to
+    the cost while never putting more than a single cent between any two units,
+    so no one unit absorbs the whole rounding remainder.
+    """
+    share = (cost / Decimal(unit_count)).quantize(CENT, rounding=ROUND_DOWN)
+    amounts = [share] * unit_count
+
+    # Always fewer leftover cents than units, since share is the floor.
+    leftover_cents = int((cost - share * unit_count) / CENT)
+    for index in range(leftover_cents):
+        amounts[index] += CENT
+
+    return amounts
+
+
 def _resolve_requester_unit(service_request):
     unit = (
         Unit.objects.filter(owner_id=service_request.resident_id)
@@ -65,35 +107,92 @@ def _resolve_requester_unit(service_request):
     return unit
 
 
-def _charge_every_unit(cost):
-    """Split the cost across every registered unit.
+def _resolve_building_id(service_request):
+    """Resolve the building a request's cost belongs to, via the requester's unit.
 
-    The per-unit share is rounded down, then the leftover cents are handed out
-    one each to the first units. That keeps the total charged exactly equal to
-    the cost while never putting more than a single cent between any two units,
-    so no one unit absorbs the whole rounding remainder.
+    Every unit-scoped routing rule must stay inside one building: splitting a
+    cost across ALL units would corrupt every other building's balances the
+    moment a second building exists.
     """
-    unit_ids = list(Unit.objects.order_by("unit_number", "id").values_list("id", flat=True))
-    if not unit_ids:
+    unit = _resolve_requester_unit(service_request)
+    if unit.building_id is None:
+        raise SettlementError(SettlementMessages.BUILDING_NOT_RESOLVED)
+    return unit.building_id
+
+
+def _record_unit_charges(service_request, settled_by, unit_amounts, apply_to_all):
+    """Create the settlement's ledger rows and raise each unit's debt to match.
+
+    Writes one MasterCharge (titled after the service request) plus one Pending
+    UnitCharge per charged unit, then bumps Unit.debt by exactly the charged
+    amounts. That keeps the invariant ``Unit.debt == sum(PENDING UnitCharge)``
+    intact, which is what makes the settled cost visible in the resident's
+    pending charges and therefore payable at all.
+    """
+    # Settlement bills are payable right away: the work is already done and the
+    # manager has just routed the cost, so there is no future period to defer to.
+    master_charge = MasterCharge.objects.create(
+        title=service_request.title,
+        description=service_request.description,
+        amount_per_unit=min(amount for _, amount in unit_amounts),
+        due_date=timezone.localdate(),
+        apply_to_all=apply_to_all,
+        created_by=settled_by,
+    )
+
+    UnitCharge.objects.bulk_create(
+        [
+            UnitCharge(
+                master_charge=master_charge,
+                unit=unit,
+                amount=amount,
+                status=UnitChargeStatus.PENDING,
+            )
+            for unit, amount in unit_amounts
+        ]
+    )
+
+    debt_by_unit = defaultdict(Decimal)
+    for unit, amount in unit_amounts:
+        debt_by_unit[unit.pk] += amount
+
+    for unit_id, amount in debt_by_unit.items():
+        Unit.objects.filter(pk=unit_id).update(debt=F("debt") + amount)
+
+    return master_charge
+
+
+def _charge_every_unit(service_request, cost, settled_by):
+    """Split the cost across every unit of the requester's building.
+
+    Scoped by building on purpose: before the fix this updated every Unit row
+    in the database, which corrupted all other buildings once more than one
+    existed.
+    """
+    building_id = _resolve_building_id(service_request)
+
+    units = list(
+        Unit.objects.filter(building_id=building_id).order_by("unit_number", "id")
+    )
+    if not units:
         raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
 
-    unit_count = len(unit_ids)
-    share = (cost / Decimal(unit_count)).quantize(CENT, rounding=ROUND_DOWN)
-    if share > 0:
-        Unit.objects.update(debt=F("debt") + share)
-
-    # Always fewer leftover cents than units, since share is the floor.
-    leftover_cents = int((cost - share * unit_count) / CENT)
-    if leftover_cents:
-        Unit.objects.filter(pk__in=unit_ids[:leftover_cents]).update(debt=F("debt") + CENT)
+    _record_unit_charges(
+        service_request,
+        settled_by,
+        list(zip(units, _split_cost(cost, len(units)))),
+        apply_to_all=True,
+    )
 
 
-def _charge_requester(service_request, cost):
+def _charge_requester(service_request, cost, settled_by):
     unit = _resolve_requester_unit(service_request)
-    Unit.objects.filter(pk=unit.pk).update(debt=F("debt") + cost)
+    _record_unit_charges(
+        service_request, settled_by, [(unit, cost)], apply_to_all=False
+    )
 
 
-def _charge_building_wallet(service_request, cost):
+def _charge_building_wallet(service_request, cost, settled_by):
     unit = _resolve_requester_unit(service_request)
     if unit.building_id is None:
         raise SettlementError(SettlementMessages.BUILDING_NOT_RESOLVED)
@@ -108,18 +207,22 @@ def _charge_building_wallet(service_request, cost):
 
 
 _HANDLERS = {
-    PaymentMethod.EQUAL_SPLIT: lambda service_request, cost: _charge_every_unit(cost),
+    PaymentMethod.EQUAL_SPLIT: _charge_every_unit,
     PaymentMethod.REQUESTER_ONLY: _charge_requester,
     PaymentMethod.BUILDING_WALLET: _charge_building_wallet,
 }
 
 
 @transaction.atomic
-def process_request_settlement(request_id, cost, method):
+def process_request_settlement(request_id, cost, method, settled_by=None):
     """Route the cost of a completed service request and mark it settled.
 
     Returns the refreshed ServiceRequest. Raises SettlementError with a
     user-facing message when the settlement is not allowed.
+
+    This function is the single source of truth for settlement validation:
+    callers must not pre-check status/is_settled outside the transaction, or
+    two concurrent requests could both pass the check before either commits.
     """
     amount = _clean_cost(cost)
 
@@ -130,7 +233,7 @@ def process_request_settlement(request_id, cost, method):
         # Locked for the whole transaction so a request cannot be settled twice.
         service_request = ServiceRequest.objects.select_for_update().get(pk=request_id)
     except ServiceRequest.DoesNotExist:
-        raise SettlementError(ServiceRequestMessages.REQUEST_NOT_FOUND)
+        raise ServiceRequestNotFoundError(ServiceRequestMessages.REQUEST_NOT_FOUND)
 
     if service_request.status != RequestStatus.COMPLETED:
         raise SettlementError(SettlementMessages.REQUEST_NOT_COMPLETED)
@@ -138,7 +241,7 @@ def process_request_settlement(request_id, cost, method):
     if service_request.is_settled:
         raise SettlementError(SettlementMessages.ALREADY_SETTLED)
 
-    _HANDLERS[method](service_request, amount)
+    _HANDLERS[method](service_request, amount, settled_by)
 
     service_request.cost = amount
     service_request.payment_method = method
@@ -146,6 +249,19 @@ def process_request_settlement(request_id, cost, method):
     service_request.save(update_fields=["cost", "payment_method", "is_settled"])
 
     return service_request
+
+
+def _resolve_building(building_id):
+    """Pick the building a building-wide action applies to.
+
+    The app is modelled around a single building (the manager settings refuse
+    to create a second one), so when no explicit building is passed the first
+    registered building wins — mirroring the building detail endpoint's
+    fallback. Explicit ids that do not exist resolve to no building at all.
+    """
+    if building_id:
+        return Building.objects.filter(pk=building_id).first()
+    return Building.objects.order_by("id").first()
 
 
 @transaction.atomic
@@ -157,10 +273,13 @@ def create_periodic_charge(
         description="",
         apply_to_all=True,
         unit_ids=None,
+        building_id=None,
 ):
     """Issues a master periodic charge, creates unit charge invoices, and increments unit debt.
 
-    All mutations execute in a single atomic transaction.
+    ``apply_to_all`` is scoped to a single building (``building_id``, or the
+    app's primary building when omitted) — it must never reach units of other
+    buildings. All mutations execute in a single atomic transaction.
     """
     amount = _clean_cost(amount_per_unit)
     title = (title or "").strip()
@@ -170,7 +289,14 @@ def create_periodic_charge(
         raise SettlementError("مهلت پرداخت الزامی است.")
 
     if apply_to_all:
-        targeted_units = list(Unit.objects.order_by("floor", "unit_number").all())
+        building = _resolve_building(building_id)
+        if building is None:
+            raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
+        targeted_units = list(
+            Unit.objects.filter(building=building).order_by("floor", "unit_number")
+        )
+        if not targeted_units:
+            raise SettlementError(SettlementMessages.NO_UNITS_TO_SPLIT)
     else:
         unit_ids = unit_ids or []
         targeted_units = list(Unit.objects.filter(pk__in=unit_ids).order_by("floor", "unit_number"))

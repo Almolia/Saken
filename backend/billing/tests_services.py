@@ -84,7 +84,11 @@ class SettlementServiceTests(TestCase):
             with self.subTest(units=unit_count, cost=cost):
                 Unit.objects.all().delete()
                 for index in range(unit_count):
+                    # The requester must own a unit in the building: the split
+                    # is scoped to the requester's building, resolved through
+                    # their own unit.
                     Unit.objects.create(
+                        owner=self.requester,
                         building=self.building, unit_number=f'{index:03d}',
                         floor=1, area='70.00',
                     )
@@ -215,3 +219,274 @@ class SettlementServiceTests(TestCase):
 
         self.assertEqual(self.requester_unit.debt, Decimal('300.50'))
         self.assertEqual(self.service_request.cost, Decimal('300.50'))
+
+
+class TwoBuildingSettlementTests(TestCase):
+    """Settlement costs must never leak across building boundaries.
+
+    Before the fix, EQUAL_SPLIT updated every Unit row in the database, so the
+    moment a second building existed, settling a request in one building
+    corrupted the balances of every other building.
+    """
+
+    def setUp(self):
+        self.building_a = Building.objects.create(
+            name='برج الف', building_wallet_balance=Decimal('1000.00'),
+        )
+        self.building_b = Building.objects.create(
+            name='برج ب', building_wallet_balance=Decimal('2000.00'),
+        )
+
+        self.requester = make_resident('0201', '00201')
+        self.neighbour_b = make_resident('0202', '00202')
+
+        self.unit_a1 = Unit.objects.create(
+            owner=self.requester, building=self.building_a,
+            unit_number='101', floor=1, area='80.00',
+        )
+        self.unit_a2 = Unit.objects.create(
+            building=self.building_a,
+            unit_number='102', floor=1, area='80.00',
+        )
+        self.unit_b1 = Unit.objects.create(
+            owner=self.neighbour_b, building=self.building_b,
+            unit_number='201', floor=2, area='90.00',
+        )
+        self.unit_b2 = Unit.objects.create(
+            building=self.building_b,
+            unit_number='202', floor=2, area='90.00',
+        )
+
+        self.service_request = ServiceRequest.objects.create(
+            title='نشتی آب', description='چکه می‌کند.',
+            resident=self.requester, status=RequestStatus.COMPLETED,
+            work_report='انجام شد.',
+        )
+
+    def settle(self, cost, method):
+        return process_request_settlement(self.service_request.pk, cost, method)
+
+    def refresh(self):
+        for unit in (self.unit_a1, self.unit_a2, self.unit_b1, self.unit_b2):
+            unit.refresh_from_db()
+        self.building_a.refresh_from_db()
+        self.building_b.refresh_from_db()
+
+    def test_equal_split_only_touches_the_requesters_building(self):
+        self.settle('300.00', PaymentMethod.EQUAL_SPLIT)
+        self.refresh()
+
+        # Building A's units split the cost between themselves.
+        self.assertEqual(self.unit_a1.debt, Decimal('150.00'))
+        self.assertEqual(self.unit_a2.debt, Decimal('150.00'))
+
+        # Building B must be completely untouched.
+        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+        self.assertEqual(self.building_b.building_wallet_balance, Decimal('2000.00'))
+
+    def test_requester_only_never_touches_other_buildings(self):
+        self.settle('250.00', PaymentMethod.REQUESTER_ONLY)
+        self.refresh()
+
+        self.assertEqual(self.unit_a1.debt, Decimal('250.00'))
+        self.assertEqual(self.unit_a2.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+
+    def test_building_wallet_only_moves_the_requesters_building_fund(self):
+        self.settle('400.00', PaymentMethod.BUILDING_WALLET)
+        self.refresh()
+
+        self.assertEqual(self.building_a.building_wallet_balance, Decimal('600.00'))
+        self.assertEqual(self.building_b.building_wallet_balance, Decimal('2000.00'))
+        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+
+    def test_equal_split_rejects_a_requester_whose_unit_has_no_building(self):
+        self.unit_a1.building = None
+        self.unit_a1.save(update_fields=['building'])
+
+        with self.assertRaises(SettlementError):
+            self.settle('100.00', PaymentMethod.EQUAL_SPLIT)
+
+        # Nothing may have moved anywhere.
+        self.refresh()
+        self.assertEqual(self.unit_a2.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b1.debt, Decimal('0.00'))
+        self.assertEqual(self.unit_b2.debt, Decimal('0.00'))
+
+
+class SettlementLedgerTests(TestCase):
+    """A settled cost must be backed by charge rows so it can actually be paid.
+
+    Before the fix the settlement path only bumped Unit.debt, leaving no
+    UnitCharge behind — ResidentPendingChargesView and process_resident_payment
+    work off UnitCharge rows, so that debt could never be displayed or paid.
+    """
+
+    def setUp(self):
+        self.building = Building.objects.create(
+            name='برج ساکن', building_wallet_balance=Decimal('1000.00'),
+        )
+        self.manager = User.objects.create_user(
+            phone='09120000399', password='Manager123',
+            full_name='مدیر ساختمان', national_id='1234500399',
+            role='manager', is_staff=True,
+        )
+        self.requester = make_resident('0301', '00301')
+        self.neighbour = make_resident('0302', '00302')
+
+        self.requester_unit = Unit.objects.create(
+            owner=self.requester, building=self.building,
+            unit_number='101', floor=1, area='80.00',
+        )
+        self.neighbour_unit = Unit.objects.create(
+            owner=self.neighbour, building=self.building,
+            unit_number='102', floor=1, area='80.00',
+        )
+
+        self.service_request = ServiceRequest.objects.create(
+            title='تعمیر آسانسور', description='موتور آسانسور تعویض شد.',
+            resident=self.requester, status=RequestStatus.COMPLETED,
+            work_report='انجام شد.',
+        )
+
+    def settle(self, cost, method):
+        return process_request_settlement(
+            self.service_request.pk, cost, method, settled_by=self.manager,
+        )
+
+    def test_equal_split_creates_pending_charge_rows_matching_the_debt(self):
+        from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
+        from django.utils import timezone
+
+        self.settle('100.01', PaymentMethod.EQUAL_SPLIT)
+
+        master = MasterCharge.objects.get()
+        self.assertEqual(master.title, self.service_request.title)
+        self.assertEqual(master.description, self.service_request.description)
+        self.assertTrue(master.apply_to_all)
+        self.assertEqual(master.created_by, self.manager)
+        # Settlement bills are payable right away.
+        self.assertEqual(master.due_date, timezone.localdate())
+
+        charges = list(UnitCharge.objects.filter(master_charge=master).order_by('unit__unit_number'))
+        self.assertEqual(len(charges), 2)
+        self.assertTrue(all(charge.status == UnitChargeStatus.PENDING for charge in charges))
+        self.assertEqual(
+            [charge.unit_id for charge in charges],
+            [self.requester_unit.pk, self.neighbour_unit.pk],
+        )
+
+        # Rounding remainder keeps the total exact, and debt mirrors the rows.
+        self.assertEqual(
+            sum(charge.amount for charge in charges), Decimal('100.01'),
+        )
+        self.requester_unit.refresh_from_db()
+        self.neighbour_unit.refresh_from_db()
+        self.assertEqual(self.requester_unit.debt, Decimal('50.01'))
+        self.assertEqual(self.neighbour_unit.debt, Decimal('50.00'))
+
+        # The ledger invariant holds unit by unit.
+        for unit in (self.requester_unit, self.neighbour_unit):
+            pending_total = sum(
+                UnitCharge.objects.filter(
+                    unit=unit, status=UnitChargeStatus.PENDING,
+                ).values_list('amount', flat=True), Decimal('0.00'),
+            )
+            self.assertEqual(unit.debt, pending_total)
+
+    def test_requester_only_creates_a_single_charge_row(self):
+        from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
+
+        self.settle('250.00', PaymentMethod.REQUESTER_ONLY)
+
+        master = MasterCharge.objects.get()
+        self.assertFalse(master.apply_to_all)
+        self.assertEqual(master.amount_per_unit, Decimal('250.00'))
+        self.assertEqual(master.created_by, self.manager)
+
+        charge = UnitCharge.objects.get()
+        self.assertEqual(charge.master_charge, master)
+        self.assertEqual(charge.unit, self.requester_unit)
+        self.assertEqual(charge.amount, Decimal('250.00'))
+        self.assertEqual(charge.status, UnitChargeStatus.PENDING)
+
+        self.requester_unit.refresh_from_db()
+        self.assertEqual(self.requester_unit.debt, Decimal('250.00'))
+
+    def test_building_wallet_creates_no_charge_rows(self):
+        from billing.models import MasterCharge, UnitCharge
+
+        self.settle('400.00', PaymentMethod.BUILDING_WALLET)
+
+        self.assertEqual(MasterCharge.objects.count(), 0)
+        self.assertEqual(UnitCharge.objects.count(), 0)
+        self.requester_unit.refresh_from_db()
+        self.neighbour_unit.refresh_from_db()
+        self.assertEqual(self.requester_unit.debt, Decimal('0.00'))
+        self.assertEqual(self.neighbour_unit.debt, Decimal('0.00'))
+
+    def test_a_refused_settlement_creates_no_charge_rows(self):
+        from billing.models import MasterCharge, UnitCharge
+
+        with self.assertRaises(SettlementError):
+            self.settle('5000.00', PaymentMethod.BUILDING_WALLET)
+
+        self.assertEqual(MasterCharge.objects.count(), 0)
+        self.assertEqual(UnitCharge.objects.count(), 0)
+
+
+class ReconcileUnitDebtsCommandTests(TestCase):
+    """The reconcile command repairs pre-fix debt drift without touching clean units."""
+
+    def setUp(self):
+        self.building = Building.objects.create(name='برج ساکن')
+        self.owner = make_resident('0401', '00401')
+        self.drifted_unit = Unit.objects.create(
+            owner=self.owner, building=self.building,
+            unit_number='101', floor=1, area='80.00',
+            debt=Decimal('75.00'),  # includes a pre-fix settlement with no rows
+        )
+        self.clean_unit = Unit.objects.create(
+            building=self.building,
+            unit_number='102', floor=1, area='80.00',
+            debt=Decimal('0.00'),
+        )
+
+    def test_preview_does_not_write(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command('reconcile_unit_debts', stdout=out)
+
+        self.drifted_unit.refresh_from_db()
+        self.assertEqual(self.drifted_unit.debt, Decimal('75.00'))
+        self.assertIn('101', out.getvalue())
+
+    def test_apply_realigns_debt_with_pending_rows(self):
+        from io import StringIO
+
+        from billing.models import MasterCharge, UnitCharge, UnitChargeStatus
+        from django.core.management import call_command
+
+        master = MasterCharge.objects.create(
+            title='شارژ ماهانه', amount_per_unit=Decimal('30.00'),
+            due_date='2026-09-01',
+        )
+        UnitCharge.objects.create(
+            master_charge=master, unit=self.drifted_unit,
+            amount=Decimal('30.00'), status=UnitChargeStatus.PENDING,
+        )
+
+        out = StringIO()
+        call_command('reconcile_unit_debts', '--apply', stdout=out)
+
+        self.drifted_unit.refresh_from_db()
+        self.clean_unit.refresh_from_db()
+        # Drifted unit snaps back to what its pending rows actually bill.
+        self.assertEqual(self.drifted_unit.debt, Decimal('30.00'))
+        self.assertEqual(self.clean_unit.debt, Decimal('0.00'))

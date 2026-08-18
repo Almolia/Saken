@@ -1140,3 +1140,153 @@ class ResidentReservationIsolationAndCancellationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         reservation.refresh_from_db()
         self.assertEqual(reservation.status, ReservationStatus.CANCELED)
+
+class ReservationCancelParityTests(APITestCase):
+    """DELETE and PATCH must enforce identical cancellation rules.
+
+    Before the fix, DELETE used a plain cancel that skipped the "must be
+    future" and "not already cancelled" checks PATCH enforced, so the same
+    booking could be cancelled through one endpoint but not the other.
+    All paths now share the single cancel_reservation service.
+    """
+
+    def setUp(self):
+        self.resident = User.objects.create_user(
+            phone="09120000401",
+            password="ResidentPass",
+            full_name="Resident Parity",
+            national_id="0000000401",
+            role="resident",
+        )
+        self.other_resident = User.objects.create_user(
+            phone="09120000402",
+            password="ResidentPass",
+            full_name="Other Resident",
+            national_id="0000000402",
+            role="resident",
+        )
+        self.amenity = Amenity.objects.create(name="سالن بیلیارد", is_active=True)
+
+        now = timezone.localtime(timezone.now()).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        self.future_time = now + timedelta(days=4)
+        self.past_time = now - timedelta(days=4)
+
+    def make_reservation(self, start_time, resident=None, status_value=ReservationStatus.ACTIVE):
+        return Reservation.objects.create(
+            amenity=self.amenity,
+            resident=resident or self.resident,
+            start_time=start_time,
+            end_time=start_time + timedelta(hours=1),
+            status=status_value,
+        )
+
+    def patch_cancel(self, reservation):
+        url = reverse("resident-reservation-detail", kwargs={"pk": reservation.id})
+        return self.client.patch(url, {"status": ReservationStatus.CANCELED}, format="json")
+
+    def delete_cancel(self, reservation):
+        url = reverse("resident-reservation-detail", kwargs={"pk": reservation.id})
+        return self.client.delete(url)
+
+    # --- 2 states x 2 methods: identical status + message ----------------
+
+    def test_past_reservation_is_rejected_identically_on_patch_and_delete(self):
+        self.client.force_authenticate(user=self.resident)
+        reservation = self.make_reservation(self.past_time)
+
+        patch_response = self.patch_cancel(reservation)
+        delete_response = self.delete_cancel(reservation)
+
+        self.assertEqual(patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(delete_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(patch_response.data, delete_response.data)
+        self.assertEqual(
+            patch_response.data["detail"],
+            AmenityMessages.PAST_RESERVATION_NOT_CANCELLABLE,
+        )
+
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.ACTIVE)
+
+    def test_already_canceled_reservation_is_rejected_identically_on_patch_and_delete(self):
+        self.client.force_authenticate(user=self.resident)
+        reservation = self.make_reservation(
+            self.future_time, status_value=ReservationStatus.CANCELED
+        )
+
+        patch_response = self.patch_cancel(reservation)
+        delete_response = self.delete_cancel(reservation)
+
+        self.assertEqual(patch_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(delete_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(patch_response.data, delete_response.data)
+        self.assertEqual(
+            patch_response.data["detail"],
+            AmenityMessages.RESERVATION_ALREADY_CANCELED,
+        )
+
+    # --- happy path on both methods --------------------------------------
+
+    def test_future_reservation_cancels_on_patch(self):
+        self.client.force_authenticate(user=self.resident)
+        reservation = self.make_reservation(self.future_time)
+
+        response = self.patch_cancel(reservation)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], AmenityMessages.RESERVATION_CANCELED)
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.CANCELED)
+
+    def test_future_reservation_cancels_on_delete(self):
+        self.client.force_authenticate(user=self.resident)
+        reservation = self.make_reservation(self.future_time)
+
+        response = self.delete_cancel(reservation)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], AmenityMessages.RESERVATION_CANCELED)
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.CANCELED)
+
+    # --- shared guard behaviour ------------------------------------------
+
+    def test_delete_rejects_another_residents_reservation_like_patch(self):
+        reservation = self.make_reservation(self.future_time, resident=self.other_resident)
+        self.client.force_authenticate(user=self.resident)
+
+        patch_response = self.patch_cancel(reservation)
+        delete_response = self.delete_cancel(reservation)
+
+        self.assertEqual(patch_response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(delete_response.status_code, status.HTTP_404_NOT_FOUND)
+
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.status, ReservationStatus.ACTIVE)
+
+    def test_delete_on_a_missing_reservation_returns_404(self):
+        self.client.force_authenticate(user=self.resident)
+
+        response = self.client.delete(
+            reverse("resident-reservation-detail", kwargs={"pk": 999999})
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["detail"], AmenityMessages.RESERVATION_NOT_FOUND)
+
+    def test_post_cancel_endpoint_uses_the_same_rules(self):
+        self.client.force_authenticate(user=self.resident)
+        past_reservation = self.make_reservation(self.past_time)
+        url = reverse("resident-reservation-cancel", kwargs={"pk": past_reservation.id})
+
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["detail"],
+            AmenityMessages.PAST_RESERVATION_NOT_CANCELLABLE,
+        )
+        past_reservation.refresh_from_db()
+        self.assertEqual(past_reservation.status, ReservationStatus.ACTIVE)

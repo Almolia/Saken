@@ -4,6 +4,7 @@ from buildings.models import Building, Unit
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
+from maintenance.models import PaymentMethod, RequestStatus, ServiceRequest
 from rest_framework import status
 from rest_framework.test import APITestCase
 from users.models import UserRole
@@ -1390,3 +1391,110 @@ class ChargeSearchAPITests(BaseChargeTestCase):
             self.client.force_authenticate(user=user)
             response = self.client.get(self.url)
             self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+class SettledRequestPaymentFlowTests(BaseChargeTestCase):
+    """End-to-end: settle -> pending list -> pay -> debt returns to normal.
+
+    Regression guard for the ledger split where settlement only bumped
+    Unit.debt without creating UnitCharge rows: the resident could never see
+    or pay that debt. The fixed flow must round-trip through the standard
+    pending-charges and payment endpoints.
+    """
+
+    def setUp(self):
+        super().setUp()
+
+        Unit.objects.update(debt=Decimal("0.00"))
+
+        self.service_request = ServiceRequest.objects.create(
+            title="تعمیر پمپ آب",
+            description="پمپ آب ساختمان تعمیر شد.",
+            resident=self.resident,
+            status=RequestStatus.COMPLETED,
+            work_report="انجام شد.",
+        )
+        self.settle_url = reverse(
+            "manager-service-request-settle",
+            kwargs={"pk": self.service_request.pk},
+        )
+        self.pending_url = reverse("resident-pending-charges")
+        self.pay_url = reverse("resident-pay-charges")
+
+    def settle(self, cost, method):
+        self.client.force_authenticate(user=self.manager)
+        return self.client.post(
+            self.settle_url,
+            {"cost": cost, "payment_method": method},
+            format="json",
+        )
+
+    def test_requester_only_settlement_is_visible_and_payable(self):
+        response = self.settle("120000.00", PaymentMethod.REQUESTER_ONLY)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("120000.00"))
+
+        # The settled cost shows up in the resident's pending charges.
+        self.client.force_authenticate(user=self.resident)
+        pending_response = self.client.get(self.pending_url)
+        self.assertEqual(pending_response.status_code, status.HTTP_200_OK)
+
+        charges = pending_response.data["charges"]
+        self.assertEqual(len(charges), 1)
+        self.assertEqual(charges[0]["title"], "تعمیر پمپ آب")
+        self.assertEqual(charges[0]["amount"], "120000.00")
+        self.assertEqual(charges[0]["status"], UnitChargeStatus.PENDING)
+
+        # Paying it brings the debt back to its previous value.
+        pay_response = self.client.post(
+            self.pay_url,
+            {"charge_ids": [charges[0]["id"]]},
+            format="json",
+        )
+        self.assertEqual(pay_response.status_code, status.HTTP_200_OK)
+
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("0.00"))
+
+        # ...and the charge is no longer pending.
+        pending_response = self.client.get(self.pending_url)
+        self.assertEqual(pending_response.data["charges"], [])
+
+    def test_equal_split_settlement_is_visible_and_payable(self):
+        response = self.settle("100000.05", PaymentMethod.EQUAL_SPLIT)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # All three units of the building share the cost exactly.
+        total_debt = sum(
+            Unit.objects.values_list("debt", flat=True), Decimal("0.00"),
+        )
+        self.assertEqual(total_debt, Decimal("100000.05"))
+
+        # The resident sees only their own share and can pay it.
+        self.client.force_authenticate(user=self.resident)
+        pending_response = self.client.get(self.pending_url)
+        charges = pending_response.data["charges"]
+        self.assertEqual(len(charges), 1)
+
+        before = Unit.objects.get(pk=self.unit1.pk).debt
+        pay_response = self.client.post(
+            self.pay_url,
+            {"charge_ids": [charges[0]["id"]]},
+            format="json",
+        )
+        self.assertEqual(pay_response.status_code, status.HTTP_200_OK)
+
+        after = Unit.objects.get(pk=self.unit1.pk).debt
+        self.assertEqual(after, before - Decimal(charges[0]["amount"]))
+
+    def test_wallet_settlement_creates_no_payable_debt(self):
+        response = self.settle("500.00", PaymentMethod.BUILDING_WALLET)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.client.force_authenticate(user=self.resident)
+        pending_response = self.client.get(self.pending_url)
+        self.assertEqual(pending_response.data["charges"], [])
+
+        self.unit1.refresh_from_db()
+        self.assertEqual(self.unit1.debt, Decimal("0.00"))

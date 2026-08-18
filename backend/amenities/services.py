@@ -3,6 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from common.constants import AmenityMessages
+from users.models import UserRole
 from .models import Amenity, Reservation, ReservationStatus
 
 
@@ -53,44 +54,38 @@ def create_reservation(resident, amenity_id, start_time, end_time):
     return reservation
 
 
-def cancel_reservation(reservation_id, user=None):
+def cancel_reservation(reservation, user):
     """
     Cancels an existing booking.
+
+    This is the single canonical implementation of the cancellation rules;
+    every cancellation path (PATCH, DELETE and the dedicated cancel endpoint)
+    must go through it so they can never drift apart:
+
+    - a resident must own the reservation
+    - the reservation must not already be canceled
+    - the reservation must still be in the future (start_time > now)
+
+    Raises serializers.ValidationError with a user-facing message when any
+    rule is violated.
     """
-    try:
-        reservation = Reservation.objects.get(pk=reservation_id)
-    except Reservation.DoesNotExist:
-        raise serializers.ValidationError(AmenityMessages.RESERVATION_NOT_FOUND)
+    # Ownership
+    if (
+        user is not None
+        and getattr(user, "role", None) == UserRole.RESIDENT
+        and reservation.resident_id != user.id
+    ):
+        raise serializers.ValidationError(AmenityMessages.RESERVATION_NOT_OWNED)
 
-    if user and getattr(user, "role", None) == "resident" and reservation.resident_id != user.id:
-        raise serializers.ValidationError("شما اجازه دسترسی به این رزرو را ندارید.")
-
+    # Already canceled
     if reservation.status == ReservationStatus.CANCELED:
-        return reservation
+        raise serializers.ValidationError(AmenityMessages.RESERVATION_ALREADY_CANCELED)
 
-    reservation.status = ReservationStatus.CANCELED
-    reservation.save(update_fields=["status", "updated_at"])
-    return reservation
-
-def cancel_reservation_with_validation(reservation, user):
-    """
-    Cancels a reservation with validation:
-    - Resident must own the reservation
-    - Reservation must be in the future (start_time > now)
-    - Reservation must not already be canceled
-    """
-    # Check ownership
-    if user and getattr(user, "role", None) == "resident" and reservation.resident_id != user.id:
-        raise serializers.ValidationError("شما اجازه دسترسی به این رزرو را ندارید.")
-
-    # Check if already canceled
-    if reservation.status == ReservationStatus.CANCELED:
-        raise serializers.ValidationError("این رزرو قبلاً لغو شده است.")
-
-    # Check if reservation is in the future
-    now = timezone.now()
-    if reservation.start_time <= now:
-        raise serializers.ValidationError("امکان لغو رزروهای گذشته وجود ندارد.")
+    # Must still be in the future
+    if reservation.start_time <= timezone.now():
+        raise serializers.ValidationError(
+            AmenityMessages.PAST_RESERVATION_NOT_CANCELLABLE
+        )
 
     reservation.status = ReservationStatus.CANCELED
     reservation.save(update_fields=["status", "updated_at"])

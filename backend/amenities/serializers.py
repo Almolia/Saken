@@ -1,6 +1,7 @@
 from rest_framework import serializers
+
+from common.constants import AmenityMessages
 from .models import Amenity, Reservation, ReservationStatus
-from django.utils import timezone
 
 
 
@@ -87,31 +88,17 @@ class ReservationCreateSerializer(serializers.Serializer):
 class ReservationUpdateSerializer(serializers.Serializer):
     """
     Serializer for updating a reservation (specifically for cancellation).
+
+    Only field-level shape validation lives here. The cancellation business
+    rules (ownership, not already canceled, must be future-dated) are owned by
+    `amenities.services.cancel_reservation`, the single implementation shared
+    by the PATCH and DELETE paths, so the two endpoints can never disagree.
     """
     status = serializers.CharField(required=False)
 
     def validate_status(self, value):
         if value and value != ReservationStatus.CANCELED:
             raise serializers.ValidationError(
-                "فقط می‌توانید وضعیت رزرو را به 'لغو شده' تغییر دهید."
+                AmenityMessages.ONLY_CANCELLATION_ALLOWED
             )
         return value
-
-    def validate(self, attrs):
-        # The reservation being updated is passed as the serializer instance.
-        reservation = self.instance
-        if not reservation:
-            return attrs
-
-        if reservation.status == ReservationStatus.CANCELED:
-            raise serializers.ValidationError(
-                "این رزرو قبلاً لغو شده است."
-            )
-
-        now = timezone.now()
-        if reservation.start_time <= now:
-            raise serializers.ValidationError(
-                "امکان لغو رزروهای گذشته وجود ندارد."
-            )
-
-        return attrs

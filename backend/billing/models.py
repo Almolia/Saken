@@ -1,3 +1,13 @@
+"""Billing ledger models.
+
+Ledger invariant (enforced by billing.services — see its module docstring):
+
+    Unit.debt == sum(UnitCharge.amount for PENDING charges on the unit)
+
+Money only ever moves through flows that create or flip UnitCharge rows while
+mirroring the exact same amounts on Unit.debt, so every unit of debt stays
+backed by a payable charge row.
+"""
 from decimal import Decimal
 from django.conf import settings
 from django.db import models
@@ -5,6 +15,13 @@ from buildings.models import Unit
 
 
 class MasterCharge(models.Model):
+    """One issued charge, billed per unit.
+
+    `amount_per_unit` is the nominal per-unit amount; the authoritative amount
+    each unit owes lives on its UnitCharge rows (settlement splits may differ
+    by up to one cent between units because of rounding).
+    """
+
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, default="")
     amount_per_unit = models.DecimalField(max_digits=12, decimal_places=2)

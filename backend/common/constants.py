@@ -122,4 +122,8 @@ class AmenityMessages:
     RESERVATION_CREATED = "رزرو با موفقیت انجام شد."
     RESERVATION_CANCELED = "رزرو با موفقیت لغو شد."
     RESERVATION_NOT_FOUND = "رزرو مورد نظر یافت نشد."
+    RESERVATION_NOT_OWNED = "شما اجازه دسترسی به این رزرو را ندارید."
+    RESERVATION_ALREADY_CANCELED = "این رزرو قبلاً لغو شده است."
+    PAST_RESERVATION_NOT_CANCELLABLE = "امکان لغو رزروهای گذشته وجود ندارد."
+    ONLY_CANCELLATION_ALLOWED = "فقط می‌توانید وضعیت رزرو را به 'لغو شده' تغییر دهید."
     AMENITY_NOT_ACTIVE = "امکان مورد نظر در حال حاضر فعال نیست."
