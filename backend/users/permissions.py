@@ -52,16 +52,3 @@ class IsResident(BasePermission):
             and user.is_active
             and user.role == UserRole.RESIDENT
         )
-
-
-class IsManagerRole(BasePermission):
-    """Manager only — not admin. Used for the manager's own profile endpoints."""
-
-    def has_permission(self, request, view):
-        user = request.user
-        return bool(
-            user
-            and user.is_authenticated
-            and user.is_active
-            and user.role == UserRole.MANAGER
-        )

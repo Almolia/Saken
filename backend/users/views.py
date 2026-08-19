@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from common.constants import UserMessages
 from .models import User, UserRole
-from .permissions import IsAdminUserRole, IsManagerOrAdmin, IsManagerRole, IsResident, IsServiceStaff
+from .permissions import IsAdminUserRole, IsManagerOrAdmin, IsServiceStaff
 from .serializers import (
     AdminPasswordChangeSerializer,
     AdminProfileUpdateSerializer,
@@ -182,62 +182,6 @@ class ServiceStaffPasswordChangeView(APIView):
         )
 
 
-class ResidentProfileUpdateView(APIView):
-    permission_classes = [IsResident]
-
-    def patch(self, request):
-        serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return build_auth_success_response(
-            request=request,
-            user=user,
-            message=UserMessages.PROFILE_UPDATED,
-        )
-
-
-class ResidentPasswordChangeView(APIView):
-    permission_classes = [IsResident]
-
-    def post(self, request):
-        serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return build_auth_success_response(
-            request=request,
-            user=user,
-            message=UserMessages.PASSWORD_CHANGED,
-        )
-
-
-class ManagerProfileUpdateView(APIView):
-    permission_classes = [IsManagerRole]
-
-    def patch(self, request):
-        serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return build_auth_success_response(
-            request=request,
-            user=user,
-            message=UserMessages.PROFILE_UPDATED,
-        )
-
-
-class ManagerPasswordChangeView(APIView):
-    permission_classes = [IsManagerRole]
-
-    def post(self, request):
-        serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return build_auth_success_response(
-            request=request,
-            user=user,
-            message=UserMessages.PASSWORD_CHANGED,
-        )
-
-
 class ServiceStaffListView(APIView):
     """Returns all active users with the service_staff role for assignment dropdowns."""
     permission_classes = [IsManagerOrAdmin]
@@ -247,3 +191,41 @@ class ServiceStaffListView(APIView):
         return Response({
             'staff': UserSerializer(staff, many=True).data,
         })
+
+
+def _update_own_profile(request, message):
+    if not request.user.is_active:
+        return Response(
+            {"detail": UserMessages.INACTIVE_ACCOUNT},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    user = serializer.save()
+    return build_auth_success_response(request=request, user=user, message=message)
+
+
+def _change_own_password(request, message):
+    if not request.user.is_active:
+        return Response(
+            {"detail": UserMessages.INACTIVE_ACCOUNT},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    user = serializer.save()
+    return build_auth_success_response(request=request, user=user, message=message)
+
+
+class SelfProfileUpdateView(APIView):
+    """Any signed-in user can edit their own profile and optionally their password."""
+
+    def patch(self, request):
+        return _update_own_profile(request, UserMessages.PROFILE_UPDATED)
+
+
+class SelfPasswordChangeView(APIView):
+    """Any signed-in user can change their own password."""
+
+    def post(self, request):
+        return _change_own_password(request, UserMessages.PASSWORD_CHANGED)

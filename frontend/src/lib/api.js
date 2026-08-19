@@ -129,6 +129,18 @@ export const authApi = {
   me() {
     return request('/auth/me/')
   },
+  updateProfile(payload) {
+    return request('/auth/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  changePassword(payload) {
+    return request('/auth/change-password/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
   updateAdminProfile(payload) {
     return request('/auth/admin/profile/', {
       method: 'PATCH',
@@ -149,30 +161,6 @@ export const authApi = {
   },
   changeServiceStaffPassword(payload) {
     return request('/auth/service-staff/change-password/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-  },
-  updateResidentProfile(payload) {
-    return request('/auth/resident/profile/', {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    })
-  },
-  changeResidentPassword(payload) {
-    return request('/auth/resident/change-password/', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-  },
-  updateManagerProfile(payload) {
-    return request('/auth/manager/profile/', {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    })
-  },
-  changeManagerPassword(payload) {
-    return request('/auth/manager/change-password/', {
       method: 'POST',
       body: JSON.stringify(payload),
     })

@@ -36,6 +36,11 @@ function focusableElements(dialog) {
   )
 }
 
+const modalSizeClass = {
+  md: 'max-w-md',
+  lg: 'max-w-3xl',
+}
+
 export function Modal({
   open,
   title,
@@ -44,6 +49,7 @@ export function Modal({
   children,
   loading = false,
   closeOnBackdrop = true,
+  size = 'md',
 }) {
   const dialogRef = useRef(null)
   const instanceRef = useRef(Symbol('modal'))
@@ -140,7 +146,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
-        className="relative z-10 w-full max-w-md rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-400/30 sm:p-7"
+        className={`relative z-10 w-full ${modalSizeClass[size] || modalSizeClass.md} max-h-[90vh] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white p-6 shadow-2xl shadow-slate-400/30 sm:p-7`}
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>

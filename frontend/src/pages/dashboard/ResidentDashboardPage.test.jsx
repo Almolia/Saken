@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
 import { amenityApi } from '../../lib/amenityApi'
 import { residentAnnouncementApi } from '../../lib/announcementApi'
+import { authApi } from '../../lib/api'
 import { residentChargeApi } from '../../lib/billingApi'
 import { unitApi } from '../../lib/unitApi'
 import { ResidentDashboardPage } from './ResidentDashboardPage'
@@ -36,6 +37,14 @@ vi.mock('../../lib/billingApi', () => ({
     pending: vi.fn(),
     history: vi.fn(),
     pay: vi.fn(),
+  },
+}))
+
+vi.mock('../../lib/api', () => ({
+  authApi: {
+    logout: vi.fn(),
+    updateProfile: vi.fn(),
+    changePassword: vi.fn(),
   },
 }))
 
@@ -130,6 +139,9 @@ const octoberCharge = {
 
 describe('ResidentDashboardPage', () => {
   beforeEach(() => {
+    localStorage.clear()
+    authApi.updateProfile.mockReset()
+    authApi.changePassword.mockReset()
     residentAnnouncementApi.list.mockReset()
     residentAnnouncementApi.list.mockResolvedValue([])
 
@@ -448,5 +460,92 @@ describe('ResidentDashboardPage', () => {
     await waitFor(() =>
       expect(amenityApi.getSlots.mock.calls.length).toBeGreaterThan(slotReadsBeforeCancel),
     )
+  })
+
+  it('opens the account editor from the legacy dashboard and saves profile changes', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    authApi.updateProfile.mockResolvedValue({
+      message: 'اطلاعات حساب با موفقیت ذخیره شد.',
+      user: {
+        id: 7,
+        full_name: 'علی محمدزاده ویرایش شده',
+        username: 'ali-edited',
+        phone: '09120000000',
+        national_id: '1234567891',
+        role: 'resident',
+      },
+    })
+    const setAuthState = vi.fn()
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
+        </ToastProvider>
+      </MemoryRouter>,
+    )
+
+    await user.click(screen.getByRole('button', { name: 'ویرایش حساب' }))
+    expect(await screen.findByRole('dialog', { name: 'ویرایش حساب کاربری' })).toBeInTheDocument()
+
+    const nameInput = screen.getByLabelText('نام و نام خانوادگی')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'علی محمدزاده ویرایش شده')
+    await user.type(screen.getByLabelText('نام کاربری'), 'ali-edited')
+    await user.type(screen.getByLabelText('کد ملی'), '1234567891')
+    await user.click(screen.getByRole('button', { name: 'ذخیره تغییرات' }))
+
+    await waitFor(() => expect(authApi.updateProfile).toHaveBeenCalledTimes(1))
+    expect(authApi.updateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        full_name: 'علی محمدزاده ویرایش شده',
+        username: 'ali-edited',
+        national_id: '1234567891',
+      }),
+    )
+    expect(setAuthState).toHaveBeenCalledWith({
+      loading: false,
+      user: expect.objectContaining({ full_name: 'علی محمدزاده ویرایش شده' }),
+    })
+    expect(await screen.findByText('اطلاعات حساب با موفقیت ذخیره شد.')).toBeInTheDocument()
+  })
+
+  it('defaults to the legacy layout and can switch to the new dashboard', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    renderPage()
+
+    expect(screen.getByRole('heading', { name: 'پنل ساکن' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ظاهر جدید' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'ظاهر جدید' }))
+
+    expect(screen.getByRole('heading', { name: 'نمای کلی' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ظاهر قدیمی' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'پنل ساکن' })).not.toBeInTheDocument()
+    expect(await screen.findByText('خوش آمدید، علی محمدزاده')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'اطلاعیه‌های ساختمان' })).toBeInTheDocument()
+  })
+
+  it('keeps charges, reservations and services reachable from the new dashboard', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentChargeApi.pending.mockResolvedValue({ charges: [septemberCharge] })
+    amenityApi.myReservations.mockResolvedValue({ reservations: [upcomingReservation] })
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: 'ظاهر جدید' }))
+    await user.click(screen.getAllByRole('button', { name: /شارژ/ })[0])
+
+    expect(screen.getByRole('heading', { name: 'شارژ و پرداخت' })).toBeInTheDocument()
+    expect(await screen.findByText('شارژ شهریور')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'تاریخچه پرداخت' })).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: /رزرو/ })[0])
+    expect(await screen.findByText('باشگاه ورزشی')).toBeInTheDocument()
+
+    await user.click(screen.getAllByRole('button', { name: /خدمات/ })[0])
+    expect(screen.getByRole('heading', { name: 'ثبت درخواست خدمات' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'پیگیری درخواست‌ها' })).toBeInTheDocument()
   })
 })

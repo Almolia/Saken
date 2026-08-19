@@ -13,11 +13,12 @@ import {
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
-import { useLogout } from '../../hooks/useLogout'
-import { useUserDirectory } from '../../hooks/useUserDirectory'
+import { AccountSettingsSection } from '../../components/dashboard/AccountSettingsSection'
 import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
+import { useLogout } from '../../hooks/useLogout'
+import { useUserDirectory } from '../../hooks/useUserDirectory'
 import { AdminProfile } from './admin/AdminProfile'
 import { AmenitiesSection } from './manager/AmenitiesSection'
 import { AnnouncementsSection } from './manager/AnnouncementsSection'
@@ -28,8 +29,6 @@ import { ServiceReportsSection } from './manager/ServiceReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
 import { UsersSection } from './manager/UsersSection'
-import { AccountSettingsSection } from '../../components/dashboard/AccountSettingsSection'
-import { authApi } from '../../lib/api'
 
 const sectionTitles = {
   requests: 'درخواست‌های خدمات',
@@ -223,8 +222,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <AccountSettingsSection
                 user={authState.user}
                 setAuthState={setAuthState}
-                updateProfile={authApi.updateManagerProfile}
-                title="ویرایش اطلاعات و رمز عبور"
+                heading="ویرایش اطلاعات مدیر"
+                description="اطلاعات حساب مدیریت را ویرایش کنید. برای تغییر رمز، رمز فعلی و رمز جدید را وارد کنید؛ در غیر این صورت فیلدهای رمز را خالی بگذارید."
               />
             ) : (
               <UsersSection

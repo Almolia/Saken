@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
@@ -16,6 +16,8 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../lib/api', () => ({
   authApi: {
     logout: vi.fn(),
+    updateProfile: vi.fn(),
+    changePassword: vi.fn(),
   },
   managerApi: {
     announcements: vi.fn(),
@@ -139,6 +141,8 @@ describe('ManagerDashboardPage', () => {
   beforeEach(() => {
     navigateMock.mockReset()
     authApi.logout.mockReset()
+    authApi.updateProfile.mockReset()
+    authApi.changePassword.mockReset()
     managerApi.announcements.mockReset()
     managerApi.announcements.mockResolvedValue({
       announcements: [
@@ -168,6 +172,43 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getAllByText('امور مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('کاربران').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('حساب کاربری').length).toBeGreaterThan(0)
+  })
+
+  it('opens the account section and saves manager profile changes', async () => {
+    const user = userEvent.setup()
+    authApi.updateProfile.mockResolvedValue({
+      message: 'اطلاعات حساب با موفقیت ذخیره شد.',
+      user: {
+        id: 1,
+        full_name: 'مدیر ویرایش شده',
+        username: 'manager-edited',
+        phone: '09120000000',
+        national_id: '1234567890',
+        role: 'manager',
+      },
+    })
+    const { setAuthState } = renderPage()
+
+    await user.click(screen.getAllByRole('button', { name: 'حساب کاربری' })[0])
+
+    const main = screen.getByRole('main')
+    expect(within(main).getByRole('heading', { name: 'حساب کاربری' })).toBeInTheDocument()
+    expect(within(main).getByText('ویرایش اطلاعات مدیر')).toBeInTheDocument()
+
+    const nameInput = screen.getByLabelText('نام و نام خانوادگی')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'مدیر ویرایش شده')
+    await user.type(screen.getByLabelText('نام کاربری'), 'manager-edited')
+    await user.type(screen.getByLabelText('کد ملی'), '1234567890')
+    await user.click(screen.getByRole('button', { name: 'ذخیره تغییرات' }))
+
+    await waitFor(() => expect(authApi.updateProfile).toHaveBeenCalledTimes(1))
+    expect(setAuthState).toHaveBeenCalledWith({
+      loading: false,
+      user: expect.objectContaining({ full_name: 'مدیر ویرایش شده' }),
+    })
+    expect(await screen.findByText('اطلاعات حساب با موفقیت ذخیره شد.')).toBeInTheDocument()
   })
 
   it('switches to the Service Reports section when clicking the tab', async () => {
