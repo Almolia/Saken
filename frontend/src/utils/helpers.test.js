@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatArea, formatCurrency, formatDate, formatRelativeDate, resolveHomePath } from './helpers'
+import {
+  formatArea,
+  formatCurrency,
+  formatDate,
+  formatDateTime,
+  formatRelativeDate,
+  resolveHomePath,
+} from './helpers'
 
 describe('helpers', () => {
   describe('resolveHomePath', () => {
@@ -25,6 +32,20 @@ describe('helpers', () => {
       expect(formatDate('')).toBe('')
       expect(formatDate(null)).toBe('')
       expect(formatDate('2026-09-20')).toBeTruthy()
+    })
+  })
+
+  describe('formatDateTime', () => {
+    it('returns empty for empty input and echoes an unparsable value', () => {
+      expect(formatDateTime('')).toBe('')
+      expect(formatDateTime(null)).toBe('')
+      expect(formatDateTime('not-a-date')).toBe('not-a-date')
+    })
+
+    it('adds the time of day to the Jalali date a receipt already shows', () => {
+      const stamp = '2026-08-01T10:05:00Z'
+      expect(formatDateTime(stamp)).toContain(formatDate(stamp))
+      expect(formatDateTime(stamp)).not.toBe(formatDate(stamp))
     })
   })
 

@@ -71,3 +71,27 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Printing a receipt should put the receipt on the page, not the dashboard
+   around it. Visibility rather than display keeps the receipt's own layout
+   intact while everything else stops painting. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+
+  [data-print-area] {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    border: 0;
+    background: #fff;
+    box-shadow: none;
+  }
+}

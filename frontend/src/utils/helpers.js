@@ -29,6 +29,26 @@ export function formatDate(dateString) {
   }
 }
 
+// A payment is a financial record, so a receipt names the moment it was
+// settled rather than only the day. Built on the same Jalali calendar as
+// formatDate so the two never disagree about which day a payment falls on.
+export function formatDateTime(dateString) {
+  if (!dateString) return ''
+  try {
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return String(dateString)
+    return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)
+  } catch {
+    return String(dateString)
+  }
+}
+
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('fa-IR', { numeric: 'auto' })
 
 const MINUTE = 60
