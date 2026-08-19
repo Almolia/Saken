@@ -6,7 +6,14 @@ import { usePaymentHistory } from './usePaymentHistory'
 import { usePendingCharges } from './usePendingCharges'
 import { useServiceRequests } from './useServiceRequests'
 
-export function useResidentDashboard() {
+/**
+ * Everything the resident dashboard reads, in one place.
+ *
+ * `paymentHistoryEnabled` is the payment-history tab's visibility: the record
+ * is only fetched once the resident opens that view, and keeps refreshing
+ * after a payment from then on.
+ */
+export function useResidentDashboard({ paymentHistoryEnabled = true } = {}) {
   const { unit, loading, error, retry, refresh: refreshUnit } = useMyUnit()
   const {
     charges: pendingCharges,
@@ -19,9 +26,10 @@ export function useResidentDashboard() {
     charges: paidCharges,
     totalPaid,
     loading: historyLoading,
+    refreshing: historyRefreshing,
     error: historyError,
     refresh: refreshHistory,
-  } = usePaymentHistory()
+  } = usePaymentHistory({ enabled: paymentHistoryEnabled })
   const selection = useChargeSelection(pendingCharges)
   // Holds the charges the resident confirmed at the moment they hit "Pay
   // Selected"; null means the gateway is closed. Snapshotting rather than
@@ -79,6 +87,7 @@ export function useResidentDashboard() {
     paidCharges,
     totalPaid,
     historyLoading,
+    historyRefreshing,
     historyError,
     refreshHistory,
     selection,
