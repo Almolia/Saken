@@ -21,7 +21,12 @@ function normalizeCharges(data) {
  * blank a list that is already loaded.
  */
 export function usePaymentHistory({ enabled = true } = {}) {
+  // `enabled` latches during render rather than in an effect: flipping it
+  // true is already a render, and once the history has been read, switching
+  // away from the tab must not look like a new reason to fetch.
   const [started, setStarted] = useState(enabled)
+  if (enabled && !started) setStarted(true)
+
   const hasLoaded = useRef(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [state, setState] = useState({
@@ -31,10 +36,6 @@ export function usePaymentHistory({ enabled = true } = {}) {
     refreshing: false,
     error: '',
   })
-
-  useEffect(() => {
-    if (enabled) setStarted(true)
-  }, [enabled])
 
   useEffect(() => {
     if (!started) return undefined
