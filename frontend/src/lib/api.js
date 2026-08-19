@@ -153,6 +153,30 @@ export const authApi = {
       body: JSON.stringify(payload),
     })
   },
+  updateResidentProfile(payload) {
+    return request('/auth/resident/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  changeResidentPassword(payload) {
+    return request('/auth/resident/change-password/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+  updateManagerProfile(payload) {
+    return request('/auth/manager/profile/', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    })
+  },
+  changeManagerPassword(payload) {
+    return request('/auth/manager/change-password/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
 }
 
 export const managerApi = {

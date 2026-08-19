@@ -333,6 +333,74 @@ class AuthenticationTests(TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_resident_can_update_own_profile_and_password(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'resident', 'password': 'Resident123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/resident/profile/',
+            {
+                'full_name': 'سارا احمدی ویرایش شده',
+                'username': 'resident-edited',
+                'phone': '09121111111',
+                'national_id': '1234567891',
+                'current_password': 'Resident123',
+                'new_password': 'Resident12345',
+                'new_password_confirmation': 'Resident12345',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.resident.refresh_from_db()
+        self.assertEqual(self.resident.full_name, 'سارا احمدی ویرایش شده')
+        self.assertEqual(self.resident.username, 'resident-edited')
+        self.assertTrue(self.resident.check_password('Resident12345'))
+        self.assertIn(settings.JWT_ACCESS_COOKIE_NAME, response.cookies)
+
+    def test_manager_can_update_own_profile(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'manager', 'password': 'Manager123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/manager/profile/',
+            {
+                'full_name': 'مدیر ویرایش شده',
+                'username': 'manager-edited',
+                'phone': '09120000000',
+                'national_id': '1234567890',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.manager.refresh_from_db()
+        self.assertEqual(self.manager.full_name, 'مدیر ویرایش شده')
+        self.assertEqual(self.manager.username, 'manager-edited')
+
+    def test_resident_cannot_access_manager_profile_endpoint(self):
+        login_response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'resident', 'password': 'Resident123'},
+            format='json',
+        )
+        self.client.cookies = login_response.cookies
+        response = self.client.patch(
+            '/api/auth/manager/profile/',
+            {
+                'full_name': 'سارا احمدی',
+                'username': 'resident',
+                'phone': '09121111111',
+                'national_id': '1234567891',
+            },
+            format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+
     def test_resident_cannot_access_service_staff_profile_endpoints(self):
         login_response = self.client.post(
             '/api/auth/login/',

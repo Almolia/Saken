@@ -9,6 +9,7 @@ import {
   PieChart,
   Receipt,
   ShieldCheck,
+  UserRound,
   Users,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -27,6 +28,8 @@ import { ServiceReportsSection } from './manager/ServiceReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
 import { UnitsSection } from './manager/UnitsSection'
 import { UsersSection } from './manager/UsersSection'
+import { AccountSettingsSection } from '../../components/dashboard/AccountSettingsSection'
+import { authApi } from '../../lib/api'
 
 const sectionTitles = {
   requests: 'درخواست‌های خدمات',
@@ -38,6 +41,7 @@ const sectionTitles = {
   financials: 'امور مالی',
   reports: 'گزارش مالی',
   users: 'کاربران',
+  account: 'حساب کاربری',
 }
 
 export function ManagerDashboardPage({ authState, setAuthState }) {
@@ -110,6 +114,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               label="کاربران"
               active={activeSection === 'users'}
               onClick={() => setActiveSection('users')}
+            />
+            <SideNavItem
+              icon={UserRound}
+              label="حساب کاربری"
+              active={activeSection === 'account'}
+              onClick={() => setActiveSection('account')}
             />
           </nav>
 
@@ -184,6 +194,11 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                 onClick={() => setActiveSection('users')}
                 label="کاربران"
               />
+              <MobileTab
+                active={activeSection === 'account'}
+                onClick={() => setActiveSection('account')}
+                label="حساب کاربری"
+              />
             </div>
           </header>
 
@@ -204,6 +219,13 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <FinancialsSection />
             ) : activeSection === 'reports' ? (
               <ReportsSection />
+            ) : activeSection === 'account' ? (
+              <AccountSettingsSection
+                user={authState.user}
+                setAuthState={setAuthState}
+                updateProfile={authApi.updateManagerProfile}
+                title="ویرایش اطلاعات و رمز عبور"
+              />
             ) : (
               <UsersSection
                 data={userData}

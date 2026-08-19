@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from common.constants import UserMessages
 from .models import User, UserRole
-from .permissions import IsAdminUserRole, IsManagerOrAdmin, IsServiceStaff
+from .permissions import IsAdminUserRole, IsManagerOrAdmin, IsManagerRole, IsResident, IsServiceStaff
 from .serializers import (
     AdminPasswordChangeSerializer,
     AdminProfileUpdateSerializer,
@@ -170,6 +170,62 @@ class ServiceStaffProfileUpdateView(APIView):
 
 class ServiceStaffPasswordChangeView(APIView):
     permission_classes = [IsServiceStaff]
+
+    def post(self, request):
+        serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PASSWORD_CHANGED,
+        )
+
+
+class ResidentProfileUpdateView(APIView):
+    permission_classes = [IsResident]
+
+    def patch(self, request):
+        serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PROFILE_UPDATED,
+        )
+
+
+class ResidentPasswordChangeView(APIView):
+    permission_classes = [IsResident]
+
+    def post(self, request):
+        serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PASSWORD_CHANGED,
+        )
+
+
+class ManagerProfileUpdateView(APIView):
+    permission_classes = [IsManagerRole]
+
+    def patch(self, request):
+        serializer = AdminProfileUpdateSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return build_auth_success_response(
+            request=request,
+            user=user,
+            message=UserMessages.PROFILE_UPDATED,
+        )
+
+
+class ManagerPasswordChangeView(APIView):
+    permission_classes = [IsManagerRole]
 
     def post(self, request):
         serializer = AdminPasswordChangeSerializer(data=request.data, context={"request": request})
