@@ -77,6 +77,7 @@ const authState = {
 // money assertions below are always scoped to one of these regions.
 const chargesSection = () => within(screen.getByRole('region', { name: 'شارژهای پرداخت‌نشده' }))
 const debtSection = () => within(screen.getByRole('region', { name: 'خلاصه بدهی' }))
+const unitSection = () => within(screen.getByRole('region', { name: 'اطلاعات واحد' }))
 const reservationsSection = () => within(screen.getByRole('region', { name: 'رزروهای من' }))
 
 const HOUR = 60 * 60 * 1000
@@ -109,14 +110,18 @@ const canceledReservation = {
   status: 'Canceled',
 }
 
-function renderPage() {
+function renderPage(setAuthState = () => {}) {
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ResidentDashboardPage authState={authState} setAuthState={() => {}} />
+        <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
       </ToastProvider>
     </MemoryRouter>,
   )
+}
+
+async function openSection(user, name) {
+  await user.click(screen.getAllByRole('button', { name })[0])
 }
 
 const septemberCharge = {
@@ -139,7 +144,6 @@ const octoberCharge = {
 
 describe('ResidentDashboardPage', () => {
   beforeEach(() => {
-    localStorage.clear()
     authApi.updateProfile.mockReset()
     authApi.changePassword.mockReset()
     residentAnnouncementApi.list.mockReset()
@@ -161,7 +165,7 @@ describe('ResidentDashboardPage', () => {
     amenityApi.myReservations.mockResolvedValue({ reservations: [] })
   })
 
-  it('shows the building announcement feed above the resident\'s own details', async () => {
+  it('shows the building announcement feed on the home overview', async () => {
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     residentAnnouncementApi.list.mockResolvedValue([
       {
@@ -177,10 +181,7 @@ describe('ResidentDashboardPage', () => {
     const feed = screen.getByRole('region', { name: 'اطلاعیه‌های ساختمان' })
     expect(await within(feed).findByText('قطع آب ساختمان')).toBeInTheDocument()
     expect(within(feed).getByText('۳ ساعت پیش')).toBeInTheDocument()
-
-    // Building-wide news is read before the resident's own unit and charges.
-    const charges = screen.getByRole('region', { name: 'شارژهای پرداخت‌نشده' })
-    expect(feed.compareDocumentPosition(charges) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'اطلاعات واحد' })).toBeInTheDocument()
   })
 
   it('falls back to the empty state when nothing has been published', async () => {
@@ -191,15 +192,15 @@ describe('ResidentDashboardPage', () => {
     expect(await within(feed).findByText('در حال حاضر اطلاعیه‌ای وجود ندارد')).toBeInTheDocument()
   })
 
-  it('renders the resident profile info from auth state', async () => {
+  it('renders the resident overview from auth state', async () => {
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     renderPage()
 
-    expect(screen.getByRole('heading', { name: 'پنل ساکن' })).toBeInTheDocument()
-    expect(screen.getByText('علی محمدزاده')).toBeInTheDocument()
-    expect(screen.getByText('09120000000')).toBeInTheDocument()
+    expect(screen.getByText('پنل ساکن')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'نمای کلی' })).toBeInTheDocument()
+    expect(screen.getByText('خوش آمدید، علی محمدزاده')).toBeInTheDocument()
     expect(screen.getByText('ساکن')).toBeInTheDocument()
-    await screen.findByText('102')
+    expect(await unitSection().findByText('102')).toBeInTheDocument()
   })
 
   it('shows the unit loading state first, then the unit details', async () => {
@@ -208,7 +209,7 @@ describe('ResidentDashboardPage', () => {
 
     expect(screen.getByRole('status', { name: 'در حال بارگذاری اطلاعات واحد' })).toBeInTheDocument()
 
-    expect(await screen.findByText('102')).toBeInTheDocument()
+    expect(await unitSection().findByText('102')).toBeInTheDocument()
     expect(screen.getByText('85 متر مربع')).toBeInTheDocument()
     expect(screen.queryByRole('status', { name: 'در حال بارگذاری اطلاعات واحد' })).not.toBeInTheDocument()
   })
@@ -232,14 +233,17 @@ describe('ResidentDashboardPage', () => {
   })
 
   it('shows the friendly empty state when there are no pending charges', async () => {
+    const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     residentChargeApi.pending.mockResolvedValue({ charges: [] })
     renderPage()
 
+    await openSection(user, /شارژ/)
     expect(await screen.findByText(/شارژ پرداخت‌نشده‌ای ندارید/)).toBeInTheDocument()
   })
 
   it('renders pending charges with title, amount and due date', async () => {
+    const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     residentChargeApi.pending.mockResolvedValue({
       charges: [
@@ -255,6 +259,7 @@ describe('ResidentDashboardPage', () => {
     })
     renderPage()
 
+    await openSection(user, /شارژ/)
     expect(await screen.findByText('شارژ شهریور')).toBeInTheDocument()
     expect(screen.getByText('نظافت مشاعات')).toBeInTheDocument()
     expect(screen.getByText('500,000 تومان')).toBeInTheDocument()
@@ -275,7 +280,7 @@ describe('ResidentDashboardPage', () => {
 
     expect(await screen.findByText('مجموع بدهی واحد شما')).toBeInTheDocument()
     expect(screen.getByText('بدهی پرداخت‌نشده دارید')).toBeInTheDocument()
-    expect(screen.getByText('1,250,000 تومان')).toBeInTheDocument()
+    expect(debtSection().getByText('1,250,000 تومان')).toBeInTheDocument()
   })
 
   it('keeps the pay button disabled until a charge is selected, then totals the selection', async () => {
@@ -284,6 +289,7 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pending.mockResolvedValue({ charges: [septemberCharge, octoberCharge] })
     renderPage()
 
+    await openSection(user, /شارژ/)
     await screen.findByText('شارژ شهریور')
     const payButton = screen.getByRole('button', { name: /پرداخت انتخاب‌شده‌ها/ })
     expect(payButton).toBeDisabled()
@@ -303,6 +309,7 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pending.mockResolvedValue({ charges: [septemberCharge, octoberCharge] })
     renderPage()
 
+    await openSection(user, /شارژ/)
     await screen.findByText('شارژ شهریور')
     await user.click(screen.getByRole('checkbox', { name: 'انتخاب همه' }))
 
@@ -320,6 +327,7 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pay.mockResolvedValue({ message: 'پرداخت با موفقیت انجام شد.' })
     renderPage()
 
+    await openSection(user, /شارژ/)
     await screen.findByText('شارژ شهریور')
     await user.click(screen.getByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
     await user.click(screen.getByRole('button', { name: /پرداخت انتخاب‌شده‌ها/ }))
@@ -337,12 +345,14 @@ describe('ResidentDashboardPage', () => {
     expect(chargesSection().queryByText('شارژ شهریور')).not.toBeInTheDocument()
     expect(chargesSection().getByText('شارژ مهر')).toBeInTheDocument()
 
-    // Success toast, and the debt card re-read from the server.
+    // Success toast, and the debt card re-read from the server on home.
     expect(await screen.findByText('پرداخت با موفقیت انجام شد.')).toBeInTheDocument()
+    await openSection(user, 'خانه')
     await waitFor(() => expect(debtSection().getByText('250,000 تومان')).toBeInTheDocument())
   })
 
   it('lists what the resident has already settled, with the total', async () => {
+    const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     residentChargeApi.history.mockResolvedValue({
       charges: [{ ...septemberCharge, status: 'Paid', paid_at: '2026-08-01T10:00:00Z' }],
@@ -350,6 +360,7 @@ describe('ResidentDashboardPage', () => {
     })
     renderPage()
 
+    await openSection(user, /شارژ/)
     const history = within(await screen.findByRole('region', { name: 'تاریخچه پرداخت' }))
     expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
     expect(history.getByText('پرداخت‌شده')).toBeInTheDocument()
@@ -371,6 +382,7 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pay.mockResolvedValue({ message: 'پرداخت با موفقیت انجام شد.' })
     renderPage()
 
+    await openSection(user, /شارژ/)
     await screen.findByText(/هنوز پرداختی ثبت نشده است/)
 
     await user.click(screen.getByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
@@ -391,6 +403,7 @@ describe('ResidentDashboardPage', () => {
     )
     renderPage()
 
+    await openSection(user, /شارژ/)
     await screen.findByText('شارژ شهریور')
     await user.click(screen.getByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
     await user.click(screen.getByRole('button', { name: /پرداخت انتخاب‌شده‌ها/ }))
@@ -410,6 +423,7 @@ describe('ResidentDashboardPage', () => {
     })
     renderPage()
 
+    await openSection(user, /رزروها/)
     expect(await reservationsSection().findByText('باشگاه ورزشی')).toBeInTheDocument()
     expect(reservationsSection().queryByText('زمین تنیس')).not.toBeInTheDocument()
 
@@ -434,8 +448,12 @@ describe('ResidentDashboardPage', () => {
     })
     renderPage()
 
-    await reservationsSection().findByText('باشگاه ورزشی')
+    await openSection(user, 'امکانات')
+    await waitFor(() => expect(amenityApi.getSlots.mock.calls.length).toBeGreaterThan(0))
     const slotReadsBeforeCancel = amenityApi.getSlots.mock.calls.length
+
+    await openSection(user, /رزرو/)
+    await reservationsSection().findByText('باشگاه ورزشی')
 
     await user.click(reservationsSection().getByRole('button', { name: 'لغو رزرو باشگاه ورزشی' }))
     await user.click(await screen.findByRole('button', { name: 'بله، رزرو لغو شود' }))
@@ -456,13 +474,14 @@ describe('ResidentDashboardPage', () => {
       reservationsSection().queryByRole('button', { name: /لغو رزرو/ }),
     ).not.toBeInTheDocument()
 
-    // The freed hour is re-read so it shows as bookable again.
+    // Returning to amenities remounts the booking grid and re-reads the freed hour.
+    await openSection(user, 'امکانات')
     await waitFor(() =>
       expect(amenityApi.getSlots.mock.calls.length).toBeGreaterThan(slotReadsBeforeCancel),
     )
   })
 
-  it('opens the account editor from the legacy dashboard and saves profile changes', async () => {
+  it('opens the account section and saves profile changes', async () => {
     const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     authApi.updateProfile.mockResolvedValue({
@@ -477,16 +496,9 @@ describe('ResidentDashboardPage', () => {
       },
     })
     const setAuthState = vi.fn()
-    render(
-      <MemoryRouter>
-        <ToastProvider>
-          <ResidentDashboardPage authState={authState} setAuthState={setAuthState} />
-        </ToastProvider>
-      </MemoryRouter>,
-    )
+    renderPage(setAuthState)
 
-    await user.click(screen.getByRole('button', { name: 'ویرایش حساب' }))
-    expect(await screen.findByRole('dialog', { name: 'ویرایش حساب کاربری' })).toBeInTheDocument()
+    await openSection(user, 'حساب کاربری')
 
     const nameInput = screen.getByLabelText('نام و نام خانوادگی')
     await user.clear(nameInput)
@@ -510,41 +522,25 @@ describe('ResidentDashboardPage', () => {
     expect(await screen.findByText('اطلاعات حساب با موفقیت ذخیره شد.')).toBeInTheDocument()
   })
 
-  it('defaults to the legacy layout and can switch to the new dashboard', async () => {
-    const user = userEvent.setup()
-    unitApi.myUnit.mockResolvedValue(sampleUnit)
-    renderPage()
-
-    expect(screen.getByRole('heading', { name: 'پنل ساکن' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ظاهر جدید' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'ظاهر جدید' }))
-
-    expect(screen.getByRole('heading', { name: 'نمای کلی' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ظاهر قدیمی' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'پنل ساکن' })).not.toBeInTheDocument()
-    expect(await screen.findByText('خوش آمدید، علی محمدزاده')).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'اطلاعیه‌های ساختمان' })).toBeInTheDocument()
-  })
-
-  it('keeps charges, reservations and services reachable from the new dashboard', async () => {
+  it('keeps charges, reservations and services reachable from the sidebar', async () => {
     const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
     residentChargeApi.pending.mockResolvedValue({ charges: [septemberCharge] })
     amenityApi.myReservations.mockResolvedValue({ reservations: [upcomingReservation] })
     renderPage()
 
-    await user.click(screen.getByRole('button', { name: 'ظاهر جدید' }))
-    await user.click(screen.getAllByRole('button', { name: /شارژ/ })[0])
+    expect(screen.getByRole('heading', { name: 'نمای کلی' })).toBeInTheDocument()
+    expect(await screen.findByText('خوش آمدید، علی محمدزاده')).toBeInTheDocument()
 
+    await openSection(user, /شارژ/)
     expect(screen.getByRole('heading', { name: 'شارژ و پرداخت' })).toBeInTheDocument()
     expect(await screen.findByText('شارژ شهریور')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'تاریخچه پرداخت' })).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: /رزرو/ })[0])
+    await openSection(user, /رزروها/)
     expect(await screen.findByText('باشگاه ورزشی')).toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: /خدمات/ })[0])
+    await openSection(user, /خدمات/)
     expect(screen.getByRole('heading', { name: 'ثبت درخواست خدمات' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'پیگیری درخواست‌ها' })).toBeInTheDocument()
   })

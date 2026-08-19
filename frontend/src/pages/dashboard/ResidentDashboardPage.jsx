@@ -1,193 +1,229 @@
-import { LogOut, ShieldCheck, UserCog, UserRound, Users } from 'lucide-react'
-import { useState } from 'react'
+import {
+  Building2,
+  CalendarCheck,
+  ClipboardList,
+  CreditCard,
+  Home,
+  LogOut,
+  UserRound,
+} from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { AccountSettingsSection } from '../../components/dashboard/AccountSettingsSection'
 import { AmenityBookingSection } from '../../components/dashboard/AmenityBookingSection'
-import { AnnouncementFeed } from '../../components/dashboard/AnnouncementFeed'
-import { DebtSummaryCard } from '../../components/dashboard/DebtSummaryCard'
 import { MyReservationsSection } from '../../components/dashboard/MyReservationsSection'
 import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
 import { PaymentModal } from '../../components/dashboard/PaymentModal'
 import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
-import { UnitInfoCard } from '../../components/dashboard/UnitInfoCard'
-import { AppearanceToggle } from '../../components/ui/AppearanceToggle'
+import { AdminProfile } from './admin/AdminProfile'
 import { BrandMark } from '../../components/ui/BrandMark'
-import { MiniInfoCard } from '../../components/ui/MiniInfoCard'
-import { Modal } from '../../components/ui/Modal'
+import { MobileTab } from '../../components/ui/MobileTab'
+import { SideNavItem } from '../../components/ui/SideNavItem'
 import { useLogout } from '../../hooks/useLogout'
 import { useResidentDashboard } from '../../hooks/useResidentDashboard'
-import { roleLabels } from '../../utils/constants'
-import { ResidentDashboardPageNew } from './ResidentDashboardPage.new'
+import { ReservationCategory, groupReservations } from '../../utils/reservations'
+import { isCompleted } from '../../utils/serviceRequests'
+import { ResidentHomeSection } from './ResidentHomeSection'
 
-const APPEARANCE_KEY = 'saken.residentDashboardAppearance'
-
-function readAppearance() {
-  try {
-    return localStorage.getItem(APPEARANCE_KEY) === 'new' ? 'new' : 'legacy'
-  } catch {
-    return 'legacy'
-  }
+const sectionTitles = {
+  home: 'نمای کلی',
+  charges: 'شارژ و پرداخت',
+  amenities: 'امکانات ساختمان',
+  reservations: 'رزروهای من',
+  services: 'درخواست خدمات',
+  account: 'حساب کاربری',
 }
 
 export function ResidentDashboardPage({ authState, setAuthState }) {
-  const [appearance, setAppearance] = useState(readAppearance)
+  const [activeSection, setActiveSection] = useState('home')
+  const handleLogout = useLogout(setAuthState)
   const dashboard = useResidentDashboard()
 
-  function toggleAppearance() {
-    setAppearance((current) => {
-      const next = current === 'new' ? 'legacy' : 'new'
-      try {
-        localStorage.setItem(APPEARANCE_KEY, next)
-      } catch {
-        // Persistence is best-effort; the in-memory toggle still works.
-      }
-      return next
-    })
-  }
-
-  return (
-    <>
-      <AppearanceToggle isNew={appearance === 'new'} onToggle={toggleAppearance} />
-      {appearance === 'new' ? (
-        <ResidentDashboardPageNew authState={authState} setAuthState={setAuthState} dashboard={dashboard} />
-      ) : (
-        <ResidentDashboardLegacy authState={authState} setAuthState={setAuthState} dashboard={dashboard} />
-      )}
-    </>
+  const upcomingCount = useMemo(
+    () => groupReservations(dashboard.reservations)[ReservationCategory.UPCOMING].length,
+    [dashboard.reservations],
   )
-}
-
-function ResidentDashboardLegacy({ authState, setAuthState, dashboard }) {
-  const [accountOpen, setAccountOpen] = useState(false)
-  const handleLogout = useLogout(setAuthState)
+  const openRequests = useMemo(
+    () => dashboard.requests.filter((request) => !isCompleted(request)).length,
+    [dashboard.requests],
+  )
+  const pendingCount = dashboard.pendingCharges.length
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 pb-24 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl shadow-slate-200/70">
-          <div className="panel-hero p-6 text-slate-900 sm:p-8">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <BrandMark />
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 shadow-sm transition hover:bg-slate-100"
-                  type="button"
-                  onClick={() => setAccountOpen(true)}
-                >
-                  <UserCog className="h-4 w-4" />
-                  ویرایش حساب
-                </button>
-                <button
-                  className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-bold text-slate-900 transition hover:bg-slate-200"
-                  type="button"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4" />
-                  خروج
-                </button>
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="flex min-h-screen">
+        <aside className="sticky top-0 hidden h-screen w-72 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-slate-950 p-5 text-white xl:flex">
+          <div className="rounded-[1.5rem] bg-white/5 p-4 ring-1 ring-white/10">
+            <BrandMark dark compact />
+          </div>
+
+          <nav
+            aria-label="منوی ساکن"
+            className="mt-7 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain pb-4 pr-1 [scrollbar-color:#334155_transparent] [scrollbar-width:thin]"
+          >
+            <SideNavItem icon={Home} label="خانه" active={activeSection === 'home'} onClick={() => setActiveSection('home')} />
+            <SideNavItem
+              icon={CreditCard}
+              label="شارژ و پرداخت"
+              active={activeSection === 'charges'}
+              onClick={() => setActiveSection('charges')}
+              badge={pendingCount || undefined}
+            />
+            <SideNavItem
+              icon={Building2}
+              label="امکانات"
+              active={activeSection === 'amenities'}
+              onClick={() => setActiveSection('amenities')}
+            />
+            <SideNavItem
+              icon={CalendarCheck}
+              label="رزروهای من"
+              active={activeSection === 'reservations'}
+              onClick={() => setActiveSection('reservations')}
+              badge={upcomingCount || undefined}
+            />
+            <SideNavItem
+              icon={ClipboardList}
+              label="درخواست خدمات"
+              active={activeSection === 'services'}
+              onClick={() => setActiveSection('services')}
+              badge={openRequests || undefined}
+            />
+            <SideNavItem
+              icon={UserRound}
+              label="حساب کاربری"
+              active={activeSection === 'account'}
+              onClick={() => setActiveSection('account')}
+            />
+          </nav>
+
+          <AdminProfile user={authState.user} onLogout={handleLogout} />
+        </aside>
+
+        <main className="min-w-0 flex-1">
+          <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-slate-50/85 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
+            <div className="mx-auto flex max-w-[1500px] items-center justify-between gap-4">
+              <div>
+                <div className="mb-1 flex items-center gap-2 text-xs font-bold text-teal-700">
+                  <Home className="h-4 w-4" />
+                  پنل ساکن
+                </div>
+                <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                  {sectionTitles[activeSection]}
+                </h1>
               </div>
+              <button
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 xl:hidden"
+                type="button"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                خروج
+              </button>
             </div>
-            <div className="mt-10 max-w-2xl">
-              <h1 className="text-3xl font-black tracking-tight sm:text-4xl">پنل ساکن</h1>
-              <p className="mt-3 text-sm leading-8 text-slate-600">
-                خوش آمدید؛ اطلاعات حساب، واحد مسکونی و درخواست‌های خدمات شما در این بخش نمایش داده می‌شود.
-              </p>
+
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:hidden">
+              <MobileTab active={activeSection === 'home'} onClick={() => setActiveSection('home')} label="خانه" />
+              <MobileTab
+                active={activeSection === 'charges'}
+                onClick={() => setActiveSection('charges')}
+                label="شارژ"
+                badge={pendingCount || undefined}
+              />
+              <MobileTab active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} label="امکانات" />
+              <MobileTab
+                active={activeSection === 'reservations'}
+                onClick={() => setActiveSection('reservations')}
+                label="رزروها"
+                badge={upcomingCount || undefined}
+              />
+              <MobileTab
+                active={activeSection === 'services'}
+                onClick={() => setActiveSection('services')}
+                label="خدمات"
+                badge={openRequests || undefined}
+              />
+              <MobileTab active={activeSection === 'account'} onClick={() => setActiveSection('account')} label="حساب کاربری" />
             </div>
+          </header>
+
+          <div className="mx-auto max-w-[1500px] space-y-6 p-4 sm:p-6 lg:p-8">
+            {activeSection === 'home' ? (
+              <ResidentHomeSection user={authState.user} dashboard={dashboard} onNavigate={setActiveSection} />
+            ) : null}
+
+            {activeSection === 'charges' ? (
+              <>
+                <PendingChargesList
+                  charges={dashboard.pendingCharges}
+                  loading={dashboard.chargesLoading}
+                  error={dashboard.chargesError}
+                  onRetry={dashboard.refreshPendingCharges}
+                  selectedIds={dashboard.selection.selectedIds}
+                  allSelected={dashboard.selection.allSelected}
+                  onToggle={dashboard.selection.toggle}
+                  onToggleAll={dashboard.selection.toggleAll}
+                  onPay={() => dashboard.setChargesUnderPayment(dashboard.selection.selectedCharges)}
+                  totalSelected={dashboard.selection.totalAmount}
+                  unitDebt={dashboard.unit?.unit_debt}
+                />
+                <PaymentHistoryList
+                  charges={dashboard.paidCharges}
+                  totalPaid={dashboard.totalPaid}
+                  loading={dashboard.historyLoading}
+                  error={dashboard.historyError}
+                  onRetry={dashboard.refreshHistory}
+                />
+              </>
+            ) : null}
+
+            {activeSection === 'amenities' ? (
+              <AmenityBookingSection
+                onBookingCreated={dashboard.addReservation}
+                slotsRefreshToken={dashboard.freedSlotsToken}
+              />
+            ) : null}
+
+            {activeSection === 'reservations' ? (
+              <MyReservationsSection
+                reservations={dashboard.reservations}
+                loading={dashboard.reservationsLoading}
+                refreshing={dashboard.reservationsRefreshing}
+                error={dashboard.reservationsError}
+                onRetry={dashboard.refreshReservations}
+                onCanceled={dashboard.handleReservationCanceled}
+              />
+            ) : null}
+
+            {activeSection === 'services' ? (
+              <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+                <ServiceRequestForm onRequestCreated={dashboard.addRequest} />
+                <ServiceRequestList
+                  requests={dashboard.requests}
+                  loading={dashboard.requestsLoading}
+                  refreshing={dashboard.requestsRefreshing}
+                  error={dashboard.requestsError}
+                  onRetry={dashboard.refreshRequests}
+                />
+              </div>
+            ) : null}
+
+            {activeSection === 'account' ? (
+              <AccountSettingsSection user={authState.user} setAuthState={setAuthState} />
+            ) : null}
           </div>
-
-          <div className="grid gap-4 p-6 sm:p-8 md:grid-cols-3">
-            <MiniInfoCard label="نام" value={authState.user.full_name} icon={UserRound} />
-            <MiniInfoCard label="شماره موبایل" value={authState.user.phone} icon={Users} />
-            <MiniInfoCard label="نقش" value={roleLabels[authState.user.role]} icon={ShieldCheck} />
-          </div>
-        </div>
-
-        {/* Building-wide news sits directly under the header, above the
-            resident's own unit details, so it is read before anything else. */}
-        <AnnouncementFeed />
-
-        <DebtSummaryCard unit={dashboard.unit} loading={dashboard.loading} />
-
-        <UnitInfoCard
-          unit={dashboard.unit}
-          loading={dashboard.loading}
-          error={dashboard.error}
-          onRetry={dashboard.retry}
-        />
-
-        <PendingChargesList
-          charges={dashboard.pendingCharges}
-          loading={dashboard.chargesLoading}
-          error={dashboard.chargesError}
-          onRetry={dashboard.refreshPendingCharges}
-          selectedIds={dashboard.selection.selectedIds}
-          allSelected={dashboard.selection.allSelected}
-          onToggle={dashboard.selection.toggle}
-          onToggleAll={dashboard.selection.toggleAll}
-          onPay={() => dashboard.setChargesUnderPayment(dashboard.selection.selectedCharges)}
-          totalSelected={dashboard.selection.totalAmount}
-          unitDebt={dashboard.unit?.unit_debt}
-        />
-
-        <PaymentModal
-          open={dashboard.chargesUnderPayment !== null}
-          charges={dashboard.chargesUnderPayment ?? []}
-          unitDebt={dashboard.unit?.unit_debt}
-          onClose={() => dashboard.setChargesUnderPayment(null)}
-          onPaid={dashboard.handlePaid}
-          onFailed={dashboard.refreshPendingCharges}
-        />
-
-        <PaymentHistoryList
-          charges={dashboard.paidCharges}
-          totalPaid={dashboard.totalPaid}
-          loading={dashboard.historyLoading}
-          error={dashboard.historyError}
-          onRetry={dashboard.refreshHistory}
-        />
-
-        <AmenityBookingSection
-          onBookingCreated={dashboard.addReservation}
-          slotsRefreshToken={dashboard.freedSlotsToken}
-        />
-
-        <MyReservationsSection
-          reservations={dashboard.reservations}
-          loading={dashboard.reservationsLoading}
-          refreshing={dashboard.reservationsRefreshing}
-          error={dashboard.reservationsError}
-          onRetry={dashboard.refreshReservations}
-          onCanceled={dashboard.handleReservationCanceled}
-        />
-
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-          <ServiceRequestForm onRequestCreated={dashboard.addRequest} />
-          <ServiceRequestList
-            requests={dashboard.requests}
-            loading={dashboard.requestsLoading}
-            refreshing={dashboard.requestsRefreshing}
-            error={dashboard.requestsError}
-            onRetry={dashboard.refreshRequests}
-          />
-        </div>
+        </main>
       </div>
 
-      <Modal
-        open={accountOpen}
-        title="ویرایش حساب کاربری"
-        description="اطلاعات شخصی و رمز عبور خود را به‌روزرسانی کنید."
-        onClose={() => setAccountOpen(false)}
-        size="lg"
-      >
-        <AccountSettingsSection
-          user={authState.user}
-          setAuthState={setAuthState}
-          heading="اطلاعات حساب"
-          description="پس از ذخیره، اطلاعات نمایش‌داده‌شده در داشبورد بلافاصله به‌روز می‌شود."
-          showOverview={false}
-        />
-      </Modal>
+      <PaymentModal
+        open={dashboard.chargesUnderPayment !== null}
+        charges={dashboard.chargesUnderPayment ?? []}
+        unitDebt={dashboard.unit?.unit_debt}
+        onClose={() => dashboard.setChargesUnderPayment(null)}
+        onPaid={dashboard.handlePaid}
+        onFailed={dashboard.refreshPendingCharges}
+      />
     </div>
   )
 }

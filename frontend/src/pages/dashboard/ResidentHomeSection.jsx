@@ -59,7 +59,7 @@ function QuickAction({ label, description, icon: Icon, onClick }) {
   )
 }
 
-export function ResidentHomeSectionNew({ user, dashboard, onNavigate }) {
+export function ResidentHomeSection({ user, dashboard, onNavigate }) {
   const debt = Number.parseFloat(dashboard.unit?.unit_debt)
   const hasDebt = Number.isFinite(debt) && debt > 0
   const upcomingCount = groupReservations(dashboard.reservations)[ReservationCategory.UPCOMING].length
