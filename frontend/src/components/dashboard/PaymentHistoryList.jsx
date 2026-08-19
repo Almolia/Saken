@@ -1,6 +1,7 @@
 import {
   ArrowDownUp,
   CircleAlert,
+  Download,
   History,
   Receipt,
   RefreshCw,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { PaymentReceiptModal } from './PaymentReceiptModal'
+import { downloadTextFile } from '../../utils/download'
 import { formatCurrency, formatDate } from '../../utils/helpers'
 import {
   PaymentSort,
@@ -17,6 +19,7 @@ import {
   searchPayments,
   sortPayments,
   summarizePayments,
+  toPaymentHistoryCsv,
 } from '../../utils/payments'
 
 function HistoryRowSkeleton() {
@@ -59,6 +62,7 @@ export function PaymentHistoryList({ charges, totalPaid, loading, refreshing = f
   const [sort, setSort] = useState(PaymentSort.NEWEST)
   // The settled charge whose receipt is open; null means no receipt on screen.
   const [receiptCharge, setReceiptCharge] = useState(null)
+  const [exportError, setExportError] = useState('')
 
   const visibleCharges = useMemo(
     () => sortPayments(searchPayments(charges, search), sort),
@@ -68,6 +72,19 @@ export function PaymentHistoryList({ charges, totalPaid, loading, refreshing = f
 
   const hasPayments = !loading && !error && charges.length > 0
   const isSearching = search.trim().length > 0
+
+  // Exports the whole record, not the filtered view: the file is the
+  // resident's own archive of what they have paid, and a search term that
+  // happened to be in the box when they clicked should not silently trim it.
+  function handleExport() {
+    const stamp = new Date().toISOString().slice(0, 10)
+    const saved = downloadTextFile(
+      `saken-payment-history-${stamp}.csv`,
+      toPaymentHistoryCsv(charges),
+      'text/csv;charset=utf-8;',
+    )
+    setExportError(saved ? '' : 'مرورگر شما امکان ذخیره فایل را ندارد.')
+  }
 
   return (
     <section
@@ -86,17 +103,33 @@ export function PaymentHistoryList({ charges, totalPaid, loading, refreshing = f
         </div>
 
         {hasPayments ? (
-          <button
-            type="button"
-            onClick={onRetry}
-            disabled={refreshing}
-            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'در حال به‌روزرسانی...' : 'به‌روزرسانی'}
-          </button>
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <Download className="h-4 w-4" />
+              خروجی اکسل (CSV)
+            </button>
+            <button
+              type="button"
+              onClick={onRetry}
+              disabled={refreshing}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'در حال به‌روزرسانی...' : 'به‌روزرسانی'}
+            </button>
+          </div>
         ) : null}
       </div>
+
+      {exportError ? (
+        <p role="alert" className="mb-4 text-xs font-bold text-rose-600">
+          {exportError}
+        </p>
+      ) : null}
 
       {hasPayments ? (
         <>

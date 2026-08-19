@@ -177,4 +177,50 @@ describe('PaymentHistoryList', () => {
     expect(screen.queryByRole('combobox', { name: 'ترتیب نمایش تاریخچه پرداخت' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /به‌روزرسانی/ })).not.toBeInTheDocument()
   })
+  it('exports the whole history as a CSV file, not just the filtered view', async () => {
+    const user = userEvent.setup()
+    const createObjectURL = vi.fn(() => 'blob:generated')
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL: vi.fn() })
+    const saved = []
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function click() {
+      saved.push(this.download)
+    })
+    const blobText = vi.fn()
+    vi.spyOn(globalThis, 'Blob').mockImplementation(function Blob(parts) {
+      blobText(parts.join(''))
+      return { size: 0, type: 'text/csv' }
+    })
+
+    renderHistory({ charges: [paidCharge, olderCharge], totalPaid: '1400000.00' })
+    await user.type(screen.getByRole('searchbox', { name: 'جستجو در تاریخچه پرداخت' }), 'مرداد')
+    await user.click(screen.getByRole('button', { name: /خروجی اکسل/ }))
+
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatch(/^saken-payment-history-\d{4}-\d{2}-\d{2}\.csv$/)
+    // The search narrowed the rows on screen but not the archive that was saved.
+    const csv = blobText.mock.calls[0][0]
+    expect(csv).toContain('شارژ مرداد')
+    expect(csv).toContain('شارژ شهریور')
+
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('says so when the browser cannot save a file rather than failing silently', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('URL', {})
+    renderHistory({ charges: [paidCharge] })
+
+    await user.click(screen.getByRole('button', { name: /خروجی اکسل/ }))
+
+    expect(screen.getByRole('alert')).toHaveTextContent('مرورگر شما امکان ذخیره فایل را ندارد.')
+
+    vi.unstubAllGlobals()
+  })
+
+  it('offers no export while there is nothing to export', () => {
+    renderHistory({ charges: [], totalPaid: '0.00' })
+
+    expect(screen.queryByRole('button', { name: /خروجی اکسل/ })).not.toBeInTheDocument()
+  })
 })
