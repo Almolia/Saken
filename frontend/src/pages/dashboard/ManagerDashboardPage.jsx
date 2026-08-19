@@ -1,6 +1,7 @@
 import {
   Building2,
   Building,
+  CalendarRange,
   ClipboardList,
   FileSpreadsheet,
   Landmark,
@@ -21,6 +22,7 @@ import { useLogout } from '../../hooks/useLogout'
 import { useUserDirectory } from '../../hooks/useUserDirectory'
 import { AdminProfile } from './admin/AdminProfile'
 import { AmenitiesSection } from './manager/AmenitiesSection'
+import { AmenityReportsSection } from './manager/AmenityReportsSection'
 import { AnnouncementsSection } from './manager/AnnouncementsSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
@@ -36,6 +38,7 @@ const sectionTitles = {
   building: 'تنظیمات ساختمان',
   units: 'فهرست واحدها',
   amenities: 'امکانات',
+  amenityReports: 'گزارش رزرو امکانات',
   announcements: 'اطلاعیه‌ها',
   financials: 'امور مالی',
   reports: 'گزارش مالی',
@@ -89,6 +92,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               label="امکانات"
               active={activeSection === 'amenities'}
               onClick={() => setActiveSection('amenities')}
+            />
+            <SideNavItem
+              icon={CalendarRange}
+              label="گزارش رزرو امکانات"
+              active={activeSection === 'amenityReports'}
+              onClick={() => setActiveSection('amenityReports')}
             />
             <SideNavItem
               icon={Megaphone}
@@ -174,6 +183,11 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                 label="امکانات"
               />
               <MobileTab
+                active={activeSection === 'amenityReports'}
+                onClick={() => setActiveSection('amenityReports')}
+                label="گزارش رزرو"
+              />
+              <MobileTab
                 active={activeSection === 'announcements'}
                 onClick={() => setActiveSection('announcements')}
                 label="اطلاعیه‌ها"
@@ -212,6 +226,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <UnitsSection users={userData.users} />
             ) : activeSection === 'amenities' ? (
               <AmenitiesSection />
+            ) : activeSection === 'amenityReports' ? (
+              <AmenityReportsSection />
             ) : activeSection === 'announcements' ? (
               <AnnouncementsSection />
             ) : activeSection === 'financials' ? (
