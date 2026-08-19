@@ -360,7 +360,7 @@ describe('ResidentDashboardPage', () => {
     })
     renderPage()
 
-    await openSection(user, /شارژ/)
+    await openSection(user, 'تاریخچه پرداخت')
     const history = within(await screen.findByRole('region', { name: 'تاریخچه پرداخت' }))
     expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
     expect(history.getByText('پرداخت‌شده')).toBeInTheDocument()
@@ -382,13 +382,19 @@ describe('ResidentDashboardPage', () => {
     residentChargeApi.pay.mockResolvedValue({ message: 'پرداخت با موفقیت انجام شد.' })
     renderPage()
 
-    await openSection(user, /شارژ/)
+    await openSection(user, 'تاریخچه پرداخت')
     await screen.findByText(/هنوز پرداختی ثبت نشده است/)
 
-    await user.click(screen.getByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
+    await openSection(user, /شارژ و پرداخت/)
+    await user.click(await screen.findByRole('checkbox', { name: 'انتخاب شارژ شهریور' }))
     await user.click(screen.getByRole('button', { name: /پرداخت انتخاب‌شده‌ها/ }))
     await user.click(await screen.findByRole('button', { name: /تأیید و پرداخت/ }))
 
+    // The record is re-read straight after the payment, even though the
+    // resident is still looking at the charges tab.
+    await waitFor(() => expect(residentChargeApi.history).toHaveBeenCalledTimes(2))
+
+    await openSection(user, 'تاریخچه پرداخت')
     const history = within(screen.getByRole('region', { name: 'تاریخچه پرداخت' }))
     expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
     expect(history.getByText('مجموع پرداختی')).toBeInTheDocument()
@@ -522,6 +528,36 @@ describe('ResidentDashboardPage', () => {
     expect(await screen.findByText('اطلاعات حساب با موفقیت ذخیره شد.')).toBeInTheDocument()
   })
 
+  it('leaves the payment history unread until the resident opens its tab', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    renderPage()
+
+    await screen.findByText('خوش آمدید، علی محمدزاده')
+    await openSection(user, /شارژ و پرداخت/)
+    expect(residentChargeApi.history).not.toHaveBeenCalled()
+
+    await openSection(user, 'تاریخچه پرداخت')
+    await waitFor(() => expect(residentChargeApi.history).toHaveBeenCalledTimes(1))
+  })
+
+  it('reaches the payment history from the charges tab shortcut', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentChargeApi.history.mockResolvedValue({
+      charges: [{ ...septemberCharge, status: 'Paid', paid_at: '2026-08-01T10:00:00Z' }],
+      total_paid: '500000.00',
+    })
+    renderPage()
+
+    await openSection(user, /شارژ و پرداخت/)
+    await user.click(screen.getByRole('button', { name: /صورت‌حساب‌هایی که تسویه کرده‌اید/ }))
+
+    expect(screen.getByRole('heading', { name: 'تاریخچه پرداخت', level: 1 })).toBeInTheDocument()
+    const history = within(screen.getByRole('region', { name: 'تاریخچه پرداخت' }))
+    expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
+  })
+
   it('keeps charges, reservations and services reachable from the sidebar', async () => {
     const user = userEvent.setup()
     unitApi.myUnit.mockResolvedValue(sampleUnit)
@@ -532,9 +568,13 @@ describe('ResidentDashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'نمای کلی' })).toBeInTheDocument()
     expect(await screen.findByText('خوش آمدید، علی محمدزاده')).toBeInTheDocument()
 
-    await openSection(user, /شارژ/)
+    await openSection(user, /شارژ و پرداخت/)
     expect(screen.getByRole('heading', { name: 'شارژ و پرداخت' })).toBeInTheDocument()
     expect(await screen.findByText('شارژ شهریور')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'تاریخچه پرداخت' })).not.toBeInTheDocument()
+
+    await openSection(user, 'تاریخچه پرداخت')
+    expect(screen.getByRole('heading', { name: 'تاریخچه پرداخت', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'تاریخچه پرداخت' })).toBeInTheDocument()
 
     await openSection(user, /رزروها/)

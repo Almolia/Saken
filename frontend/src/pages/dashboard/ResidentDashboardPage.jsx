@@ -1,8 +1,10 @@
 import {
+  ArrowUpLeft,
   Building2,
   CalendarCheck,
   ClipboardList,
   CreditCard,
+  History,
   Home,
   LogOut,
   UserRound,
@@ -29,6 +31,7 @@ import { ResidentHomeSection } from './ResidentHomeSection'
 const sectionTitles = {
   home: 'نمای کلی',
   charges: 'شارژ و پرداخت',
+  payments: 'تاریخچه پرداخت',
   amenities: 'امکانات ساختمان',
   reservations: 'رزروهای من',
   services: 'درخواست خدمات',
@@ -38,7 +41,9 @@ const sectionTitles = {
 export function ResidentDashboardPage({ authState, setAuthState }) {
   const [activeSection, setActiveSection] = useState('home')
   const handleLogout = useLogout(setAuthState)
-  const dashboard = useResidentDashboard()
+  // The history is only read once the resident opens its tab; a payment made
+  // from the charges tab still refreshes it afterwards.
+  const dashboard = useResidentDashboard({ paymentHistoryEnabled: activeSection === 'payments' })
 
   const upcomingCount = useMemo(
     () => groupReservations(dashboard.reservations)[ReservationCategory.UPCOMING].length,
@@ -69,6 +74,12 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
               active={activeSection === 'charges'}
               onClick={() => setActiveSection('charges')}
               badge={pendingCount || undefined}
+            />
+            <SideNavItem
+              icon={History}
+              label="تاریخچه پرداخت"
+              active={activeSection === 'payments'}
+              onClick={() => setActiveSection('payments')}
             />
             <SideNavItem
               icon={Building2}
@@ -131,6 +142,11 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                 label="شارژ"
                 badge={pendingCount || undefined}
               />
+              <MobileTab
+                active={activeSection === 'payments'}
+                onClick={() => setActiveSection('payments')}
+                label="تاریخچه پرداخت"
+              />
               <MobileTab active={activeSection === 'amenities'} onClick={() => setActiveSection('amenities')} label="امکانات" />
               <MobileTab
                 active={activeSection === 'reservations'}
@@ -168,14 +184,38 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                   totalSelected={dashboard.selection.totalAmount}
                   unitDebt={dashboard.unit?.unit_debt}
                 />
-                <PaymentHistoryList
-                  charges={dashboard.paidCharges}
-                  totalPaid={dashboard.totalPaid}
-                  loading={dashboard.historyLoading}
-                  error={dashboard.historyError}
-                  onRetry={dashboard.refreshHistory}
-                />
+                {/* The settled bills now live in their own tab, so the charges
+                    view points at them rather than repeating the whole list. */}
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('payments')}
+                  className="group flex w-full items-center justify-between gap-3 rounded-[1.5rem] border border-slate-200 bg-white p-5 text-right shadow-sm transition hover:border-teal-200 hover:shadow-lg hover:shadow-slate-200/70"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                      <History className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black text-slate-950">تاریخچه پرداخت</span>
+                      <span className="mt-1 block text-xs leading-6 text-slate-500">
+                        صورت‌حساب‌هایی که تسویه کرده‌اید، همراه با رسید هر پرداخت
+                      </span>
+                    </span>
+                  </span>
+                  <ArrowUpLeft className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:text-teal-600" />
+                </button>
               </>
+            ) : null}
+
+            {activeSection === 'payments' ? (
+              <PaymentHistoryList
+                charges={dashboard.paidCharges}
+                totalPaid={dashboard.totalPaid}
+                loading={dashboard.historyLoading}
+                refreshing={dashboard.historyRefreshing}
+                error={dashboard.historyError}
+                onRetry={dashboard.refreshHistory}
+              />
             ) : null}
 
             {activeSection === 'amenities' ? (
