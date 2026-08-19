@@ -105,3 +105,90 @@ export function formatTimeRange(startTime, endTime) {
   if (!start || !end) return start || end
   return `${start} تا ${end}`
 }
+
+// What the manager's booking report calls each status. The API stores the
+// English values, so these labels exist only to be read.
+export const reservationStatusLabels = {
+  [ReservationStatus.ACTIVE]: 'فعال',
+  [ReservationStatus.CANCELED]: 'لغوشده',
+}
+
+export function reservationStatusLabel(status) {
+  return reservationStatusLabels[normalizeStatus(status)] || status || 'نامشخص'
+}
+
+// Persian spellings a manager might reasonably type for a status, mapped onto
+// the value the API actually stores. Longer phrases come first so "لغو شده"
+// is consumed whole rather than leaving a stray "شده" behind — the endpoint
+// ANDs the words of a search, so an unmatched leftover would empty the table.
+const statusSearchAliases = [
+  { phrase: 'لغو شده', value: ReservationApiStatus.CANCELED },
+  { phrase: 'لغوشده', value: ReservationApiStatus.CANCELED },
+  { phrase: 'کنسل شده', value: ReservationApiStatus.CANCELED },
+  { phrase: 'کنسل', value: ReservationApiStatus.CANCELED },
+  { phrase: 'لغو', value: ReservationApiStatus.CANCELED },
+  { phrase: 'فعال', value: ReservationApiStatus.ACTIVE },
+]
+
+function normalizeSearchText(value) {
+  return String(value ?? '')
+    .replace(/‌/g, ' ')
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Rewrite what the manager typed into what the endpoint can match.
+ *
+ * The table shows Persian status labels while the database stores "Active"
+ * and "Canceled", so searching for the word on screen would otherwise return
+ * nothing. Every other word is passed through untouched: amenity names and
+ * resident names are already stored the way they are typed.
+ */
+export function toReservationSearchQuery(search) {
+  const words = normalizeSearchText(search).split(' ').filter(Boolean)
+  if (words.length === 0) return ''
+
+  const output = []
+  let index = 0
+
+  while (index < words.length) {
+    const alias = statusSearchAliases.find((candidate) => {
+      const phraseWords = candidate.phrase.split(' ')
+      return phraseWords.every(
+        (word, offset) => words[index + offset]?.toLowerCase() === word,
+      )
+    })
+
+    if (alias) {
+      output.push(alias.value)
+      index += alias.phrase.split(' ').length
+    } else {
+      output.push(words[index])
+      index += 1
+    }
+  }
+
+  return output.join(' ')
+}
+
+// The report reads as a log of what happened, so the newest booking belongs at
+// the top. This matches Reservation.Meta.ordering; the list endpoint overrides
+// it with an ascending order that suits the resident's own upcoming bookings.
+export function sortReservationLog(reservations) {
+  if (!Array.isArray(reservations)) return []
+
+  return [...reservations].sort((a, b) => {
+    const left = toTime(a?.start_time)
+    const right = toTime(b?.start_time)
+
+    if (left === null && right === null) return (b?.id ?? 0) - (a?.id ?? 0)
+    if (left === null) return 1
+    if (right === null) return -1
+    if (left !== right) return right - left
+
+    return (b?.id ?? 0) - (a?.id ?? 0)
+  })
+}
