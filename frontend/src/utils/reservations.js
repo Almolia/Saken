@@ -93,11 +93,15 @@ const timeFormatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
   hour12: false,
 })
 
-function formatTime(value) {
+// Exported for the manager's booking report, which shows the start and the
+// end as separate columns rather than as one range.
+export function formatClockTime(value) {
   const time = toTime(value)
   if (time === null) return ''
   return timeFormatter.format(new Date(time))
 }
+
+const formatTime = formatClockTime
 
 export function formatTimeRange(startTime, endTime) {
   const start = formatTime(startTime)
