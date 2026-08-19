@@ -134,3 +134,17 @@ class AmenityMessages:
     PAST_RESERVATION_NOT_ALLOWED = "امکان رزرو بازه زمانی گذشته وجود ندارد."
     ONLY_CANCELLATION_ALLOWED = "فقط می‌توانید وضعیت رزرو را به 'لغو شده' تغییر دهید."
     AMENITY_NOT_ACTIVE = "امکان مورد نظر در حال حاضر فعال نیست."
+
+
+class MessagingMessages:
+    BROADCAST_SUCCESS = "پیام همگانی با موفقیت ارسال شد."
+    BROADCAST_SUCCESS_COUNT = "پیام همگانی با موفقیت برای {count} ساکن ارسال شد."
+    RESIDENT_SEND_SUCCESS = "پیام شما با موفقیت برای مدیریت ارسال شد."
+    REPLY_SUCCESS = "پاسخ با موفقیت ارسال شد."
+    MARKED_READ = "گفتگو به عنوان خوانده‌شده علامت‌گذاری شد."
+    SUBJECT_REQUIRED = "موضوع پیام نمی‌تواند خالی باشد."
+    BODY_REQUIRED = "متن پیام نمی‌تواند خالی باشد."
+    CONVERSATION_NOT_FOUND = "گفتگو مورد نظر یافت نشد."
+    NO_RECIPIENTS = "هیچ ساکنی برای ارسال پیام یافت نشد."
+    INVALID_UNITS = "برخی از واحدهای انتخاب‌شده وجود ندارند."
+    UNIT_IDS_INVALID = "فهرست واحدها نامعتبر است."

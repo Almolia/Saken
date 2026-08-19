@@ -7,6 +7,7 @@ import {
   History,
   Home,
   LogOut,
+  MessagesSquare,
   UserRound,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -16,6 +17,7 @@ import { MyReservationsSection } from '../../components/dashboard/MyReservations
 import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryList'
 import { PaymentModal } from '../../components/dashboard/PaymentModal'
 import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
+import { ResidentMessagesSection } from '../../components/dashboard/ResidentMessagesSection'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { AdminProfile } from './admin/AdminProfile'
@@ -24,6 +26,7 @@ import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
 import { useLogout } from '../../hooks/useLogout'
 import { useResidentDashboard } from '../../hooks/useResidentDashboard'
+import { useResidentMessages } from '../../hooks/useResidentMessages'
 import { ReservationCategory, groupReservations } from '../../utils/reservations'
 import { isCompleted } from '../../utils/serviceRequests'
 import { ResidentHomeSection } from './ResidentHomeSection'
@@ -35,6 +38,7 @@ const sectionTitles = {
   amenities: 'امکانات ساختمان',
   reservations: 'رزروهای من',
   services: 'درخواست خدمات',
+  messages: 'پیام‌ها',
   account: 'حساب کاربری',
 }
 
@@ -44,6 +48,7 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
   // The history is only read once the resident opens its tab; a payment made
   // from the charges tab still refreshes it afterwards.
   const dashboard = useResidentDashboard({ paymentHistoryEnabled: activeSection === 'payments' })
+  const messages = useResidentMessages()
 
   const upcomingCount = useMemo(
     () => groupReservations(dashboard.reservations)[ReservationCategory.UPCOMING].length,
@@ -100,6 +105,13 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
               active={activeSection === 'services'}
               onClick={() => setActiveSection('services')}
               badge={openRequests || undefined}
+            />
+            <SideNavItem
+              icon={MessagesSquare}
+              label="پیام‌ها"
+              active={activeSection === 'messages'}
+              onClick={() => setActiveSection('messages')}
+              badge={messages.unreadTotal || undefined}
             />
             <SideNavItem
               icon={UserRound}
@@ -159,6 +171,12 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                 onClick={() => setActiveSection('services')}
                 label="خدمات"
                 badge={openRequests || undefined}
+              />
+              <MobileTab
+                active={activeSection === 'messages'}
+                onClick={() => setActiveSection('messages')}
+                label="پیام‌ها"
+                badge={messages.unreadTotal || undefined}
               />
               <MobileTab active={activeSection === 'account'} onClick={() => setActiveSection('account')} label="حساب کاربری" />
             </div>
@@ -247,6 +265,18 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                   onRetry={dashboard.refreshRequests}
                 />
               </div>
+            ) : null}
+
+            {activeSection === 'messages' ? (
+              <ResidentMessagesSection
+                conversations={messages.conversations}
+                loading={messages.loading}
+                error={messages.error}
+                retry={messages.retry}
+                upsertConversation={messages.upsertConversation}
+                markConversationRead={messages.markConversationRead}
+                currentUserId={authState.user?.id}
+              />
             ) : null}
 
             {activeSection === 'account' ? (

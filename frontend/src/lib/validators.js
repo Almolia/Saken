@@ -231,6 +231,31 @@ export function validateAnnouncement(values) {
   return errors
 }
 
+export const MESSAGE_SUBJECT_MAX = 255
+export const MESSAGE_BODY_MAX = 4000
+
+export function validateMessage(values, { requireSubject = true } = {}) {
+  const errors = {}
+  const subject = values.subject?.trim() ?? ''
+  const body = values.body?.trim() ?? ''
+
+  if (requireSubject) {
+    if (!subject) {
+      errors.subject = 'موضوع پیام الزامی است.'
+    } else if (subject.length > MESSAGE_SUBJECT_MAX) {
+      errors.subject = `موضوع پیام نمی‌تواند بیشتر از ${MESSAGE_SUBJECT_MAX} کاراکتر باشد.`
+    }
+  }
+
+  if (!body) {
+    errors.body = 'متن پیام الزامی است.'
+  } else if (body.length > MESSAGE_BODY_MAX) {
+    errors.body = `متن پیام نمی‌تواند بیشتر از ${MESSAGE_BODY_MAX} کاراکتر باشد.`
+  }
+
+  return errors
+}
+
 export function validateAmenity(values) {
   const errors = {}
 

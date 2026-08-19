@@ -7,6 +7,7 @@ import { amenityApi } from '../../lib/amenityApi'
 import { residentAnnouncementApi } from '../../lib/announcementApi'
 import { authApi } from '../../lib/api'
 import { residentChargeApi } from '../../lib/billingApi'
+import { residentMessageApi } from '../../lib/messagingApi'
 import { unitApi } from '../../lib/unitApi'
 import { ResidentDashboardPage } from './ResidentDashboardPage'
 
@@ -46,6 +47,22 @@ vi.mock('../../lib/api', () => ({
     updateProfile: vi.fn(),
     changePassword: vi.fn(),
   },
+}))
+
+vi.mock('../../lib/messagingApi', () => ({
+  residentMessageApi: {
+    list: vi.fn(),
+    create: vi.fn(),
+    thread: vi.fn(),
+    reply: vi.fn(),
+    markRead: vi.fn(),
+    unreadCount: vi.fn(),
+  },
+  normalizeConversations: (data) => (Array.isArray(data?.conversations) ? data.conversations : []),
+  unreadTotalFrom: (data, conversations = []) =>
+    typeof data?.unread_total === 'number'
+      ? data.unread_total
+      : conversations.reduce((sum, item) => sum + (Number(item.unread_count) || 0), 0),
 }))
 
 vi.mock('../../hooks/useServiceRequests', () => ({
@@ -163,6 +180,9 @@ describe('ResidentDashboardPage', () => {
     amenityApi.list.mockResolvedValue({ amenities: [] })
     amenityApi.getSlots.mockResolvedValue({ slots: [] })
     amenityApi.myReservations.mockResolvedValue({ reservations: [] })
+
+    residentMessageApi.list.mockReset()
+    residentMessageApi.list.mockResolvedValue({ conversations: [], unread_total: 0 })
   })
 
   it('shows the building announcement feed on the home overview', async () => {

@@ -7,6 +7,7 @@ import {
   Landmark,
   LogOut,
   Megaphone,
+  MessagesSquare,
   PieChart,
   Receipt,
   ShieldCheck,
@@ -19,6 +20,7 @@ import { BrandMark } from '../../components/ui/BrandMark'
 import { MobileTab } from '../../components/ui/MobileTab'
 import { SideNavItem } from '../../components/ui/SideNavItem'
 import { useLogout } from '../../hooks/useLogout'
+import { useManagerMessages } from '../../hooks/useManagerMessages'
 import { useUserDirectory } from '../../hooks/useUserDirectory'
 import { AdminProfile } from './admin/AdminProfile'
 import { AmenitiesSection } from './manager/AmenitiesSection'
@@ -26,6 +28,7 @@ import { AmenityReportsSection } from './manager/AmenityReportsSection'
 import { AnnouncementsSection } from './manager/AnnouncementsSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
+import { MessagesSection } from './manager/MessagesSection'
 import { ReportsSection } from './manager/ReportsSection'
 import { ServiceReportsSection } from './manager/ServiceReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
@@ -40,6 +43,7 @@ const sectionTitles = {
   amenities: 'امکانات',
   amenityReports: 'گزارش رزرو امکانات',
   announcements: 'اطلاعیه‌ها',
+  messages: 'پیام‌ها',
   financials: 'امور مالی',
   reports: 'گزارش مالی',
   users: 'کاربران',
@@ -49,6 +53,7 @@ const sectionTitles = {
 export function ManagerDashboardPage({ authState, setAuthState }) {
   const [activeSection, setActiveSection] = useState('requests')
   const { data: userData, actionState, changeRole } = useUserDirectory()
+  const messages = useManagerMessages()
 
   const handleLogout = useLogout(setAuthState)
 
@@ -104,6 +109,13 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               label="اطلاعیه‌ها"
               active={activeSection === 'announcements'}
               onClick={() => setActiveSection('announcements')}
+            />
+            <SideNavItem
+              icon={MessagesSquare}
+              label="پیام‌ها"
+              active={activeSection === 'messages'}
+              onClick={() => setActiveSection('messages')}
+              badge={messages.unreadTotal || undefined}
             />
             <SideNavItem
               icon={Receipt}
@@ -193,6 +205,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                 label="اطلاعیه‌ها"
               />
               <MobileTab
+                active={activeSection === 'messages'}
+                onClick={() => setActiveSection('messages')}
+                label="پیام‌ها"
+                badge={messages.unreadTotal || undefined}
+              />
+              <MobileTab
                 active={activeSection === 'financials'}
                 onClick={() => setActiveSection('financials')}
                 label="امور مالی"
@@ -230,6 +248,16 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <AmenityReportsSection />
             ) : activeSection === 'announcements' ? (
               <AnnouncementsSection />
+            ) : activeSection === 'messages' ? (
+              <MessagesSection
+                conversations={messages.conversations}
+                loading={messages.loading}
+                error={messages.error}
+                retry={messages.retry}
+                upsertConversations={messages.upsertConversations}
+                markConversationRead={messages.markConversationRead}
+                currentUserId={authState.user?.id}
+              />
             ) : activeSection === 'financials' ? (
               <FinancialsSection />
             ) : activeSection === 'reports' ? (

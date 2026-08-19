@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
 import { authApi, managerApi } from '../../lib/api'
+import { managerMessageApi } from '../../lib/messagingApi'
 import { ManagerDashboardPage } from './ManagerDashboardPage'
 
 const navigateMock = vi.fn()
@@ -21,7 +22,23 @@ vi.mock('../../lib/api', () => ({
   },
   managerApi: {
     announcements: vi.fn(),
+    units: vi.fn(),
   },
+}))
+
+vi.mock('../../lib/messagingApi', () => ({
+  managerMessageApi: {
+    list: vi.fn(),
+    broadcast: vi.fn(),
+    thread: vi.fn(),
+    reply: vi.fn(),
+    markRead: vi.fn(),
+  },
+  normalizeConversations: (data) => (Array.isArray(data?.conversations) ? data.conversations : []),
+  unreadTotalFrom: (data, conversations = []) =>
+    typeof data?.unread_total === 'number'
+      ? data.unread_total
+      : conversations.reduce((sum, item) => sum + (Number(item.unread_count) || 0), 0),
 }))
 
 vi.mock('../../hooks/useUserDirectory', () => ({
@@ -181,6 +198,10 @@ describe('ManagerDashboardPage', () => {
     authApi.updateProfile.mockReset()
     authApi.changePassword.mockReset()
     managerApi.announcements.mockReset()
+    managerApi.units?.mockReset?.()
+    managerApi.units?.mockResolvedValue?.({ units: [] })
+    managerMessageApi.list.mockReset()
+    managerMessageApi.list.mockResolvedValue({ conversations: [], unread_total: 0 })
     managerApi.announcements.mockResolvedValue({
       announcements: [
         {
@@ -196,10 +217,11 @@ describe('ManagerDashboardPage', () => {
     })
   })
 
-  it('renders manager dashboard shell with sidebar navigation items', () => {
+  it('renders manager dashboard shell with sidebar navigation items', async () => {
     renderPage()
 
     expect(screen.getByText('پنل مدیر')).toBeInTheDocument()
+    await waitFor(() => expect(managerMessageApi.list).toHaveBeenCalled())
     expect(screen.getAllByText('درخواست‌های خدمات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش خدمات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('تنظیمات ساختمان').length).toBeGreaterThan(0)
@@ -207,6 +229,7 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getAllByText('امکانات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش رزرو امکانات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('اطلاعیه‌ها').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('پیام‌ها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امور مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('کاربران').length).toBeGreaterThan(0)
@@ -301,6 +324,17 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'اطلاعیه‌ها', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'انتشار اطلاعیه جدید' })).toBeInTheDocument()
     expect(await screen.findByText('قطع آب ساختمان')).toBeInTheDocument()
+  })
+
+  it('switches to the Messages section and offers the broadcast action', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getAllByText('پیام‌ها')[0])
+
+    expect(screen.getByRole('heading', { name: 'پیام‌ها', level: 1 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ارسال پیام همگانی' })).toBeInTheDocument()
+    expect(await screen.findByText('هنوز گفتگویی وجود ندارد')).toBeInTheDocument()
   })
 
   it('handles manager logout', async () => {
