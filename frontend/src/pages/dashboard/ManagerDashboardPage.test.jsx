@@ -121,6 +121,43 @@ vi.mock('../../hooks/useServiceReports', () => ({
   }),
 }))
 
+vi.mock('../../hooks/useAmenityReports', () => ({
+  useAmenityReports: () => ({
+    reservations: [
+      {
+        id: 1,
+        amenity: 1,
+        amenity_name: 'استخر',
+        resident: 5,
+        resident_name: 'سارا احمدی',
+        start_time: '2026-08-10T18:00:00',
+        end_time: '2026-08-10T19:00:00',
+        status: 'Active',
+        created_at: '2026-08-01T10:00:00Z',
+      },
+    ],
+    amenities: [{ id: 1, name: 'استخر' }],
+    amenitiesError: '',
+    summary: { total: 1, active: 1, canceled: 0 },
+    search: '',
+    setSearch: vi.fn(),
+    clearSearch: vi.fn(),
+    debouncedSearch: '',
+    isDebouncing: false,
+    amenity: '',
+    setAmenity: vi.fn(),
+    date: '',
+    setDate: vi.fn(),
+    hasFilters: false,
+    clearFilters: vi.fn(),
+    loading: false,
+    refreshing: false,
+    searching: false,
+    error: '',
+    refresh: vi.fn(),
+  }),
+}))
+
 const authState = {
   loading: false,
   user: { id: 1, full_name: 'مدیر ساختمان', phone: '09120000000', role: 'manager' },
@@ -168,6 +205,7 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getAllByText('تنظیمات ساختمان').length).toBeGreaterThan(0)
     expect(screen.getAllByText('فهرست واحدها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امکانات').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('گزارش رزرو امکانات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('اطلاعیه‌ها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امور مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش مالی').length).toBeGreaterThan(0)
@@ -236,6 +274,22 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getByText('سوابق مالی واحدها')).toBeInTheDocument()
     expect(screen.getByText('شارژ ماهیانه')).toBeInTheDocument()
     expect(screen.getAllByText('500,000 تومان').length).toBeGreaterThan(0)
+  })
+
+  it('switches to the Amenity Booking Reports section and renders the booking log', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getAllByText('گزارش رزرو امکانات')[0])
+
+    expect(screen.getByRole('heading', { name: 'گزارش رزرو امکانات', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('سوابق کامل رزرو فضاهای مشترک')).toBeInTheDocument()
+    expect(screen.getByRole('searchbox', { name: 'جستجو در رزروهای امکانات' })).toBeInTheDocument()
+
+    const log = within(screen.getByRole('table'))
+    expect(log.getByText('استخر')).toBeInTheDocument()
+    expect(log.getByText('سارا احمدی')).toBeInTheDocument()
+    expect(log.getByText('فعال')).toBeInTheDocument()
   })
 
   it('switches to the Announcements section and offers the publish action', async () => {
