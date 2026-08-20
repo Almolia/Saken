@@ -93,7 +93,7 @@ describe('ResidentMessagesSection', () => {
     const user = userEvent.setup()
     renderSection({ conversations: [] })
 
-    await user.click(screen.getByRole('button', { name: 'پیام جدید' }))
+    await user.click(screen.getByRole('button', { name: 'پیام به مدیریت' }))
     expect(screen.getByText('مدیریت ساختمان')).toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByText(/انتخاب مدیر/)).not.toBeInTheDocument()
@@ -107,7 +107,7 @@ describe('ResidentMessagesSection', () => {
     })
     const { upsertConversation } = renderSection({ conversations: [] })
 
-    await user.click(screen.getByRole('button', { name: 'پیام جدید' }))
+    await user.click(screen.getByRole('button', { name: 'پیام به مدیریت' }))
     await user.type(screen.getByLabelText(/موضوع پیام/), 'نشتی سقف')
     await user.type(screen.getByPlaceholderText(/پیام خود را برای مدیریت/), 'سقف واحد چکه می‌کند')
     await user.click(screen.getByRole('button', { name: 'ارسال پیام' }))

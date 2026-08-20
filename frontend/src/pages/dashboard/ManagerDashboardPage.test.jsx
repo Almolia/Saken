@@ -333,7 +333,7 @@ describe('ManagerDashboardPage', () => {
     await user.click(screen.getAllByText('پیام‌ها')[0])
 
     expect(screen.getByRole('heading', { name: 'پیام‌ها', level: 1 })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ارسال پیام همگانی' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'پیام همگانی' })).toBeInTheDocument()
     expect(await screen.findByText('هنوز گفتگویی وجود ندارد')).toBeInTheDocument()
   })
 

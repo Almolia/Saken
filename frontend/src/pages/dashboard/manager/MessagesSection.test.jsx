@@ -162,7 +162,7 @@ describe('MessagesSection', () => {
     })
     const { upsertConversations } = renderSection({ conversations: [] })
 
-    await user.click(screen.getByRole('button', { name: 'ارسال پیام همگانی' }))
+    await user.click(screen.getByRole('button', { name: 'پیام همگانی' }))
     const dialog = screen.getByRole('dialog')
     await user.type(within(dialog).getByLabelText(/موضوع پیام/), 'قطع آب')
     await user.type(within(dialog).getByPlaceholderText(/متن پیام همگانی/), 'آب ساختمان فردا قطع خواهد بود.')
