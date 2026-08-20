@@ -28,21 +28,21 @@ function DirectMessageModalContent({ onClose, onSent }) {
   useEffect(() => {
     if (!open) return
 
-    setLoadingRecipients(true)
-    setRecipientsError('')
-
-    directMessageApi
-      .recipients()
-      .then((data) => {
+    const fetchRecipients = async () => {
+      setLoadingRecipients(true)
+      setRecipientsError('')
+      try {
+        const data = await directMessageApi.recipients()
         setRecipients(data?.recipients || [])
-      })
-      .catch((error) => {
+      } catch (error) {
         setRecipientsError(error.message || 'خطا در دریافت فهرست گیرندگان.')
-      })
-      .finally(() => {
+      } finally {
         setLoadingRecipients(false)
-      })
-  }, [open])
+      }
+    }
+
+    fetchRecipients()
+  }, [])
 
   function handleSelectRecipient(recipient) {
     setSelectedRecipient(recipient)

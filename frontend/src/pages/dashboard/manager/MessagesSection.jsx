@@ -1,4 +1,4 @@
-import { ArrowRight, Inbox, MailPlus, Megaphone, MessageSquare, MessagesSquare, UserRound } from 'lucide-react'
+import { ArrowRight, Inbox, Megaphone, MessageSquare, MessagesSquare, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { BroadcastMessageModal } from '../../../components/dashboard/BroadcastMessageModal'
