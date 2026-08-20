@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from users.permissions import IsManagerOrAdmin
 from .constants import PollMessages
-from .models import Poll, PollStatus
+from .models import Poll, PollOption, PollStatus
 from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSerializer
 
 
@@ -67,36 +67,55 @@ class ManagerPollDetailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        if poll.status != PollStatus.DRAFT:
+        new_status = request.data.get("status")
+
+        if poll.status != PollStatus.DRAFT and new_status != PollStatus.CLOSED:
             return Response(
                 {"detail": PollMessages.ONLY_DRAFT_CAN_BE_EDITED},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = PollUpdateSerializer(data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
+        if new_status == PollStatus.CLOSED:
+            if poll.status != PollStatus.ACTIVE:
+                return Response(
+                    {"detail": PollMessages.ONLY_ACTIVE_CAN_BE_CLOSED},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            poll.status = PollStatus.CLOSED
+            poll.save()
+            poll = Poll.objects.prefetch_related("options", "target_units").get(pk=poll.pk)
+            return Response(
+                {
+                    "message": PollMessages.POLL_CLOSED,
+                    "poll": PollSerializer(poll).data,
+                },
+                status=status.HTTP_200_OK,
+            )
 
-        validated = serializer.validated_data
-        new_status = validated.get("status", poll.status)
+        if new_status == PollStatus.ACTIVE:
+            if poll.status != PollStatus.DRAFT:
+                return Response(
+                    {"detail": PollMessages.ONLY_DRAFT_CAN_BE_PUBLISHED},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
-        # Handle status transitions
-        if new_status == PollStatus.ACTIVE and poll.status == PollStatus.DRAFT:
-            # Publishing: validate that starts_at is set
-            starts_at = validated.get("starts_at", poll.starts_at)
-            ends_at = validated.get("ends_at", poll.ends_at)
+            starts_at = request.data.get("starts_at", poll.starts_at)
+            ends_at = request.data.get("ends_at", poll.ends_at)
 
             if not starts_at:
-                raise serializers.ValidationError(
-                    {"starts_at": PollMessages.CANNOT_PUBLISH_WITHOUT_STARTS_AT}
-                )
-            if starts_at >= ends_at:
-                raise serializers.ValidationError(
-                    {"starts_at": "زمان شروع باید قبل از زمان پایان باشد."}
+                return Response(
+                    {"detail": PollMessages.CANNOT_PUBLISH_WITHOUT_STARTS_AT},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Persist changes
+            serializer = PollUpdateSerializer(data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+
+            validated = serializer.validated_data
             for field, value in validated.items():
-                setattr(poll, field, value)
+                if field != "status" and field != "options":
+                    setattr(poll, field, value)
+
             poll.status = PollStatus.ACTIVE
             poll.save()
 
@@ -114,23 +133,18 @@ class ManagerPollDetailView(APIView):
                 {
                     "message": PollMessages.POLL_PUBLISHED,
                     "poll": PollSerializer(poll).data,
-                }
+                },
+                status=status.HTTP_200_OK,
             )
 
-        elif new_status == PollStatus.CLOSED and poll.status == PollStatus.ACTIVE:
-            poll.status = PollStatus.CLOSED
-            poll.save()
-            poll = Poll.objects.prefetch_related("options", "target_units").get(pk=poll.pk)
-            return Response(
-                {
-                    "message": PollMessages.POLL_CLOSED,
-                    "poll": PollSerializer(poll).data,
-                }
-            )
+        if poll.status == PollStatus.DRAFT:
+            serializer = PollUpdateSerializer(data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
 
-        elif new_status == PollStatus.DRAFT and poll.status == PollStatus.DRAFT:
+            validated = serializer.validated_data
             for field, value in validated.items():
-                setattr(poll, field, value)
+                if field != "status" and field != "options":
+                    setattr(poll, field, value)
             poll.save()
 
             if "options" in validated:
@@ -147,10 +161,11 @@ class ManagerPollDetailView(APIView):
                 {
                     "message": PollMessages.POLL_UPDATED,
                     "poll": PollSerializer(poll).data,
-                }
+                },
+                status=status.HTTP_200_OK,
             )
 
-        else:
-            raise serializers.ValidationError(
-                {"status": "تغییر وضعیت درخواستی معتبر نیست."}
-            )
+        return Response(
+            {"detail": "تغییر وضعیت درخواستی معتبر نیست."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )

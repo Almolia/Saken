@@ -57,6 +57,7 @@ class PollCreateSerializer(serializers.Serializer):
         queryset=Unit.objects.all(),
         many=True,
         required=False,
+        allow_empty=True,
     )
     options = PollOptionCreateSerializer(many=True, min_length=2)
 
@@ -89,7 +90,7 @@ class PollCreateSerializer(serializers.Serializer):
         if status == PollStatus.ACTIVE:
             if not starts_at:
                 raise serializers.ValidationError({"starts_at": PollMessages.CANNOT_PUBLISH_WITHOUT_STARTS_AT})
-            if starts_at and starts_at >= ends_at:
+            if starts_at and ends_at and starts_at >= ends_at:
                 raise serializers.ValidationError(
                     {"starts_at": "زمان شروع باید قبل از زمان پایان باشد."}
                 )
@@ -123,6 +124,7 @@ class PollUpdateSerializer(serializers.Serializer):
         queryset=Unit.objects.all(),
         many=True,
         required=False,
+        allow_empty=True,
     )
     options = PollOptionCreateSerializer(many=True, required=False)
 

@@ -68,7 +68,6 @@ class PollOption(models.Model):
         verbose_name = "گزینه نظرسنجی"
         verbose_name_plural = "گزینه‌های نظرسنجی"
         ordering = ["position", "id"]
-        unique_together = [["poll", "position"]]
 
     def __str__(self):
         return f"{self.poll.title} - {self.text}"
