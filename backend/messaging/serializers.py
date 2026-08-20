@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from common.constants import MessagingMessages
+from users.models import User, UserRole
 
 from .models import Message
 from .services import counterpart_label, preview_text, serialize_resident_summary
@@ -124,3 +125,25 @@ def serialize_thread(conversation, messages, viewer):
         "created_at": conversation.created_at,
         "messages": MessageSerializer(messages, many=True).data,
     }
+
+
+class RecipientSerializer(serializers.Serializer):
+    """Serializer for recipient list items."""
+
+    id = serializers.IntegerField()
+    full_name = serializers.CharField()
+    role = serializers.ChoiceField(choices=UserRole.choices)
+
+
+class DirectMessageSerializer(serializers.Serializer):
+    """Serializer for creating a direct message conversation."""
+
+    user_id = serializers.IntegerField()
+    subject = serializers.CharField(allow_blank=True, required=False, default="")
+    body = serializers.CharField(allow_blank=True, required=False, default="")
+
+    def validate_subject(self, value):
+        return _clean_required_text(value, MessagingMessages.SUBJECT_REQUIRED)
+
+    def validate_body(self, value):
+        return _clean_required_text(value, MessagingMessages.BODY_REQUIRED)

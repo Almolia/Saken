@@ -17,6 +17,7 @@ export function MessageThread({
   const [replyError, setReplyError] = useState('')
   const bottomRef = useRef(null)
   const messages = conversation?.messages || []
+  const isDirect = conversation?.kind === 'direct'
   const counterpart = conversation?.counterpart_label || counterpartFallback || 'گفتگو'
 
   useEffect(() => {
@@ -89,6 +90,8 @@ export function MessageThread({
           <h3 className="text-lg font-black text-slate-950">{conversation.subject}</h3>
           {conversation.is_broadcast ? (
             <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-black text-teal-700">همگانی</span>
+          ) : isDirect ? (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-black text-blue-700">مستقیم</span>
           ) : null}
         </div>
         <p className="mt-1 text-sm font-bold text-slate-500">{counterpart}</p>
@@ -100,6 +103,11 @@ export function MessageThread({
         ) : (
           messages.map((item) => {
             const mine = item.sender?.id === currentUserId
+            // For direct messages, always show sender's full name
+            // For management messages, show "شما" for own messages, sender's name for others
+            const senderLabel = mine
+              ? 'شما'
+              : item.sender?.full_name || counterpart
             return (
               <article
                 key={item.id}
@@ -110,7 +118,7 @@ export function MessageThread({
                 }`}
               >
                 <div className={`mb-1 text-[11px] font-black ${mine ? 'text-teal-100' : 'text-slate-500'}`}>
-                  {mine ? 'شما' : item.sender?.full_name || counterpart}
+                  {senderLabel}
                 </div>
                 <p className="whitespace-pre-line">{item.body}</p>
                 <time

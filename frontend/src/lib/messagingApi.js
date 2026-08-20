@@ -55,6 +55,19 @@ export const residentMessageApi = {
   },
 }
 
+// Direct message APIs
+export const directMessageApi = {
+  recipients() {
+    return request('/messages/recipients/')
+  },
+  send(payload) {
+    return request('/messages/direct/', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+  },
+}
+
 export function normalizeConversations(data) {
   if (Array.isArray(data?.conversations)) return data.conversations
   if (Array.isArray(data)) return data
@@ -65,4 +78,16 @@ export function unreadTotalFrom(data, conversations = normalizeConversations(dat
   if (typeof data?.unread_total === 'number') return data.unread_total
   if (typeof data?.unread_count === 'number') return data.unread_count
   return conversations.reduce((sum, item) => sum + (Number(item.unread_count) || 0), 0)
+}
+
+// Role labels in Persian
+export const roleLabels = {
+  resident: 'ساکن',
+  manager: 'مدیر',
+  admin: 'ادمین',
+  service_staff: 'کارمند خدمات',
+}
+
+export function getRoleLabel(role) {
+  return roleLabels[role] || role
 }

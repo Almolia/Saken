@@ -1,7 +1,8 @@
-import { ArrowRight, Inbox, MailPlus, Megaphone, MessagesSquare, UserRound } from 'lucide-react'
+import { ArrowRight, Inbox, MailPlus, Megaphone, MessageSquare, MessagesSquare, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
 import { BroadcastMessageModal } from '../../../components/dashboard/BroadcastMessageModal'
+import { DirectMessageModal } from '../../../components/dashboard/DirectMessageModal'
 import { MessageThread } from '../../../components/dashboard/MessageThread'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { ServerError } from '../../../components/ui/ServerError'
@@ -21,6 +22,7 @@ export function MessagesSection({
 }) {
   const { showToast } = useToast()
   const [composerOpen, setComposerOpen] = useState(false)
+  const [directMessageOpen, setDirectMessageOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const threadState = useConversationThread({
     conversationId: selectedId,
@@ -34,6 +36,14 @@ export function MessagesSection({
 
   function handleBroadcastSent(response) {
     upsertConversations?.(response?.conversations || [])
+  }
+
+  function handleDirectMessageSent(response) {
+    if (response?.conversation) {
+      upsertConversations?.(response.conversation)
+      // Open the new conversation
+      setSelectedId(response.conversation.id)
+    }
   }
 
   async function handleReply(body) {
@@ -85,14 +95,24 @@ export function MessagesSection({
               {loading ? 'در حال دریافت اطلاعات...' : `${conversations.length} گفتگو با ساکنان`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setComposerOpen(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-2xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 sm:self-auto"
-          >
-            <MailPlus className="h-4 w-4" />
-            ارسال پیام همگانی
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDirectMessageOpen(true)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-blue-50 px-4 text-sm font-bold text-blue-700 shadow-sm transition hover:bg-blue-100"
+            >
+              <MessageSquare className="h-4 w-4" />
+              پیام مستقیم
+            </button>
+            <button
+              type="button"
+              onClick={() => setComposerOpen(true)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"
+            >
+              <Megaphone className="h-4 w-4" />
+              پیام همگانی
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -115,7 +135,7 @@ export function MessagesSection({
             </div>
             <h3 className="mt-4 text-lg font-black text-slate-900">هنوز گفتگویی وجود ندارد</h3>
             <p className="mt-2 text-sm text-slate-500">
-              با دکمه «ارسال پیام همگانی» اولین پیام را برای ساکنان بفرستید.
+              با دکمه «پیام همگانی» یا «پیام مستقیم» اولین پیام را بفرستید.
             </p>
           </div>
         ) : (
@@ -125,6 +145,7 @@ export function MessagesSection({
                 {conversations.map((item) => {
                   const active = item.id === selectedId
                   const unread = Number(item.unread_count) || 0
+                  const isDirect = item.kind === 'direct'
                   return (
                     <li key={item.id}>
                       <button
@@ -134,13 +155,15 @@ export function MessagesSection({
                           active ? 'bg-teal-50/80' : 'bg-white hover:bg-slate-50'
                         }`}
                       >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                          isDirect ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-600'
+                        }`}>
                           <UserRound className="h-5 w-5" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate text-sm font-black text-slate-950">
-                              {item.resident_name || item.counterpart_label || 'ساکن'}
+                              {item.resident_name || item.counterpart_label || (isDirect ? 'گفتگو' : 'ساکن')}
                             </p>
                             <time className="shrink-0 text-[11px] font-medium text-slate-400">
                               {formatRelativeDate(item.last_message_at)}
@@ -177,7 +200,7 @@ export function MessagesSection({
               <MessageThread
                 conversation={threadState.thread}
                 currentUserId={currentUserId}
-                counterpartFallback={selected?.resident_name || selected?.counterpart_label || 'ساکن'}
+                counterpartFallback={selected?.resident_name || selected?.counterpart_label || (selected?.kind === 'direct' ? 'گفتگو' : 'ساکن')}
                 loading={threadState.loading}
                 error={threadState.error}
                 onRetry={() => setSelectedId(selectedId)}
@@ -192,6 +215,12 @@ export function MessagesSection({
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onSent={handleBroadcastSent}
+      />
+
+      <DirectMessageModal
+        open={directMessageOpen}
+        onClose={() => setDirectMessageOpen(false)}
+        onSent={handleDirectMessageSent}
       />
     </>
   )

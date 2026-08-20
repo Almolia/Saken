@@ -1,7 +1,8 @@
-import { ArrowRight, Building2, Inbox, MailPlus, MessagesSquare } from 'lucide-react'
+import { ArrowRight, Building2, Inbox, MailPlus, MessagesSquare, MessageSquare, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useToast } from '../ToastProvider'
 import { ComposeMessageModal } from './ComposeMessageModal'
+import { DirectMessageModal } from './DirectMessageModal'
 import { MessageThread } from './MessageThread'
 import { LoadingBlock } from '../ui/LoadingBlock'
 import { ServerError } from '../ui/ServerError'
@@ -21,6 +22,7 @@ export function ResidentMessagesSection({
 }) {
   const { showToast } = useToast()
   const [composerOpen, setComposerOpen] = useState(false)
+  const [directMessageOpen, setDirectMessageOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const threadState = useConversationThread({
     conversationId: selectedId,
@@ -34,6 +36,14 @@ export function ResidentMessagesSection({
 
   function handleComposeSent(response) {
     if (response?.conversation) upsertConversation?.(response.conversation)
+  }
+
+  function handleDirectMessageSent(response) {
+    if (response?.conversation) {
+      upsertConversation?.(response.conversation)
+      // Open the new conversation
+      setSelectedId(response.conversation.id)
+    }
   }
 
   async function handleReply(body) {
@@ -76,14 +86,24 @@ export function ResidentMessagesSection({
               {loading ? 'در حال دریافت اطلاعات...' : `${conversations.length} گفتگو ثبت شده است.`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setComposerOpen(true)}
-            className="inline-flex h-11 items-center justify-center gap-2 self-start rounded-2xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700 sm:self-auto"
-          >
-            <MailPlus className="h-4 w-4" />
-            پیام جدید
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDirectMessageOpen(true)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-4 text-sm font-bold text-teal-700 shadow-sm transition hover:bg-teal-100"
+            >
+              <MessageSquare className="h-4 w-4" />
+              پیام مستقیم
+            </button>
+            <button
+              type="button"
+              onClick={() => setComposerOpen(true)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-teal-600 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-teal-700"
+            >
+              <MailPlus className="h-4 w-4" />
+              پیام به مدیریت
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -106,7 +126,7 @@ export function ResidentMessagesSection({
             </div>
             <h3 className="mt-4 text-lg font-black text-slate-900">هنوز پیامی ندارید</h3>
             <p className="mt-2 text-sm text-slate-500">
-              با دکمه «پیام جدید» اولین پیام را برای مدیریت ساختمان بفرستید.
+              با دکمه «پیام به مدیریت» یا «پیام مستقیم» اولین پیام را بفرستید.
             </p>
           </div>
         ) : (
@@ -116,6 +136,7 @@ export function ResidentMessagesSection({
                 {conversations.map((item) => {
                   const active = item.id === selectedId
                   const unread = Number(item.unread_count) || 0
+                  const isDirect = item.kind === 'direct'
                   return (
                     <li key={item.id}>
                       <button
@@ -125,13 +146,15 @@ export function ResidentMessagesSection({
                           active ? 'bg-teal-50/80' : 'bg-white hover:bg-slate-50'
                         }`}
                       >
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
-                          <Building2 className="h-5 w-5" />
+                        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                          isDirect ? 'bg-blue-50 text-blue-700' : 'bg-teal-50 text-teal-700'
+                        }`}>
+                          {isDirect ? <UserRound className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
                             <p className="truncate text-sm font-black text-slate-950">
-                              {item.counterpart_label || 'مدیریت ساختمان'}
+                              {item.counterpart_label || (isDirect ? 'گفتگو' : 'مدیریت ساختمان')}
                             </p>
                             <time className="shrink-0 text-[11px] font-medium text-slate-400">
                               {formatRelativeDate(item.last_message_at)}
@@ -168,7 +191,7 @@ export function ResidentMessagesSection({
               <MessageThread
                 conversation={threadState.thread}
                 currentUserId={currentUserId}
-                counterpartFallback={selected?.counterpart_label || 'مدیریت ساختمان'}
+                counterpartFallback={selected?.counterpart_label || (selected?.kind === 'direct' ? 'گفتگو' : 'مدیریت ساختمان')}
                 loading={threadState.loading}
                 error={threadState.error}
                 onRetry={() => setSelectedId(selectedId)}
@@ -183,6 +206,12 @@ export function ResidentMessagesSection({
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onSent={handleComposeSent}
+      />
+
+      <DirectMessageModal
+        open={directMessageOpen}
+        onClose={() => setDirectMessageOpen(false)}
+        onSent={handleDirectMessageSent}
       />
     </>
   )

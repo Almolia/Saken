@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -8,6 +9,8 @@ from users.permissions import IsManagerOrAdmin, IsResident
 from .models import Conversation
 from .serializers import (
     BroadcastMessageSerializer,
+    DirectMessageSerializer,
+    RecipientSerializer,
     ReplySerializer,
     ResidentComposeSerializer,
     serialize_inbox_item,
@@ -18,13 +21,16 @@ from .services import (
     broadcast_message,
     conversation_messages,
     ensure_manager_participant,
+    get_valid_recipients,
     management_inbox_queryset,
     manager_can_access,
     mark_conversation_read,
     reply_to_conversation,
     resident_can_access,
     resident_inbox_queryset,
+    send_direct_message,
     send_resident_to_management,
+    serialize_recipient,
     unread_count_for,
 )
 
@@ -280,3 +286,59 @@ class ResidentUnreadCountView(APIView):
         conversations = resident_inbox_queryset(request.user)
         unread_total = sum(int(item.unread_count or 0) for item in conversations)
         return Response({"unread_count": unread_total})
+
+
+class MessageRecipientsView(APIView):
+    """GET /api/messages/recipients/ - List available recipients for direct messaging."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Only Residents and Managers/Admins can use direct messaging
+        if request.user.role not in {"resident", "manager", "admin"}:
+            return _error_response(
+                "دسترسی غیرمجاز",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        recipients = get_valid_recipients(request.user)
+        data = [serialize_recipient(user) for user in recipients]
+        return Response({"recipients": data})
+
+
+class DirectMessageView(APIView):
+    """POST /api/messages/direct/ - Create a direct message conversation."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        # Only Residents and Managers/Admins can use direct messaging
+        if request.user.role not in {"resident", "manager", "admin"}:
+            return _error_response(
+                "دسترسی غیرمجاز",
+                status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = DirectMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            conversation, message = send_direct_message(
+                sender=request.user,
+                recipient_id=serializer.validated_data["user_id"],
+                subject=serializer.validated_data["subject"],
+                body=serializer.validated_data["body"],
+            )
+        except MessagingError as error:
+            return _error_response(error.detail, error.status_code)
+
+        # Refresh to get annotations for inbox item
+        conversation = resident_inbox_queryset(request.user).get(pk=conversation.pk)
+
+        return Response(
+            {
+                "message": "پیام مستقیم با موفقیت ارسال شد.",
+                "conversation": serialize_inbox_item(conversation, request.user),
+            },
+            status=status.HTTP_201_CREATED,
+        )

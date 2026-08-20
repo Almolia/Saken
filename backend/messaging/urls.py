@@ -1,10 +1,12 @@
 from django.urls import path
 
 from .views import (
+    DirectMessageView,
     ManagerBroadcastView,
     ManagerMessageDetailView,
     ManagerMessageListView,
     ManagerMessageReadView,
+    MessageRecipientsView,
     ResidentMessageDetailView,
     ResidentMessageListCreateView,
     ResidentMessageReadView,
@@ -12,6 +14,18 @@ from .views import (
 )
 
 urlpatterns = [
+    # Direct message endpoints
+    path(
+        "messages/recipients/",
+        MessageRecipientsView.as_view(),
+        name="message-recipients",
+    ),
+    path(
+        "messages/direct/",
+        DirectMessageView.as_view(),
+        name="message-direct",
+    ),
+    # Manager messaging endpoints
     path(
         "manager/messages/broadcast/",
         ManagerBroadcastView.as_view(),
@@ -32,6 +46,7 @@ urlpatterns = [
         ManagerMessageDetailView.as_view(),
         name="manager-message-detail",
     ),
+    # Resident messaging endpoints
     path(
         "resident/messages/unread_count/",
         ResidentUnreadCountView.as_view(),

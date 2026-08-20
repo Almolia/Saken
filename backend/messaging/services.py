@@ -4,7 +4,7 @@ from django.utils import timezone
 
 from buildings.models import Unit
 from common.constants import MessagingMessages
-from users.models import UserRole
+from users.models import User, UserRole
 
 from .models import Conversation, ConversationKind, ConversationParticipant, Message
 
@@ -316,3 +316,175 @@ def serialize_resident_summary(resident):
         "full_name": resident.full_name,
         "unit_number": _unit_number_for(resident),
     }
+
+
+def get_valid_recipients(user):
+    """Return active Residents and Managers, excluding the request user and Service Staff.
+
+    Args:
+        user: The authenticated user making the request.
+
+    Returns:
+        QuerySet of User objects that are valid recipients for direct messages.
+    """
+    return User.objects.filter(
+        is_active=True,
+        role__in={UserRole.RESIDENT, UserRole.MANAGER, UserRole.ADMIN},
+    ).exclude(id=user.id)
+
+
+def serialize_recipient(user_obj):
+    """Serialize a user object for the recipients list.
+
+    Args:
+        user_obj: A User instance.
+
+    Returns:
+        Dictionary with id, full_name, and role.
+    """
+    return {
+        "id": user_obj.id,
+        "full_name": user_obj.full_name,
+        "role": user_obj.role,
+    }
+
+
+def validate_direct_message_target(user_id, request_user):
+    """Validate that the target user_id is a valid recipient for direct messaging.
+
+    Args:
+        user_id: The ID of the user to send a direct message to.
+        request_user: The authenticated user making the request.
+
+    Returns:
+        The target User object if valid.
+
+    Raises:
+        MessagingError: If validation fails.
+    """
+    if str(user_id) == str(request_user.id):
+        raise MessagingError("شما نمی‌توانید به خودتان پیام مستقیم ارسال کنید.")
+
+    try:
+        target_user = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        raise MessagingError("کاربر مورد نظر یافت نشد.")
+
+    if not target_user.is_active:
+        raise MessagingError("شما نمی‌توانید به کاربر غیرفعال پیام ارسال کنید.")
+
+    if target_user.role == UserRole.SERVICE_STAFF:
+        raise MessagingError("شما نمی‌توانید به کارکنان خدمات پیام ارسال کنید.")
+
+    return target_user
+
+
+def get_or_create_direct_conversation(user_a, user_b, subject):
+    """Find an existing direct conversation between user_a and user_b, or create one.
+
+    Args:
+        user_a: First participant (the request user).
+        user_b: Second participant.
+        subject: Subject line for the conversation.
+
+    Returns:
+        Tuple of (Conversation, created: bool).
+    """
+    # Look for existing direct conversation between these two users
+    # We need to find a conversation where both users are participants
+    existing = (
+        Conversation.objects.filter(
+            kind=ConversationKind.DIRECT,
+            resident=None,  # Direct conversations have no resident
+        )
+        .prefetch_related("participants")
+        .filter(
+            participants__user=user_a,
+        )
+        .filter(
+            participants__user=user_b,
+        )
+        .distinct()
+        .first()
+    )
+
+    if existing is not None:
+        # Ensure both participants are attached
+        _ensure_direct_participant(existing, user_a)
+        _ensure_direct_participant(existing, user_b)
+        return existing, False
+
+    try:
+        with transaction.atomic():
+            conversation = Conversation.objects.create(
+                kind=ConversationKind.DIRECT,
+                subject=subject,
+                created_by=user_a,
+                resident=None,  # Direct conversations don't belong to a resident
+                last_message_at=timezone.now(),
+            )
+            ConversationParticipant.objects.create(
+                conversation=conversation,
+                user=user_a,
+                is_management_resident=False,
+            )
+            ConversationParticipant.objects.create(
+                conversation=conversation,
+                user=user_b,
+                is_management_resident=False,
+            )
+            return conversation, True
+    except IntegrityError:
+        # Race condition - another thread created it
+        existing = (
+            Conversation.objects.filter(
+                kind=ConversationKind.DIRECT,
+            )
+            .prefetch_related("participants")
+            .filter(participants__user=user_a)
+            .filter(participants__user=user_b)
+            .distinct()
+            .first()
+        )
+        if existing:
+            _ensure_direct_participant(existing, user_a)
+            _ensure_direct_participant(existing, user_b)
+            return existing, False
+        raise
+
+
+def _ensure_direct_participant(conversation, user):
+    """Ensure a user is a participant in a direct conversation."""
+    ConversationParticipant.objects.get_or_create(
+        conversation=conversation,
+        user=user,
+        defaults={"is_management_resident": False},
+    )
+
+
+@transaction.atomic
+def send_direct_message(*, sender, recipient_id, subject, body):
+    """Send a direct message from sender to recipient.
+
+    Creates or reuses a direct conversation and adds the message.
+
+    Args:
+        sender: The user sending the message.
+        recipient_id: The ID of the recipient user.
+        subject: Subject line for the conversation.
+        body: Message body.
+
+    Returns:
+        Tuple of (Conversation, Message).
+    """
+    recipient = validate_direct_message_target(recipient_id, sender)
+
+    conversation, _created = get_or_create_direct_conversation(
+        user_a=sender,
+        user_b=recipient,
+        subject=subject,
+    )
+
+    message = post_message(conversation, sender, body)
+
+    return conversation, message
