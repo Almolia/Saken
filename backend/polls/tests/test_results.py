@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from buildings.models import Building, Unit
+from buildings.models import Unit
 from polls.models import Poll, PollOption, PollStatus, Vote
 
 User = get_user_model()
@@ -25,14 +25,10 @@ class PollResultsAPITests(APITestCase):
         self.resident_outsider = User.objects.create_user(phone='09120000005', full_name='Resident Outsider',
                                                           national_id='500', role='resident')
 
-        # 2. Setup Building & Units
-        self.building = Building.objects.create(name='Test Tower')
-        self.unit_voted = Unit.objects.create(building=self.building, unit_number='101', floor=1, area=100,
-                                              owner=self.resident_voted)
-        self.unit_pending = Unit.objects.create(building=self.building, unit_number='102', floor=1, area=100,
-                                                owner=self.resident_pending)
-        self.unit_outsider = Unit.objects.create(building=self.building, unit_number='201', floor=2, area=100,
-                                                 owner=self.resident_outsider)
+        # 2. Setup Units
+        self.unit_voted = Unit.objects.create(unit_number='101', floor=1, area=100, owner=self.resident_voted)
+        self.unit_pending = Unit.objects.create(unit_number='102', floor=1, area=100, owner=self.resident_pending)
+        self.unit_outsider = Unit.objects.create(unit_number='201', floor=2, area=100, owner=self.resident_outsider)
 
         # 3. Setup Polls & Options
         self.active_poll = Poll.objects.create(
