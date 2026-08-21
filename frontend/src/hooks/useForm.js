@@ -46,5 +46,9 @@ export function useForm({ initialValues, validate, onSubmit }) {
     handleSubmit,
     setFieldValue,
     setValues,
+    // For errors the browser cannot know about — a serializer rejecting a field
+    // the client thought was fine. They clear the same way the local ones do:
+    // editing the field, or submitting again.
+    setErrors,
   }
 }

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { ToastProvider } from '../ToastProvider'
 import { PollFormModal } from './PollFormModal'
 import { splitLocalDateTime } from '../../utils/polls'
 
@@ -14,6 +15,12 @@ const descriptionField = () => screen.getByLabelText(/توضیحات/)
 const optionField = (index) => screen.getByLabelText(`گزینه ${index}`)
 const endDateField = () => screen.getByLabelText('تاریخ پایان')
 const saveDraftButton = () => screen.getByRole('button', { name: /ذخیره پیش‌نویس/ })
+// PrimaryButton replaces its label with a spinner while loading, leaving the
+// button with no accessible name, so mid-request it is found by its type.
+const submitButton = () =>
+  within(screen.getByRole('dialog'))
+    .getAllByRole('button')
+    .find((button) => button.type === 'submit')
 
 // The form refuses a deadline in the past, so the tests pin "now" and type a
 // day well after it rather than depending on the wall clock.
@@ -26,8 +33,17 @@ const FUTURE_ISO_DAY = '2026-08-27'
 function renderModal(props = {}) {
   const onSubmit = props.onSubmit ?? vi.fn().mockResolvedValue(undefined)
   const onClose = props.onClose ?? vi.fn()
-  render(<PollFormModal open units={units} onSubmit={onSubmit} onClose={onClose} {...props} />)
+  render(
+    <ToastProvider>
+      <PollFormModal open units={units} onSubmit={onSubmit} onClose={onClose} {...props} />
+    </ToastProvider>,
+  )
   return { onSubmit, onClose }
+}
+
+// A rejection shaped the way DRF answers a serializer failure.
+function serverRejection(details, message = 'درخواست نامعتبر است.') {
+  return Object.assign(new Error(message), { details, status: 400 })
 }
 
 async function fillMinimumPoll(user) {
@@ -48,8 +64,12 @@ describe('PollFormModal', () => {
   })
 
   it('renders nothing while closed', () => {
-    const { container } = render(<PollFormModal open={false} onSubmit={vi.fn()} onClose={vi.fn()} />)
-    expect(container).toBeEmptyDOMElement()
+    render(
+      <ToastProvider>
+        <PollFormModal open={false} onSubmit={vi.fn()} onClose={vi.fn()} />
+      </ToastProvider>,
+    )
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('opens empty with two option rows and the whole building targeted', () => {
@@ -293,9 +313,114 @@ describe('PollFormModal', () => {
     await fillMinimumPoll(user)
     await user.click(saveDraftButton())
 
-    expect(await screen.findByText('عنوان نظرسنجی الزامی است.')).toBeInTheDocument()
+    // The reason lands in the dialog's banner and in a toast; the typed poll
+    // stays exactly as it was.
+    await waitFor(() => expect(screen.getAllByText('عنوان نظرسنجی الزامی است.')).toHaveLength(2))
     expect(titleField()).toHaveValue('رنگ نمای جدید ساختمان کدام باشد؟')
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('puts a serializer error back under the field it is about', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(
+      serverRejection({
+        title: ['نظرسنجی دیگری با این عنوان وجود دارد.'],
+        ends_at: ['زمان پایان باید در آینده باشد.'],
+      }),
+    )
+    const { onClose } = renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+
+    expect(
+      await screen.findByText('نظرسنجی دیگری با این عنوان وجود دارد.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('زمان پایان باید در آینده باشد.')).toBeInTheDocument()
+    // The banner does not repeat what is already shown under each field.
+    expect(screen.getAllByText('برخی از فیلدهای فرم نیاز به اصلاح دارند.').length).toBeGreaterThan(0)
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('announces a rejected submit in a toast as well as inline', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(
+      serverRejection({ detail: 'فقط نظرسنجی‌های در وضعیت پیش‌نویس قابل ویرایش هستند.' }),
+    )
+    renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+
+    // Once in the dialog's own banner, once in the toast — the toast is what
+    // gets noticed when the offending field has scrolled out of view.
+    await waitFor(() =>
+      expect(
+        screen.getAllByText('فقط نظرسنجی‌های در وضعیت پیش‌نویس قابل ویرایش هستند.'),
+      ).toHaveLength(2),
+    )
+  })
+
+  it('clears a server error on the field as soon as it is edited', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValue(serverRejection({ title: ['نظرسنجی دیگری با این عنوان وجود دارد.'] }))
+    renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+    expect(await screen.findByText('نظرسنجی دیگری با این عنوان وجود دارد.')).toBeInTheDocument()
+
+    await user.type(titleField(), ' جدید')
+
+    expect(screen.queryByText('نظرسنجی دیگری با این عنوان وجود دارد.')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the flattened message when the rejection has no payload', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn().mockRejectedValue(new Error('ارتباط با سرور برقرار نشد.'))
+    renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+
+    await waitFor(() =>
+      expect(screen.getAllByText('ارتباط با سرور برقرار نشد.').length).toBeGreaterThan(0),
+    )
+  })
+
+  it('locks every input while the request is in flight', async () => {
+    const user = userEvent.setup()
+    // Never settles, so the form stays mid-request for the whole assertion.
+    const onSubmit = vi.fn(() => new Promise(() => {}))
+    renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+    expect(submitButton()).toBeDisabled()
+    expect(titleField()).toBeDisabled()
+    expect(descriptionField()).toBeDisabled()
+    expect(optionField(1)).toBeDisabled()
+    expect(screen.getByLabelText('ساعت پایان')).toBeDisabled()
+    expect(screen.getByRole('radio', { name: /واحدهای منتخب/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'افزودن گزینه' })).toBeDisabled()
+  })
+
+  it('does not resubmit when the button is clicked again mid-request', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn(() => new Promise(() => {}))
+    renderModal({ onSubmit })
+
+    await fillMinimumPoll(user)
+    await user.click(saveDraftButton())
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+
+    await user.click(submitButton())
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 
   it('reports a unit directory that could not be loaded', async () => {
