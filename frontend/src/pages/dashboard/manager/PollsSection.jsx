@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useToast } from '../../../components/ToastProvider'
-import { PollActionModal, PollAction } from '../../../components/dashboard/PollActionModal'
+import { PollActionModal } from '../../../components/dashboard/PollActionModal'
 import { PollFormModal } from '../../../components/dashboard/PollFormModal'
 import { LoadingBlock } from '../../../components/ui/LoadingBlock'
 import { PollStatusBadge } from '../../../components/ui/PollStatusBadge'
@@ -28,6 +28,7 @@ import { useManagerPolls } from '../../../hooks/useManagerPolls'
 import { managerPollApi } from '../../../lib/pollApi'
 import { formatDate, formatDateTime } from '../../../utils/helpers'
 import {
+  PollAction,
   PollStatus,
   canClose,
   canDelete,

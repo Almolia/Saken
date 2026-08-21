@@ -79,6 +79,15 @@ export function canDelete(poll) {
   return isDraft(poll)
 }
 
+// The three transitions that cannot be taken back. They live here rather than
+// beside the confirmation dialog so the list can name an action without
+// importing the modal that performs it.
+export const PollAction = {
+  PUBLISH: 'publish',
+  CLOSE: 'close',
+  DELETE: 'delete',
+}
+
 export function optionCount(poll) {
   return Array.isArray(poll?.options) ? poll.options.length : 0
 }

@@ -3,7 +3,8 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ToastProvider } from '../ToastProvider'
 import { managerPollApi } from '../../lib/pollApi'
-import { PollAction, PollActionModal } from './PollActionModal'
+import { PollActionModal } from './PollActionModal'
+import { PollAction } from '../../utils/polls'
 
 vi.mock('../../lib/pollApi', () => ({
   managerPollApi: {

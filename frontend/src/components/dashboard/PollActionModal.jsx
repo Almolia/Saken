@@ -5,22 +5,16 @@ import { Modal } from '../ui/Modal'
 import { PollStatusBadge } from '../ui/PollStatusBadge'
 import { managerPollApi } from '../../lib/pollApi'
 import { formatDateTime } from '../../utils/helpers'
-import { optionCount, targetLabel } from '../../utils/polls'
+import { PollAction, optionCount, targetLabel } from '../../utils/polls'
 
 /**
- * The three poll transitions that cannot be taken back.
+ * The confirmation for the three poll transitions that cannot be taken back.
  *
  * Publishing makes the question visible to residents and freezes it; closing
  * ends the voting for good — there is no reopen endpoint; deleting removes a
- * draft outright. Each gets the same confirmation shape so the manager always
- * reads what is about to happen before it happens.
+ * draft outright. Each gets the same shape so the manager always reads what is
+ * about to happen before it happens.
  */
-export const PollAction = {
-  PUBLISH: 'publish',
-  CLOSE: 'close',
-  DELETE: 'delete',
-}
-
 const actionConfig = {
   [PollAction.PUBLISH]: {
     title: 'انتشار نظرسنجی',
