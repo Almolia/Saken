@@ -386,6 +386,96 @@ class PollStatusTransitionTests(TestCase):
         self.assertEqual(poll.status, PollStatus.DRAFT)
 
 
+    def test_draft_poll_target_units_can_be_changed(self):
+        """A draft aimed at the whole building can be narrowed to named units."""
+        self.login_as_manager()
+
+        unit = Unit.objects.create(owner=None, unit_number='501', floor=5, area='80.00')
+
+        create_response = self.client.post(
+            '/api/manager/polls/',
+            {
+                'title': 'نظرسنجی پیش‌نویس',
+                'description': 'توضیحات',
+                'status': 'Draft',
+                'ends_at': self.future_end.isoformat(),
+                'options': [
+                    {'text': 'گزینه اول', 'position': 0},
+                    {'text': 'گزینه دوم', 'position': 1},
+                ],
+            },
+            format='json',
+        )
+        self.assertEqual(create_response.status_code, 201)
+        poll_id = create_response.data['poll']['id']
+
+        patch_response = self.client.patch(
+            f'/api/manager/polls/{poll_id}/',
+            {'target_units': [unit.id]},
+            format='json',
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+        self.assertEqual(patch_response.data['poll']['target_units'], [unit.id])
+
+        poll = Poll.objects.get(pk=poll_id)
+        self.assertEqual(list(poll.target_units.values_list('id', flat=True)), [unit.id])
+
+    def test_draft_poll_can_be_reopened_to_every_unit(self):
+        """Clearing the target list puts the poll back to the whole building."""
+        self.login_as_manager()
+
+        unit = Unit.objects.create(owner=None, unit_number='502', floor=5, area='80.00')
+
+        poll = Poll.objects.create(
+            title='نظرسنجی پیش‌نویس',
+            description='توضیحات',
+            status=PollStatus.DRAFT,
+            ends_at=self.future_end,
+            created_by=self.manager,
+        )
+        poll.target_units.set([unit])
+
+        patch_response = self.client.patch(
+            f'/api/manager/polls/{poll.id}/',
+            {'target_units': []},
+            format='json',
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+        poll.refresh_from_db()
+        self.assertEqual(poll.target_units.count(), 0)
+
+    def test_publishing_can_set_the_target_units_at_the_same_time(self):
+        """Publishing accepts the same field edits as a draft update."""
+        self.login_as_manager()
+
+        unit = Unit.objects.create(owner=None, unit_number='503', floor=5, area='80.00')
+
+        poll = Poll.objects.create(
+            title='نظرسنجی پیش‌نویس',
+            description='توضیحات',
+            status=PollStatus.DRAFT,
+            ends_at=self.future_end,
+            created_by=self.manager,
+        )
+
+        patch_response = self.client.patch(
+            f'/api/manager/polls/{poll.id}/',
+            {
+                'status': 'Active',
+                'starts_at': self.starts_at,
+                'target_units': [unit.id],
+            },
+            format='json',
+        )
+
+        self.assertEqual(patch_response.status_code, 200)
+        poll.refresh_from_db()
+        self.assertEqual(poll.status, PollStatus.ACTIVE)
+        self.assertEqual(list(poll.target_units.values_list('id', flat=True)), [unit.id])
+
+
 class PollListDetailTests(TestCase):
     """Tests for listing and retrieving polls."""
 

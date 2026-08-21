@@ -13,6 +13,11 @@ from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSeriali
     VoteCreateSerializer
 from .services import cast_vote
 
+# Fields the update branches below set by hand rather than through setattr:
+# `status` is decided by the branch itself, `options` are rewritten as rows, and
+# `target_units` is a many-to-many that Django refuses to assign directly.
+DEFERRED_UPDATE_FIELDS = {"status", "options", "target_units"}
+
 
 class ManagerPollListCreateView(APIView):
     """
@@ -120,11 +125,14 @@ class ManagerPollDetailView(APIView):
 
             validated = serializer.validated_data
             for field, value in validated.items():
-                if field != "status" and field != "options":
+                if field not in DEFERRED_UPDATE_FIELDS:
                     setattr(poll, field, value)
 
             poll.status = PollStatus.ACTIVE
             poll.save()
+
+            if "target_units" in validated:
+                poll.target_units.set(validated["target_units"])
 
             if "options" in validated:
                 poll.options.all().delete()
@@ -150,9 +158,12 @@ class ManagerPollDetailView(APIView):
 
             validated = serializer.validated_data
             for field, value in validated.items():
-                if field != "status" and field != "options":
+                if field not in DEFERRED_UPDATE_FIELDS:
                     setattr(poll, field, value)
             poll.save()
+
+            if "target_units" in validated:
+                poll.target_units.set(validated["target_units"])
 
             if "options" in validated:
                 poll.options.all().delete()
