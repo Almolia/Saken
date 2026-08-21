@@ -334,3 +334,73 @@ export function validatePoll(values, { now = Date.now() } = {}) {
 
   return errors
 }
+
+// Which form field each serializer key belongs under. The poll form names its
+// deadline `endDate` and its target list `targetUnitIds`, so the server's own
+// field names have to be translated before an error can be shown in place.
+const pollServerFields = {
+  title: 'title',
+  description: 'description',
+  ends_at: 'endDate',
+  options: 'options',
+  target_units: 'targetUnitIds',
+}
+
+function flattenMessages(value, messages = []) {
+  if (typeof value === 'string') {
+    const message = value.trim()
+    if (message) messages.push(message)
+    return messages
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenMessages(item, messages))
+    return messages
+  }
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenMessages(item, messages))
+  }
+  return messages
+}
+
+/**
+ * Splits a rejected poll request into inline field errors and one general message.
+ *
+ * A serializer answers per field ({ ends_at: [...] }) while the view's own
+ * refusals answer as { detail: "..." }. The first kind belongs under the input
+ * that caused it; the second has no field to sit under, so it stays as the
+ * message shown above the submit button and in the toast.
+ *
+ * Anything unrecognised is kept as a general message rather than dropped — an
+ * error the manager cannot see is worse than one in the wrong place.
+ */
+export function mapPollServerErrors(error) {
+  const details = error?.details
+  const fallback = error?.message || 'ثبت نظرسنجی ناموفق بود.'
+
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return { fieldErrors: {}, message: fallback }
+  }
+
+  const fieldErrors = {}
+  const general = []
+
+  for (const [key, value] of Object.entries(details)) {
+    const field = pollServerFields[key]
+    const messages = flattenMessages(value)
+    if (messages.length === 0) continue
+
+    if (field) fieldErrors[field] = messages.join(' ')
+    else general.push(...messages)
+  }
+
+  return {
+    fieldErrors,
+    // With every complaint placed under a field, the banner would only repeat
+    // them; it says what to do instead.
+    message:
+      general.join(' ') ||
+      (Object.keys(fieldErrors).length > 0
+        ? 'برخی از فیلدهای فرم نیاز به اصلاح دارند.'
+        : fallback),
+  }
+}

@@ -102,6 +102,10 @@ async function request(path, options = {}) {
       'خطایی در ارتباط با سرور رخ داد.'
     const error = new Error(message)
     error.status = response.status
+    // The flattened message is what a banner shows, but a serializer answers
+    // per field ({ ends_at: [...] }). Keeping the payload lets a form put each
+    // complaint back under the input that caused it.
+    error.details = data
     throw error
   }
 
