@@ -267,3 +267,140 @@ export function validateAmenity(values) {
 
   return errors
 }
+
+// The poll form. Every rule here has a counterpart on the server: catching a
+// missing option or a deadline in the past before the request is sent keeps the
+// manager's typed answers on screen instead of trading them for a 400.
+export const POLL_TITLE_MAX = 255
+export const POLL_DESCRIPTION_MAX = 4000
+export const POLL_OPTION_MAX = 255
+export const POLL_MIN_OPTIONS = 2
+// Not a server rule. Past a dozen answers a poll stops being answerable at a
+// glance, and the form's own list stops being editable at a glance too.
+export const POLL_MAX_OPTIONS = 12
+
+export function validatePoll(values, { now = Date.now() } = {}) {
+  const errors = {}
+  const title = values.title?.trim() ?? ''
+  const description = values.description?.trim() ?? ''
+  const options = Array.isArray(values.options) ? values.options : []
+
+  if (!title) {
+    errors.title = 'عنوان نظرسنجی الزامی است.'
+  } else if (title.length < 3) {
+    errors.title = 'عنوان نظرسنجی باید حداقل ۳ کاراکتر باشد.'
+  } else if (title.length > POLL_TITLE_MAX) {
+    errors.title = `عنوان نظرسنجی نمی‌تواند بیشتر از ${POLL_TITLE_MAX} کاراکتر باشد.`
+  }
+
+  if (description.length > POLL_DESCRIPTION_MAX) {
+    errors.description = `توضیحات نمی‌تواند بیشتر از ${POLL_DESCRIPTION_MAX} کاراکتر باشد.`
+  }
+
+  // Blank rows are dropped rather than rejected — an untouched extra row is a
+  // manager who changed their mind, not a mistake. Only what is left has to add
+  // up to a usable question.
+  const filled = options.map((option) => option?.trim() ?? '').filter(Boolean)
+
+  // The options are reported as one list-level message rather than per row:
+  // rows are added and removed while the form is open, so an error pinned to an
+  // index would end up pointing at whichever option later took that place.
+  const tooLong = options.findIndex((option) => (option?.trim() ?? '').length > POLL_OPTION_MAX)
+
+  if (filled.length < POLL_MIN_OPTIONS) {
+    errors.options = 'حداقل دو گزینه برای نظرسنجی الزامی است.'
+  } else if (new Set(filled).size !== filled.length) {
+    errors.options = 'گزینه‌های تکراری مجاز نیستند؛ هر گزینه باید متن یکتا داشته باشد.'
+  } else if (tooLong !== -1) {
+    errors.options = `متن گزینه ${tooLong + 1} نمی‌تواند بیشتر از ${POLL_OPTION_MAX} کاراکتر باشد.`
+  } else if (filled.length > POLL_MAX_OPTIONS) {
+    errors.options = `حداکثر ${POLL_MAX_OPTIONS} گزینه می‌توانید ثبت کنید.`
+  }
+
+  if (!values.endDate) {
+    errors.endDate = 'تاریخ پایان نظرسنجی الزامی است.'
+  } else {
+    const deadline = new Date(`${values.endDate}T${values.endTime || '23:59'}:00`).getTime()
+    if (Number.isNaN(deadline)) {
+      errors.endDate = 'تاریخ پایان معتبر نیست.'
+    } else if (deadline <= now) {
+      errors.endDate = 'زمان پایان باید در آینده باشد.'
+    }
+  }
+
+  if (!values.targetAll && (values.targetUnitIds?.length ?? 0) === 0) {
+    errors.targetUnitIds = 'حداقل یک واحد را انتخاب کنید یا نظرسنجی را برای همه واحدها منتشر کنید.'
+  }
+
+  return errors
+}
+
+// Which form field each serializer key belongs under. The poll form names its
+// deadline `endDate` and its target list `targetUnitIds`, so the server's own
+// field names have to be translated before an error can be shown in place.
+const pollServerFields = {
+  title: 'title',
+  description: 'description',
+  ends_at: 'endDate',
+  options: 'options',
+  target_units: 'targetUnitIds',
+}
+
+function flattenMessages(value, messages = []) {
+  if (typeof value === 'string') {
+    const message = value.trim()
+    if (message) messages.push(message)
+    return messages
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => flattenMessages(item, messages))
+    return messages
+  }
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((item) => flattenMessages(item, messages))
+  }
+  return messages
+}
+
+/**
+ * Splits a rejected poll request into inline field errors and one general message.
+ *
+ * A serializer answers per field ({ ends_at: [...] }) while the view's own
+ * refusals answer as { detail: "..." }. The first kind belongs under the input
+ * that caused it; the second has no field to sit under, so it stays as the
+ * message shown above the submit button and in the toast.
+ *
+ * Anything unrecognised is kept as a general message rather than dropped — an
+ * error the manager cannot see is worse than one in the wrong place.
+ */
+export function mapPollServerErrors(error) {
+  const details = error?.details
+  const fallback = error?.message || 'ثبت نظرسنجی ناموفق بود.'
+
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return { fieldErrors: {}, message: fallback }
+  }
+
+  const fieldErrors = {}
+  const general = []
+
+  for (const [key, value] of Object.entries(details)) {
+    const field = pollServerFields[key]
+    const messages = flattenMessages(value)
+    if (messages.length === 0) continue
+
+    if (field) fieldErrors[field] = messages.join(' ')
+    else general.push(...messages)
+  }
+
+  return {
+    fieldErrors,
+    // With every complaint placed under a field, the banner would only repeat
+    // them; it says what to do instead.
+    message:
+      general.join(' ') ||
+      (Object.keys(fieldErrors).length > 0
+        ? 'برخی از فیلدهای فرم نیاز به اصلاح دارند.'
+        : fallback),
+  }
+}

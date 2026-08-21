@@ -34,6 +34,16 @@ describe('request error formatting', () => {
     })
   })
 
+  it('keeps the raw payload so a form can place each error under its field', async () => {
+    const payload = {
+      title: ['عنوان نظرسنجی الزامی است.'],
+      ends_at: ['زمان پایان باید در آینده باشد.'],
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonErrorResponse(payload)))
+
+    await expect(authApi.login({})).rejects.toMatchObject({ details: payload })
+  })
+
   it('never stringifies a nested object as [object Object]', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonErrorResponse({
       detail: { nested: ['خطای قابل خواندن'] },
