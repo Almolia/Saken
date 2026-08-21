@@ -11,6 +11,7 @@ import {
   hasEnded,
   isEndingSoon,
   isExpiredActive,
+  isStaleDraft,
   matchesPollSearch,
   optionCount,
   optionTexts,
@@ -142,6 +143,14 @@ describe('polls', () => {
     it('does not call a draft expired just because its deadline passed', () => {
       const stale = poll({ status: PollApiStatus.DRAFT, ends_at: '2026-08-19T12:00:00Z' })
       expect(isExpiredActive(stale, now)).toBe(false)
+    })
+
+    it('flags a draft whose deadline is already behind it', () => {
+      const stale = poll({ status: PollApiStatus.DRAFT, ends_at: '2026-08-19T12:00:00Z' })
+      expect(isStaleDraft(stale, now)).toBe(true)
+      expect(isStaleDraft(poll({ status: PollApiStatus.DRAFT }), now)).toBe(false)
+      // A published poll past its deadline is expired, not stale.
+      expect(isStaleDraft(poll({ ends_at: '2026-08-19T12:00:00Z' }), now)).toBe(false)
     })
 
     it('flags a deadline inside the next two days as ending soon', () => {

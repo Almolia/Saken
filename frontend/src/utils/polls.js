@@ -147,6 +147,14 @@ export function isExpiredActive(poll, now = Date.now()) {
   return isActive(poll) && hasEnded(poll, now)
 }
 
+// A draft whose deadline is already behind it is a dead end: publishing it
+// produces an Active poll that refuses every vote, so the date has to be edited
+// first. The server does not stop this — its publish branch validates the
+// request body, and a publish never resends ends_at.
+export function isStaleDraft(poll, now = Date.now()) {
+  return isDraft(poll) && hasEnded(poll, now)
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
 const MINUTE_MS = 60 * 1000

@@ -287,6 +287,18 @@ describe('PollsSection', () => {
     )
   })
 
+  it('warns that publishing a stale draft would produce a poll nobody can answer', async () => {
+    managerPollApi.list.mockResolvedValue({
+      polls: [{ ...draft, ends_at: '2026-08-19T09:00:00Z' }],
+    })
+    renderSection()
+
+    expect(await screen.findByText(/مهلت این پیش‌نویس گذشته است/)).toBeInTheDocument()
+    // The draft is still publishable — the server allows it — so the warning is
+    // what has to carry the consequence.
+    expect(screen.getByRole('button', { name: /^انتشار$/ })).toBeInTheDocument()
+  })
+
   it('warns when an active poll has run past its deadline', async () => {
     managerPollApi.list.mockResolvedValue({
       polls: [{ ...activePoll, ends_at: '2026-08-19T09:00:00Z' }],

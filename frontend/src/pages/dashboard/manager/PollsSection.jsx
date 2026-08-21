@@ -37,6 +37,7 @@ import {
   isDraft,
   isEndingSoon,
   isExpiredActive,
+  isStaleDraft,
   normalizeStatus,
   optionCount,
   optionTexts,
@@ -71,6 +72,7 @@ function MetaItem({ icon: Icon, label, children }) {
 function PollCard({ poll, units, onEdit, onAction }) {
   const options = optionTexts(poll)
   const expired = isExpiredActive(poll)
+  const stale = isStaleDraft(poll)
   const endingSoon = isEndingSoon(poll)
   const targetNames = targetsAllUnits(poll) ? [] : targetUnitNumbers(poll, units)
   const statusHint = pollStatusHints[normalizeStatus(poll.status)]
@@ -105,6 +107,16 @@ function PollCard({ poll, units, onEdit, onAction }) {
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900">
               <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               مهلت رأی‌گیری این نظرسنجی گذشته است و رأی تازه‌ای پذیرفته نمی‌شود. برای نهایی‌شدن نتیجه، آن را ببندید.
+            </p>
+          ) : null}
+
+          {/* Publishing this draft as-is would produce an Active poll that
+              refuses every vote; the server allows it, so the warning is the
+              only thing standing between the manager and a dead poll. */}
+          {stale ? (
+            <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-6 text-amber-900">
+              <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              مهلت این پیش‌نویس گذشته است. اگر همین حالا منتشر شود هیچ ساکنی نمی‌تواند رأی بدهد؛ ابتدا تاریخ پایان را ویرایش کنید.
             </p>
           ) : null}
 
