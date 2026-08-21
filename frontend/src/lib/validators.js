@@ -267,3 +267,70 @@ export function validateAmenity(values) {
 
   return errors
 }
+
+// The poll form. Every rule here has a counterpart on the server: catching a
+// missing option or a deadline in the past before the request is sent keeps the
+// manager's typed answers on screen instead of trading them for a 400.
+export const POLL_TITLE_MAX = 255
+export const POLL_DESCRIPTION_MAX = 4000
+export const POLL_OPTION_MAX = 255
+export const POLL_MIN_OPTIONS = 2
+// Not a server rule. Past a dozen answers a poll stops being answerable at a
+// glance, and the form's own list stops being editable at a glance too.
+export const POLL_MAX_OPTIONS = 12
+
+export function validatePoll(values, { now = Date.now() } = {}) {
+  const errors = {}
+  const title = values.title?.trim() ?? ''
+  const description = values.description?.trim() ?? ''
+  const options = Array.isArray(values.options) ? values.options : []
+
+  if (!title) {
+    errors.title = 'عنوان نظرسنجی الزامی است.'
+  } else if (title.length < 3) {
+    errors.title = 'عنوان نظرسنجی باید حداقل ۳ کاراکتر باشد.'
+  } else if (title.length > POLL_TITLE_MAX) {
+    errors.title = `عنوان نظرسنجی نمی‌تواند بیشتر از ${POLL_TITLE_MAX} کاراکتر باشد.`
+  }
+
+  if (description.length > POLL_DESCRIPTION_MAX) {
+    errors.description = `توضیحات نمی‌تواند بیشتر از ${POLL_DESCRIPTION_MAX} کاراکتر باشد.`
+  }
+
+  // Blank rows are dropped rather than rejected — an untouched extra row is a
+  // manager who changed their mind, not a mistake. Only what is left has to add
+  // up to a usable question.
+  const filled = options.map((option) => option?.trim() ?? '').filter(Boolean)
+
+  options.forEach((option, index) => {
+    const text = option?.trim() ?? ''
+    if (text.length > POLL_OPTION_MAX) {
+      errors[`option_${index}`] = `هر گزینه نمی‌تواند بیشتر از ${POLL_OPTION_MAX} کاراکتر باشد.`
+    }
+  })
+
+  if (filled.length < POLL_MIN_OPTIONS) {
+    errors.options = 'حداقل دو گزینه برای نظرسنجی الزامی است.'
+  } else if (new Set(filled).size !== filled.length) {
+    errors.options = 'گزینه‌های تکراری مجاز نیستند؛ هر گزینه باید متن یکتا داشته باشد.'
+  } else if (filled.length > POLL_MAX_OPTIONS) {
+    errors.options = `حداکثر ${POLL_MAX_OPTIONS} گزینه می‌توانید ثبت کنید.`
+  }
+
+  if (!values.endDate) {
+    errors.endDate = 'تاریخ پایان نظرسنجی الزامی است.'
+  } else {
+    const deadline = new Date(`${values.endDate}T${values.endTime || '23:59'}:00`).getTime()
+    if (Number.isNaN(deadline)) {
+      errors.endDate = 'تاریخ پایان معتبر نیست.'
+    } else if (deadline <= now) {
+      errors.endDate = 'زمان پایان باید در آینده باشد.'
+    }
+  }
+
+  if (!values.targetAll && (values.targetUnitIds?.length ?? 0) === 0) {
+    errors.targetUnitIds = 'حداقل یک واحد را انتخاب کنید یا نظرسنجی را برای همه واحدها منتشر کنید.'
+  }
+
+  return errors
+}
