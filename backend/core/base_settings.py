@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -26,12 +27,43 @@ def unique(values):
             result.append(value)
     return result
 
-SECRET_KEY = os.getenv(
-    "DJANGO_SECRET_KEY",
-    "django-insecure-@y6s=5q57-ign@rp70hkf34y1yu4tt!esk6-!b+fmwgu1410*)",
-)
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = ["*"]
+IS_TESTING = "test" in sys.argv
+
+# SECURITY: the secret key must come from the environment. A fallback value is
+# only tolerated for local development (DEBUG=True) and the test runner, and it
+# is clearly marked as insecure. Production (DEBUG=False) refuses to boot
+# without a real DJANGO_SECRET_KEY instead of silently signing sessions/JWTs
+# with a key that is public on GitHub.
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "").strip()
+if not SECRET_KEY:
+    if DEBUG or IS_TESTING:
+        SECRET_KEY = "django-insecure-dev-only-key-do-not-use-in-production"
+    else:
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY environment variable is required when DJANGO_DEBUG=False."
+        )
+
+# SECURITY: never accept requests for arbitrary Host headers. The list is
+# built from the DJANGO_ALLOWED_HOSTS env var plus safe, known defaults:
+# localhost for development, the Render hostname the backend is deployed on
+# (Render injects RENDER_EXTERNAL_HOSTNAME automatically) and the GitHub
+# Codespaces forwarded host when running in a codespace.
+def build_codespaces_host(port):
+    codespace_name = os.getenv("CODESPACE_NAME", "").strip()
+    forwarding_domain = os.getenv("GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN", "").strip()
+    if not codespace_name or not forwarding_domain:
+        return ""
+    return f"{codespace_name}-{port}.{forwarding_domain}"
+
+
+ALLOWED_HOSTS = unique(
+    get_env_list("DJANGO_ALLOWED_HOSTS")
+    + ["localhost", "127.0.0.1", "[::1]"]
+    + [os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()]
+    + [".onrender.com"]
+    + [build_codespaces_host(8000)]
+)
 
 frontend_local_origins = [
     "http://localhost:5173",
@@ -41,7 +73,17 @@ frontend_codespaces_origin = build_codespaces_origin(5173)
 frontend_extra_origins = get_env_list("FRONTEND_EXTRA_ORIGINS")
 frontend_origins = unique(frontend_local_origins + [frontend_codespaces_origin] + frontend_extra_origins)
 
-CORS_ALLOW_ALL_ORIGINS = True
+# SECURITY: do NOT allow every origin. Only the known frontend origins may
+# talk to the API with credentials: localhost dev servers, the GitHub
+# Codespaces frontend, anything listed in FRONTEND_EXTRA_ORIGINS /
+# CORS_ALLOWED_ORIGINS env vars, and the deployed frontend on Vercel
+# (matched by regex so no frontend env change is required).
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOWED_ORIGINS = unique(frontend_origins + get_env_list("CORS_ALLOWED_ORIGINS"))
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://[a-z0-9-]+(\.[a-z0-9-]+)*\.vercel\.app$",
+    r"^https://[a-z0-9-]+(\.[a-z0-9-]+)*\.onrender\.com$",
+]
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     "accept",
@@ -137,7 +179,25 @@ else:
         }
     }
 
-AUTH_PASSWORD_VALIDATORS = []
+# SECURITY: enforce Django's standard password strength rules. These run both
+# through the DRF serializers (users.validators.validate_password_strength
+# calls django.contrib.auth.password_validation.validate_password) and in the
+# Django admin / management commands.
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 8},
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.CommonPasswordValidator",
+    },
+    {
+        "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
+    },
+]
 
 LANGUAGE_CODE = "fa-ir"
 TIME_ZONE = "Asia/Tehran"

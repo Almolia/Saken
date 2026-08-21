@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { FullscreenLoader } from '../components/ui/FullscreenLoader'
-import { authApi } from '../lib/api'
+import { authApi, hasSessionFlag } from '../lib/api'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { RegisterPage } from '../pages/auth/RegisterPage'
 import { AdminDashboardPage } from '../pages/dashboard/AdminDashboardPage'
@@ -16,6 +16,13 @@ export function AppRoutes() {
   const [authState, setAuthState] = useState({ loading: true, user: null })
 
   const checkAuth = useCallback(async () => {
+    // Performance: the auth cookies are HttpOnly, but we keep a local marker
+    // that is set on login and cleared on logout. When it is absent this
+    // browser has no session, so we skip the /auth/me/ round-trip entirely —
+    // first-time visitors reach the login page instantly instead of waiting
+    // up to ~30s for a cold backend to answer an inevitable 401.
+    if (!hasSessionFlag()) return null
+
     try {
       const data = await authApi.me()
       return data.user

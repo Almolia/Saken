@@ -35,6 +35,34 @@ function inferApiBaseUrl() {
 
 const API_BASE_URL = inferApiBaseUrl()
 
+// A lightweight, non-sensitive marker that tells us whether this browser has
+// ever established a session. The auth cookies themselves are HttpOnly (not
+// readable from JS), so without this flag the app would have to call
+// /auth/me/ on every first paint — which blocks the UI for ~30s when the
+// backend is cold-starting, even for visitors who never logged in.
+const SESSION_FLAG_KEY = 'saken_session_active'
+
+export function hasSessionFlag() {
+  try {
+    return localStorage.getItem(SESSION_FLAG_KEY) === '1'
+  } catch {
+    return true
+  }
+}
+
+export function setSessionFlag(active) {
+  try {
+    if (active) {
+      localStorage.setItem(SESSION_FLAG_KEY, '1')
+    } else {
+      localStorage.removeItem(SESSION_FLAG_KEY)
+    }
+  } catch {
+    // Storage unavailable (private mode etc.) — the app still works, it just
+    // falls back to always checking /auth/me/ on load.
+  }
+}
+
 function getCookie(name) {
   const value = `; ${document.cookie}`
   const parts = value.split(`; ${name}=`)
@@ -122,27 +150,46 @@ async function request(path, options = {}) {
 
 export const authApi = {
   register(payload) {
+    // SECURITY: the confirmation field is validated client-side; never send
+    // the plaintext password twice over the wire.
+    const safePayload = { ...payload }
+    delete safePayload.password_confirmation
     return request('/auth/register/', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(safePayload),
     })
   },
-  login(payload) {
-    return request('/auth/login/', {
+  async login(payload) {
+    const data = await request('/auth/login/', {
       method: 'POST',
       body: JSON.stringify(payload),
     })
+    setSessionFlag(true)
+    return data
   },
-  logout() {
-    return request('/auth/logout/', {
-      method: 'POST',
-      cache: 'no-store',
-    })
+  async logout() {
+    try {
+      return await request('/auth/logout/', {
+        method: 'POST',
+        cache: 'no-store',
+      })
+    } finally {
+      setSessionFlag(false)
+    }
   },
-  me() {
-    return request('/auth/me/', {
-      cache: 'no-store',
-    })
+  async me() {
+    try {
+      const data = await request('/auth/me/', {
+        cache: 'no-store',
+      })
+      setSessionFlag(true)
+      return data
+    } catch (error) {
+      if (error.status === 401 || error.status === 403) {
+        setSessionFlag(false)
+      }
+      throw error
+    }
   },
   updateProfile(payload) {
     return request('/auth/profile/', {

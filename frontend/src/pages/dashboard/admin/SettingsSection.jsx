@@ -35,8 +35,8 @@ export function SettingsSection({ user, profileForm }) {
             </div>
             <div className="grid gap-5 md:grid-cols-3">
               <PasswordField label="رمز فعلی" name="current_password" value={profileForm.values.current_password} onChange={profileForm.handleChange} error={profileForm.errors.current_password} placeholder="رمز فعلی" showPassword={showCurrentPassword} onToggle={() => setShowCurrentPassword((current) => !current)} />
-              <PasswordField label="رمز جدید" name="new_password" value={profileForm.values.new_password} onChange={profileForm.handleChange} error={profileForm.errors.new_password} placeholder="Abcd1234" showPassword={showNewPassword} onToggle={() => setShowNewPassword((current) => !current)} showStrength />
-              <PasswordField label="تکرار رمز جدید" name="new_password_confirmation" value={profileForm.values.new_password_confirmation} onChange={profileForm.handleChange} error={profileForm.errors.new_password_confirmation} placeholder="Abcd1234" showPassword={showNewPasswordConfirmation} onToggle={() => setShowNewPasswordConfirmation((current) => !current)} />
+              <PasswordField label="رمز جدید" name="new_password" value={profileForm.values.new_password} onChange={profileForm.handleChange} error={profileForm.errors.new_password} showPassword={showNewPassword} onToggle={() => setShowNewPassword((current) => !current)} showStrength />
+              <PasswordField label="تکرار رمز جدید" name="new_password_confirmation" value={profileForm.values.new_password_confirmation} onChange={profileForm.handleChange} error={profileForm.errors.new_password_confirmation} showPassword={showNewPasswordConfirmation} onToggle={() => setShowNewPasswordConfirmation((current) => !current)} />
             </div>
           </div>
 

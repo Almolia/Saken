@@ -101,8 +101,8 @@ class ServiceStaffRoleAssignmentTests(TestCase):
             'username': 'new-service',
             'phone': '09123335555',
             'national_id': '1234567804',
-            'password': 'Abcd1234',
-            'password_confirmation': 'Abcd1234',
+            'password': 'Khadamat1234',
+            'password_confirmation': 'Khadamat1234',
         }
         register_response = self.client.post('/api/auth/register/', payload, format='json')
         self.assertEqual(register_response.status_code, 201)

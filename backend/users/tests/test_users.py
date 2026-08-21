@@ -50,8 +50,8 @@ class AuthenticationTests(TestCase):
             'username': 'ali-rezaei',
             'phone': '09123334444',
             'national_id': '1234567892',
-            'password': 'Abcd1234',
-            'password_confirmation': 'Abcd1234',
+            'password': 'Rezaei1234',
+            'password_confirmation': 'Rezaei1234',
         }
         response = self.client.post('/api/auth/register/', payload, format='json')
         self.assertEqual(response.status_code, 201)
@@ -67,6 +67,40 @@ class AuthenticationTests(TestCase):
         }
         response = self.client.post('/api/auth/register/', payload, format='json')
         self.assertEqual(response.status_code, 400)
+
+    def test_register_rejects_common_password(self):
+        payload = {
+            'full_name': 'علی رضایی',
+            'phone': '09123334444',
+            'national_id': '1234567892',
+            'password': 'Abcd1234',
+            'password_confirmation': 'Abcd1234',
+        }
+        response = self.client.post('/api/auth/register/', payload, format='json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_register_works_without_password_confirmation(self):
+        payload = {
+            'full_name': 'نگار تست',
+            'phone': '09123336666',
+            'national_id': '1234567894',
+            'password': 'Rezaei1234',
+        }
+        response = self.client.post('/api/auth/register/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(User.objects.filter(phone='09123336666').exists())
+
+    def test_register_rejects_mismatched_password_confirmation(self):
+        payload = {
+            'full_name': 'نگار تست',
+            'phone': '09123337777',
+            'national_id': '1234567895',
+            'password': 'Rezaei1234',
+            'password_confirmation': 'Rezaei12345',
+        }
+        response = self.client.post('/api/auth/register/', payload, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(User.objects.filter(phone='09123337777').exists())
 
     def test_login_with_username_phone_or_national_id(self):
         for login_value in ['resident', '09121111111', '1234567891']:

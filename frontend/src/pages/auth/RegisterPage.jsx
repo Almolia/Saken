@@ -47,8 +47,8 @@ export function RegisterPage({ authState }) {
             <InputField label="نام کاربری" optional name="username" type="text" value={form.values.username} onChange={form.handleChange} error={form.errors.username} placeholder="ali_rezaei" helper="اگر خالی بماند، شماره موبایل به عنوان نام کاربری ثبت می‌شود." />
             <InputField label="شماره موبایل" name="phone" type="tel" value={form.values.phone} onChange={form.handleChange} error={form.errors.phone} placeholder="09120000000" />
             <InputField label="کد ملی" name="national_id" type="text" value={form.values.national_id} onChange={form.handleChange} error={form.errors.national_id} placeholder="0012345678" />
-            <PasswordField label="گذرواژه" name="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} placeholder="Abcd1234" showPassword={showPassword} onToggle={() => setShowPassword((current) => !current)} showStrength />
-            <PasswordField label="تکرار گذرواژه" name="password_confirmation" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} placeholder="Abcd1234" showPassword={showPasswordConfirmation} onToggle={() => setShowPasswordConfirmation((current) => !current)} />
+            <PasswordField label="گذرواژه" name="password" value={form.values.password} onChange={form.handleChange} error={form.errors.password} showPassword={showPassword} onToggle={() => setShowPassword((current) => !current)} showStrength />
+            <PasswordField label="تکرار گذرواژه" name="password_confirmation" value={form.values.password_confirmation} onChange={form.handleChange} error={form.errors.password_confirmation} showPassword={showPasswordConfirmation} onToggle={() => setShowPasswordConfirmation((current) => !current)} />
           </div>
           <ServerError error={form.serverError} />
           <PrimaryButton loading={form.loading}>ایجاد حساب کاربری</PrimaryButton>

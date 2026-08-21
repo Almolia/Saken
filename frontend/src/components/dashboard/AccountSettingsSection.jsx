@@ -131,7 +131,7 @@ export function AccountSettingsSection({
                 value={profileForm.values.new_password}
                 onChange={profileForm.handleChange}
                 error={profileForm.errors.new_password}
-                placeholder="Abcd1234"
+               
                 showPassword={showNewPassword}
                 onToggle={() => setShowNewPassword((current) => !current)}
                 showStrength
@@ -142,7 +142,7 @@ export function AccountSettingsSection({
                 value={profileForm.values.new_password_confirmation}
                 onChange={profileForm.handleChange}
                 error={profileForm.errors.new_password_confirmation}
-                placeholder="Abcd1234"
+               
                 showPassword={showNewPasswordConfirmation}
                 onToggle={() => setShowNewPasswordConfirmation((current) => !current)}
               />

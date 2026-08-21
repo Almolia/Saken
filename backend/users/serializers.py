@@ -26,7 +26,13 @@ class UserSerializer(serializers.ModelSerializer):
 class RegisterSerializer(serializers.ModelSerializer):
     username = serializers.CharField(required=False, allow_blank=True, max_length=150)
     password = serializers.CharField(write_only=True, min_length=8, max_length=128)
-    password_confirmation = serializers.CharField(write_only=True, min_length=8, max_length=128)
+    # SECURITY: the confirmation check is a UX concern handled client-side, so
+    # the plaintext password should not be transmitted twice. The field stays
+    # optional for backwards compatibility: when a client does send it, a
+    # mismatch is still rejected.
+    password_confirmation = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, max_length=128
+    )
 
     class Meta:
         model = User
@@ -45,14 +51,15 @@ class RegisterSerializer(serializers.ModelSerializer):
         return validate_password_strength(value)
 
     def validate(self, attrs):
-        if attrs["password"] != attrs["password_confirmation"]:
+        confirmation = attrs.get("password_confirmation")
+        if confirmation not in (None, "") and attrs["password"] != confirmation:
             raise serializers.ValidationError(
                 {"password_confirmation": ValidationMessages.PASSWORD_CONFIRMATION_MISMATCH}
             )
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop("password_confirmation")
+        validated_data.pop("password_confirmation", None)
         password = validated_data.pop("password")
         username = validated_data.pop("username", "") or validated_data["phone"]
         user = User(**validated_data, username=username)
