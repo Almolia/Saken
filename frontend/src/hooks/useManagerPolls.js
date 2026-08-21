@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { managerApi } from '../lib/api'
 import { managerPollApi } from '../lib/pollApi'
 import { filterPolls, sortPolls, summarizePolls } from '../utils/polls'
@@ -31,6 +31,10 @@ function errorMessage(error, fallback) {
  * units it targets, and both the list and the form need their unit numbers.
  */
 export function useManagerPolls() {
+  // Whether a read has ever completed. A ref rather than state because it only
+  // decides how the next read presents itself — blanking the list on the first
+  // load, spinning the refresh button on every later one.
+  const hasLoaded = useRef(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [status, setStatus] = useState('all')
   const [search, setSearch] = useState('')
@@ -47,13 +51,14 @@ export function useManagerPolls() {
 
   useEffect(() => {
     let active = true
+    // A manual refresh keeps the current rows on screen; only the first read is
+    // allowed to blank the list.
+    const isInitialLoad = !hasLoaded.current
 
     setState((current) => ({
       ...current,
-      // A manual refresh keeps the current rows on screen; only the first read
-      // is allowed to blank the list.
-      loading: current.polls.length === 0,
-      refreshing: current.polls.length > 0,
+      loading: isInitialLoad,
+      refreshing: !isInitialLoad,
       error: '',
     }))
 
@@ -61,6 +66,7 @@ export function useManagerPolls() {
       .list()
       .then((data) => {
         if (!active) return
+        hasLoaded.current = true
         setState({
           polls: sortPolls(normalizePolls(data)),
           loading: false,

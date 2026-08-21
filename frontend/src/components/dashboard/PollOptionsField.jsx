@@ -39,7 +39,6 @@ export function PollOptionsField({ options, onChange, error = '', disabled = fal
         {options.map((option, index) => (
           // The list is reordered in place, so an index key is what keeps a row
           // and its typed text together while it moves.
-          // eslint-disable-next-line react/no-array-index-key
           <li key={index} className="flex items-center gap-2">
             <span
               className="flex h-11 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xs font-black text-slate-500"
