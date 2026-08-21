@@ -1,11 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
-from rest_framework.test import APIClient
-
-from buildings.models import Unit
-from users.models import UserRole
 from polls.models import Poll, PollStatus
+from rest_framework.test import APIClient
 
 User = get_user_model()
 
@@ -196,7 +194,7 @@ class PollAuthorizationTests(TestCase):
         poll.refresh_from_db()
         self.assertEqual(poll.title, 'نظرسنجی تست')
 
-    def test_manager_can_access_all_endpoints(self):
+    def test_manager_can_access_all_manager_endpoints(self):
         """Assert a Manager can access all poll endpoints."""
         self.login_as('auth-manager', 'Manager123')
 
@@ -255,6 +253,15 @@ class PollAuthorizationTests(TestCase):
 
         poll.refresh_from_db()
         self.assertEqual(poll.status, PollStatus.CLOSED)
+
+    def test_manager_receives_403_on_resident_poll_vote(self):
+        vote_url = reverse("resident-poll-vote", kwargs={"pk": 1})
+
+        self.client.force_authenticate(user=self.manager)
+
+        response = self.client.post(vote_url, {}, format="json")
+
+        self.assertEqual(response.status_code, 403)
 
 
 class PollManagerListTests(TestCase):
