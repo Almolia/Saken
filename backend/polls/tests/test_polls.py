@@ -1,11 +1,10 @@
+from buildings.models import Unit
 from django.contrib.auth import get_user_model
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
+from polls.models import Poll, PollStatus, PollOption, Vote
 from rest_framework.test import APIClient
-
-from buildings.models import Unit
-from users.models import UserRole
-from polls.models import Poll, PollStatus
 
 User = get_user_model()
 
@@ -457,3 +456,170 @@ class PollListDetailTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.data['detail'], 'نظرسنجی مورد نظر یافت نشد.')
+
+
+class ResidentPollVotingTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+        self.manager = User.objects.create_user(
+            phone="09120000000",
+            username="poll-manager",
+            full_name="مدیر ساختمان",
+            national_id="1234567890",
+            password="Manager123",
+            role="manager",
+        )
+
+        self.user_a = User.objects.create_user(
+            phone="09121111111",
+            username="resident-a",
+            full_name="سارا احمدی",
+            national_id="1234567891",
+            password="Resident123",
+            role="resident",
+        )
+
+        self.user_b = User.objects.create_user(
+            phone="09122222222",
+            username="resident-b",
+            full_name="علی رضایی",
+            national_id="1234567892",
+            password="Resident123",
+            role="resident",
+        )
+
+        self.unit_a = Unit.objects.create(
+            owner=self.user_a,
+            unit_number="101",
+            floor=1,
+            area="80.00",
+        )
+
+        self.unit_b = Unit.objects.create(
+            owner=self.user_b,
+            unit_number="102",
+            floor=1,
+            area="85.00",
+        )
+
+        self.future_ends_at = timezone.now() + timezone.timedelta(days=7)
+
+        self.poll = Poll.objects.create(
+            title="نظرسنجی تست",
+            description="توضیحات تست",
+            status=PollStatus.ACTIVE,
+            starts_at=timezone.now() - timezone.timedelta(hours=1),
+            ends_at=self.future_ends_at,
+            created_by=self.manager,
+        )
+
+        self.poll.target_units.add(self.unit_a)
+
+        self.option_1 = PollOption.objects.create(
+            poll=self.poll,
+            text="گزینه اول",
+            position=0,
+        )
+
+        self.option_2 = PollOption.objects.create(
+            poll=self.poll,
+            text="گزینه دوم",
+            position=1,
+        )
+
+        self.poll_list_url = reverse("resident-polls")
+        self.vote_url = reverse("resident-poll-vote", kwargs={"pk": self.poll.id})
+
+    def test_resident_can_vote_for_active_targeted_poll(self):
+        self.client.force_authenticate(user=self.user_a)
+
+        payload = {"option_id": self.option_1.id}
+
+        response = self.client.post(self.vote_url, payload, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Vote.objects.filter(poll=self.poll, resident=self.user_a).count(), 1)
+
+        vote = Vote.objects.get(poll=self.poll, resident=self.user_a)
+        self.assertEqual(vote.option, self.option_1)
+
+    def test_resident_cannot_vote_twice_on_same_poll(self):
+        self.client.force_authenticate(user=self.user_a)
+
+        payload = {"option_id": self.option_1.id}
+
+        first_response = self.client.post(self.vote_url, payload, format="json")
+        self.assertEqual(first_response.status_code, 201)
+
+        original_vote = Vote.objects.get(poll=self.poll, resident=self.user_a)
+
+        payload = {"option_id": self.option_2.id}
+
+        second_response = self.client.post(self.vote_url, payload, format="json")
+
+        self.assertEqual(second_response.status_code, 400)
+        self.assertEqual(Vote.objects.filter(poll=self.poll, resident=self.user_a).count(), 1)
+
+        original_vote.refresh_from_db()
+        self.assertEqual(original_vote.option, self.option_1)
+
+    def test_resident_cannot_vote_on_inactive_poll(self):
+        for status in [PollStatus.DRAFT, PollStatus.CLOSED]:
+            self.poll.status = status
+            self.poll.save(update_fields=["status"])
+
+            self.client.force_authenticate(user=self.user_a)
+
+            payload = {"option_id": self.option_1.id}
+
+            response = self.client.post(self.vote_url, payload, format="json")
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(Vote.objects.filter(poll=self.poll).count(), 0)
+
+    def test_resident_cannot_vote_on_expired_poll(self):
+        self.poll.ends_at = timezone.now() - timezone.timedelta(minutes=1)
+        self.poll.save(update_fields=["ends_at"])
+
+        self.client.force_authenticate(user=self.user_a)
+
+        payload = {"option_id": self.option_1.id}
+
+        response = self.client.post(self.vote_url, payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Vote.objects.filter(poll=self.poll).count(), 0)
+
+    def test_resident_cannot_vote_on_poll_not_targeting_their_unit(self):
+        self.poll.target_units.clear()
+        self.poll.target_units.add(self.unit_b)
+
+        self.client.force_authenticate(user=self.user_a)
+
+        payload = {"option_id": self.option_1.id}
+
+        response = self.client.post(self.vote_url, payload, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Vote.objects.filter(poll=self.poll, resident=self.user_a).count(), 0)
+
+    def test_resident_poll_list_does_not_expose_other_residents_votes(self):
+        Vote.objects.create(
+            poll=self.poll,
+            option=self.option_2,
+            resident=self.user_b,
+        )
+
+        self.client.force_authenticate(user=self.user_a)
+
+        response = self.client.get(self.poll_list_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["polls"]), 1)
+
+        poll_data = response.data["polls"][0]
+
+        self.assertEqual(poll_data["id"], self.poll.id)
+        self.assertFalse(poll_data["has_voted"])
+        self.assertIsNone(poll_data["selected_option_id"])

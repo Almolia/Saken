@@ -1,8 +1,8 @@
+from buildings.models import Unit
+from common.constants import PollMessages
 from django.utils import timezone
 from rest_framework import serializers
 
-from buildings.models import Unit
-from .constants import PollMessages
 from .models import Poll, PollOption, PollStatus
 
 
@@ -45,6 +45,34 @@ class PollSerializer(serializers.ModelSerializer):
         if obj.target_units.exists():
             return obj.target_units.count()
         return Unit.objects.count()
+
+
+class ResidentPollSerializer(serializers.ModelSerializer):
+    options = PollOptionSerializer(many=True, read_only=True)
+    has_voted = serializers.SerializerMethodField()
+    selected_option_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Poll
+        fields = [
+            "id",
+            "title",
+            "description",
+            "starts_at",
+            "ends_at",
+            "options",
+            "has_voted",
+            "selected_option_id",
+        ]
+
+    def get_has_voted(self, obj):
+        resident = self.context["resident"]
+        return obj.votes.filter(resident=resident).exists()
+
+    def get_selected_option_id(self, obj):
+        resident = self.context["resident"]
+        vote = obj.votes.filter(resident=resident).first()
+        return vote.option_id if vote else None
 
 
 class PollCreateSerializer(serializers.Serializer):
@@ -164,3 +192,9 @@ class PollUpdateSerializer(serializers.Serializer):
                 )
 
         return attrs
+
+
+class VoteCreateSerializer(serializers.Serializer):
+    option_id = serializers.PrimaryKeyRelatedField(
+        queryset=PollOption.objects.all(),
+    )
