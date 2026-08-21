@@ -47,6 +47,7 @@ class ManagerPollDetailView(APIView):
     """
     GET: Get a single poll with nested options.
     PATCH: Update a Draft poll, publish it as Active, or close an Active poll.
+    DELETE: Discard a Draft poll that was never published.
     """
     permission_classes = [IsManagerOrAdmin]
 
@@ -174,6 +175,30 @@ class ManagerPollDetailView(APIView):
         return Response(
             {"detail": "تغییر وضعیت درخواستی معتبر نیست."},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def delete(self, request, pk):
+        poll = self.get_object(pk)
+        if not poll:
+            return Response(
+                {"detail": PollMessages.POLL_NOT_FOUND},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Only a Draft is discardable. An Active poll may already hold votes and
+        # a Closed one is the record of a building decision, so both are kept and
+        # a manager who wants an Active poll gone closes it instead.
+        if poll.status != PollStatus.DRAFT:
+            return Response(
+                {"detail": PollMessages.ONLY_DRAFT_CAN_BE_DELETED},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        poll.delete()
+
+        return Response(
+            {"message": PollMessages.POLL_DELETED},
+            status=status.HTTP_200_OK,
         )
 
 

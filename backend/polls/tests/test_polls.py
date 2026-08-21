@@ -623,3 +623,92 @@ class ResidentPollVotingTests(TestCase):
         self.assertEqual(poll_data["id"], self.poll.id)
         self.assertFalse(poll_data["has_voted"])
         self.assertIsNone(poll_data["selected_option_id"])
+
+
+class PollDeletionTests(TestCase):
+    """Tests for discarding a Draft poll via the manager API endpoint."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.manager = User.objects.create_user(
+            phone='09120000002',
+            username='delete-manager',
+            full_name='مدیر ساختمان',
+            national_id='1234567894',
+            password='Manager123',
+            role='manager',
+            is_staff=True,
+        )
+        self.future_end = timezone.now() + timezone.timedelta(days=7)
+        self.starts_at = timezone.now() + timezone.timedelta(hours=1)
+
+    def login_as_manager(self):
+        response = self.client.post(
+            '/api/auth/login/',
+            {'login': 'delete-manager', 'password': 'Manager123'},
+            format='json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.client.cookies = response.cookies
+
+    def create_poll(self, status=PollStatus.DRAFT):
+        poll = Poll.objects.create(
+            title='نظرسنجی تست حذف',
+            description='توضیحات',
+            status=status,
+            starts_at=self.starts_at,
+            ends_at=self.future_end,
+            created_by=self.manager,
+        )
+        PollOption.objects.create(poll=poll, text='گزینه اول', position=0)
+        PollOption.objects.create(poll=poll, text='گزینه دوم', position=1)
+        return poll
+
+    def test_manager_can_delete_draft_poll(self):
+        """A Draft poll was never visible to residents, so it can be discarded."""
+        self.login_as_manager()
+        poll = self.create_poll(status=PollStatus.DRAFT)
+
+        response = self.client.delete(f'/api/manager/polls/{poll.id}/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['message'], 'نظرسنجی با موفقیت حذف شد.')
+        self.assertFalse(Poll.objects.filter(pk=poll.id).exists())
+
+    def test_deleting_a_draft_removes_its_options(self):
+        """The options belong to the poll and must not outlive it."""
+        self.login_as_manager()
+        poll = self.create_poll(status=PollStatus.DRAFT)
+
+        self.client.delete(f'/api/manager/polls/{poll.id}/')
+
+        self.assertEqual(PollOption.objects.filter(poll_id=poll.id).count(), 0)
+
+    def test_active_poll_cannot_be_deleted(self):
+        """An Active poll may already hold votes; it is closed rather than deleted."""
+        self.login_as_manager()
+        poll = self.create_poll(status=PollStatus.ACTIVE)
+
+        response = self.client.delete(f'/api/manager/polls/{poll.id}/')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('پیش‌نویس', response.data['detail'])
+        self.assertTrue(Poll.objects.filter(pk=poll.id).exists())
+
+    def test_closed_poll_cannot_be_deleted(self):
+        """A Closed poll is the record of a building decision and is kept."""
+        self.login_as_manager()
+        poll = self.create_poll(status=PollStatus.CLOSED)
+
+        response = self.client.delete(f'/api/manager/polls/{poll.id}/')
+
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(Poll.objects.filter(pk=poll.id).exists())
+
+    def test_deleting_a_missing_poll_returns_404(self):
+        self.login_as_manager()
+
+        response = self.client.delete('/api/manager/polls/999999/')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.data['detail'], 'نظرسنجی مورد نظر یافت نشد.')

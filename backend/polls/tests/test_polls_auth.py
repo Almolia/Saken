@@ -194,6 +194,40 @@ class PollAuthorizationTests(TestCase):
         poll.refresh_from_db()
         self.assertEqual(poll.title, 'نظرسنجی تست')
 
+    def test_resident_receives_403_on_poll_delete(self):
+        """Assert a Resident receives 403 Forbidden when calling the delete endpoint."""
+        poll = Poll.objects.create(
+            title='نظرسنجی تست',
+            description='توضیحات',
+            status=PollStatus.DRAFT,
+            ends_at=self.future_end,
+            created_by=self.manager,
+        )
+
+        self.login_as('auth-resident', 'Resident123')
+
+        response = self.client.delete(f'/api/manager/polls/{poll.id}/')
+        self.assertEqual(response.status_code, 403)
+
+        self.assertTrue(Poll.objects.filter(pk=poll.id).exists())
+
+    def test_service_staff_receives_403_on_poll_delete(self):
+        """Assert a Service Staff user receives 403 Forbidden when calling the delete endpoint."""
+        poll = Poll.objects.create(
+            title='نظرسنجی تست',
+            description='توضیحات',
+            status=PollStatus.DRAFT,
+            ends_at=self.future_end,
+            created_by=self.manager,
+        )
+
+        self.login_as('auth-staff', 'Service123')
+
+        response = self.client.delete(f'/api/manager/polls/{poll.id}/')
+        self.assertEqual(response.status_code, 403)
+
+        self.assertTrue(Poll.objects.filter(pk=poll.id).exists())
+
     def test_manager_can_access_all_manager_endpoints(self):
         """Assert a Manager can access all poll endpoints."""
         self.login_as('auth-manager', 'Manager123')
