@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { ToastProvider } from '../../components/ToastProvider'
 import { authApi, managerApi } from '../../lib/api'
 import { managerMessageApi } from '../../lib/messagingApi'
+import { managerPollApi } from '../../lib/pollApi'
 import { ManagerDashboardPage } from './ManagerDashboardPage'
 
 const navigateMock = vi.fn()
@@ -23,6 +24,17 @@ vi.mock('../../lib/api', () => ({
   managerApi: {
     announcements: vi.fn(),
     units: vi.fn(),
+  },
+}))
+
+vi.mock('../../lib/pollApi', () => ({
+  managerPollApi: {
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    publish: vi.fn(),
+    close: vi.fn(),
+    remove: vi.fn(),
   },
 }))
 
@@ -202,6 +214,26 @@ describe('ManagerDashboardPage', () => {
     managerApi.units?.mockResolvedValue?.({ units: [] })
     managerMessageApi.list.mockReset()
     managerMessageApi.list.mockResolvedValue({ conversations: [], unread_total: 0 })
+    managerPollApi.list.mockReset()
+    managerPollApi.list.mockResolvedValue({
+      polls: [
+        {
+          id: 1,
+          title: 'رنگ نمای جدید ساختمان کدام باشد؟',
+          description: 'نما امسال بازسازی می‌شود.',
+          status: 'Draft',
+          starts_at: null,
+          ends_at: '2026-09-06T20:30:00Z',
+          target_units: [],
+          options: [
+            { id: 1, text: 'کرم', position: 0 },
+            { id: 2, text: 'خاکستری', position: 1 },
+          ],
+          created_by_name: 'مدیر ساختمان',
+          created_at: '2026-08-10T09:00:00Z',
+        },
+      ],
+    })
     managerApi.announcements.mockResolvedValue({
       announcements: [
         {
@@ -229,6 +261,7 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getAllByText('امکانات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش رزرو امکانات').length).toBeGreaterThan(0)
     expect(screen.getAllByText('اطلاعیه‌ها').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('نظرسنجی‌ها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('پیام‌ها').length).toBeGreaterThan(0)
     expect(screen.getAllByText('امور مالی').length).toBeGreaterThan(0)
     expect(screen.getAllByText('گزارش مالی').length).toBeGreaterThan(0)
@@ -324,6 +357,23 @@ describe('ManagerDashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'اطلاعیه‌ها', level: 1 })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'انتشار اطلاعیه جدید' })).toBeInTheDocument()
     expect(await screen.findByText('قطع آب ساختمان')).toBeInTheDocument()
+  })
+
+  it('switches to the Polls section and lists the building polls', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getAllByText('نظرسنجی‌ها')[0])
+
+    expect(screen.getByRole('heading', { name: 'نظرسنجی‌ها', level: 1 })).toBeInTheDocument()
+    expect(screen.getByText('نظرسنجی‌های ساختمان')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ایجاد نظرسنجی جدید' })).toBeInTheDocument()
+    expect(await screen.findByText('رنگ نمای جدید ساختمان کدام باشد؟')).toBeInTheDocument()
+
+    const polls = within(screen.getByRole('list', { name: 'نظرسنجی‌های ساختمان' }))
+    expect(polls.getByText('پیش‌نویس')).toBeInTheDocument()
+    expect(polls.getByText('2 گزینه')).toBeInTheDocument()
+    expect(polls.getByText('همه واحدها')).toBeInTheDocument()
   })
 
   it('switches to the Messages section and offers the broadcast action', async () => {

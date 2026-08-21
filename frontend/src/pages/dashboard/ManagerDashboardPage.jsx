@@ -11,6 +11,7 @@ import {
   PieChart,
   Receipt,
   ShieldCheck,
+  Vote,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -29,6 +30,7 @@ import { AnnouncementsSection } from './manager/AnnouncementsSection'
 import { BuildingSettingsSection } from './manager/BuildingSettingsSection'
 import { FinancialsSection } from './manager/FinancialsSection'
 import { MessagesSection } from './manager/MessagesSection'
+import { PollsSection } from './manager/PollsSection'
 import { ReportsSection } from './manager/ReportsSection'
 import { ServiceReportsSection } from './manager/ServiceReportsSection'
 import { ServiceRequestsSection } from './manager/ServiceRequestsSection'
@@ -43,6 +45,7 @@ const sectionTitles = {
   amenities: 'امکانات',
   amenityReports: 'گزارش رزرو امکانات',
   announcements: 'اطلاعیه‌ها',
+  polls: 'نظرسنجی‌ها',
   messages: 'پیام‌ها',
   financials: 'امور مالی',
   reports: 'گزارش مالی',
@@ -109,6 +112,12 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               label="اطلاعیه‌ها"
               active={activeSection === 'announcements'}
               onClick={() => setActiveSection('announcements')}
+            />
+            <SideNavItem
+              icon={Vote}
+              label="نظرسنجی‌ها"
+              active={activeSection === 'polls'}
+              onClick={() => setActiveSection('polls')}
             />
             <SideNavItem
               icon={MessagesSquare}
@@ -205,6 +214,11 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
                 label="اطلاعیه‌ها"
               />
               <MobileTab
+                active={activeSection === 'polls'}
+                onClick={() => setActiveSection('polls')}
+                label="نظرسنجی‌ها"
+              />
+              <MobileTab
                 active={activeSection === 'messages'}
                 onClick={() => setActiveSection('messages')}
                 label="پیام‌ها"
@@ -248,6 +262,8 @@ export function ManagerDashboardPage({ authState, setAuthState }) {
               <AmenityReportsSection />
             ) : activeSection === 'announcements' ? (
               <AnnouncementsSection />
+            ) : activeSection === 'polls' ? (
+              <PollsSection />
             ) : activeSection === 'messages' ? (
               <MessagesSection
                 conversations={messages.conversations}
