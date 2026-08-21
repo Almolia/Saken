@@ -1,11 +1,17 @@
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
 from users.permissions import IsManagerOrAdmin
-from .constants import PollMessages
+
 from .models import Poll, PollOption, PollStatus
-from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSerializer
+from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSerializer, ResidentPollSerializer, \
+    VoteCreateSerializer
+from .services import cast_vote
+from ..buildings.models import Unit
+from ..common.constants import PollMessages
+from ..users.permissions import IsResident
 
 
 class ManagerPollListCreateView(APIView):
@@ -169,3 +175,51 @@ class ManagerPollDetailView(APIView):
             {"detail": "تغییر وضعیت درخواستی معتبر نیست."},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+class ResidentPollListView(APIView):
+    permission_classes = [IsResident]
+
+    def get(self, request):
+        resident = request.user
+        unit_ids = Unit.objects.filter(owner=resident).values_list("id", flat=True)
+
+        polls = (
+            Poll.objects
+            .filter(status=PollStatus.ACTIVE, ends_at__gte=timezone.now())
+            .filter(Q(target_units__isnull=True) | Q(target_units__in=unit_ids))
+            .prefetch_related("options", "target_units")
+            .order_by("ends_at", "id")
+            .distinct()
+        )
+
+        serializer = ResidentPollSerializer(
+            polls,
+            many=True,
+            context={"resident": resident},
+        )
+
+        return Response({"polls": serializer.data})
+
+
+class ResidentPollVoteView(APIView):
+    permission_classes = [IsResident]
+
+    def post(self, request, pk):
+        try:
+            poll = Poll.objects.get(pk=pk)
+        except Poll.DoesNotExist:
+            return Response({"detail": PollMessages.POLL_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = VoteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        option = serializer.validated_data["option_id"]
+
+        cast_vote(
+            poll=poll,
+            option=option,
+            resident=request.user,
+        )
+
+        return Response({"message": PollMessages.VOTE_SUCCESS}, status=status.HTTP_201_CREATED)

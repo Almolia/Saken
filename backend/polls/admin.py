@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Poll, PollOption
+from .models import Poll, PollOption, Vote
 
 
 class PollOptionInline(admin.TabularInline):
@@ -24,3 +24,15 @@ class PollOptionAdmin(admin.ModelAdmin):
     list_display = ["poll", "text", "position"]
     list_filter = ["poll__status"]
     search_fields = ["poll__title", "text"]
+
+
+@admin.register(Vote)
+class VoteAdmin(admin.ModelAdmin):
+    list_display = ["poll", "option", "resident", "created_at"]
+    list_filter = ["poll", "created_at"]
+    search_fields = [
+        "poll__title",
+        "option__text",
+        "resident__full_name",
+    ]
+    readonly_fields = ["created_at"]
