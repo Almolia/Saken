@@ -92,11 +92,18 @@ export function optionCount(poll) {
   return Array.isArray(poll?.options) ? poll.options.length : 0
 }
 
-export function optionTexts(poll) {
+// The options in the order the manager arranged them. The API sorts by position
+// already, but a poll that came back from a write endpoint is worth re-sorting
+// rather than trusting.
+export function pollOptions(poll) {
   if (!Array.isArray(poll?.options)) return []
-  return [...poll.options]
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || (a.id ?? 0) - (b.id ?? 0))
-    .map((option) => option.text)
+  return [...poll.options].sort(
+    (a, b) => (a.position ?? 0) - (b.position ?? 0) || (a.id ?? 0) - (b.id ?? 0),
+  )
+}
+
+export function optionTexts(poll) {
+  return pollOptions(poll).map((option) => option.text)
 }
 
 // An empty target list means the poll reaches the whole building — that is the
@@ -127,6 +134,17 @@ export function targetUnitNumbers(poll, units = []) {
     const unit = byId.get(id)
     return unit ? `واحد ${unit.unit_number}` : `#${id}`
   })
+}
+
+// A resident sees only their own answer: the endpoint reports whether *this*
+// resident has voted and which option they chose, and says nothing about anyone
+// else's vote.
+export function hasVoted(poll) {
+  return Boolean(poll?.has_voted)
+}
+
+export function selectedOptionId(poll) {
+  return poll?.selected_option_id ?? null
 }
 
 function toTime(value) {
@@ -199,6 +217,23 @@ export function sortPolls(polls = []) {
     if (created !== 0) return created
     return (b?.id ?? 0) - (a?.id ?? 0)
   })
+}
+
+// The resident list is served by deadline, soonest first — the poll about to
+// close is the one worth answering now — and the order is reapplied locally so
+// a card updated in place cannot drift out of it.
+export function sortResidentPolls(polls = []) {
+  return [...polls].sort((a, b) => {
+    const ends = (toTime(a?.ends_at) ?? Infinity) - (toTime(b?.ends_at) ?? Infinity)
+    if (ends !== 0) return ends
+    return (a?.id ?? 0) - (b?.id ?? 0)
+  })
+}
+
+// What the sidebar badge counts: polls still waiting for this resident's vote.
+// An expired one is not waiting for anything, so it is left out.
+export function pendingVoteCount(polls = [], now = Date.now()) {
+  return polls.filter((poll) => !hasVoted(poll) && !hasEnded(poll, now)).length
 }
 
 export function summarizePolls(polls = []) {

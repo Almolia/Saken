@@ -9,6 +9,7 @@ import {
   LogOut,
   MessagesSquare,
   UserRound,
+  Vote,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { AccountSettingsSection } from '../../components/dashboard/AccountSettingsSection'
@@ -18,6 +19,7 @@ import { PaymentHistoryList } from '../../components/dashboard/PaymentHistoryLis
 import { PaymentModal } from '../../components/dashboard/PaymentModal'
 import { PendingChargesList } from '../../components/dashboard/PendingChargesList'
 import { ResidentMessagesSection } from '../../components/dashboard/ResidentMessagesSection'
+import { ResidentPollsSection } from '../../components/dashboard/ResidentPollsSection'
 import { ServiceRequestForm } from '../../components/dashboard/ServiceRequestForm'
 import { ServiceRequestList } from '../../components/dashboard/ServiceRequestList'
 import { AdminProfile } from './admin/AdminProfile'
@@ -27,6 +29,7 @@ import { SideNavItem } from '../../components/ui/SideNavItem'
 import { useLogout } from '../../hooks/useLogout'
 import { useResidentDashboard } from '../../hooks/useResidentDashboard'
 import { useResidentMessages } from '../../hooks/useResidentMessages'
+import { useResidentPolls } from '../../hooks/useResidentPolls'
 import { ReservationCategory, groupReservations } from '../../utils/reservations'
 import { isCompleted } from '../../utils/serviceRequests'
 import { ResidentHomeSection } from './ResidentHomeSection'
@@ -38,6 +41,7 @@ const sectionTitles = {
   amenities: 'امکانات ساختمان',
   reservations: 'رزروهای من',
   services: 'درخواست خدمات',
+  polls: 'نظرسنجی‌ها',
   messages: 'پیام‌ها',
   account: 'حساب کاربری',
 }
@@ -49,6 +53,9 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
   // from the charges tab still refreshes it afterwards.
   const dashboard = useResidentDashboard({ paymentHistoryEnabled: activeSection === 'payments' })
   const messages = useResidentMessages()
+  // Read on every dashboard load rather than when the tab opens: the badge is
+  // how a resident finds out a poll is waiting on them at all.
+  const polls = useResidentPolls()
 
   const upcomingCount = useMemo(
     () => groupReservations(dashboard.reservations)[ReservationCategory.UPCOMING].length,
@@ -105,6 +112,13 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
               active={activeSection === 'services'}
               onClick={() => setActiveSection('services')}
               badge={openRequests || undefined}
+            />
+            <SideNavItem
+              icon={Vote}
+              label="نظرسنجی‌ها"
+              active={activeSection === 'polls'}
+              onClick={() => setActiveSection('polls')}
+              badge={polls.pendingCount || undefined}
             />
             <SideNavItem
               icon={MessagesSquare}
@@ -171,6 +185,12 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                 onClick={() => setActiveSection('services')}
                 label="خدمات"
                 badge={openRequests || undefined}
+              />
+              <MobileTab
+                active={activeSection === 'polls'}
+                onClick={() => setActiveSection('polls')}
+                label="نظرسنجی‌ها"
+                badge={polls.pendingCount || undefined}
               />
               <MobileTab
                 active={activeSection === 'messages'}
@@ -265,6 +285,18 @@ export function ResidentDashboardPage({ authState, setAuthState }) {
                   onRetry={dashboard.refreshRequests}
                 />
               </div>
+            ) : null}
+
+            {activeSection === 'polls' ? (
+              <ResidentPollsSection
+                polls={polls.polls}
+                loading={polls.loading}
+                refreshing={polls.refreshing}
+                error={polls.error}
+                refresh={polls.refresh}
+                markVoted={polls.markVoted}
+                pendingCount={polls.pendingCount}
+              />
             ) : null}
 
             {activeSection === 'messages' ? (

@@ -8,6 +8,7 @@ import { residentAnnouncementApi } from '../../lib/announcementApi'
 import { authApi } from '../../lib/api'
 import { residentChargeApi } from '../../lib/billingApi'
 import { residentMessageApi } from '../../lib/messagingApi'
+import { residentPollApi } from '../../lib/pollApi'
 import { unitApi } from '../../lib/unitApi'
 import { ResidentDashboardPage } from './ResidentDashboardPage'
 
@@ -46,6 +47,13 @@ vi.mock('../../lib/api', () => ({
     logout: vi.fn(),
     updateProfile: vi.fn(),
     changePassword: vi.fn(),
+  },
+}))
+
+vi.mock('../../lib/pollApi', () => ({
+  residentPollApi: {
+    list: vi.fn(),
+    vote: vi.fn(),
   },
 }))
 
@@ -183,6 +191,10 @@ describe('ResidentDashboardPage', () => {
 
     residentMessageApi.list.mockReset()
     residentMessageApi.list.mockResolvedValue({ conversations: [], unread_total: 0 })
+
+    residentPollApi.list.mockReset()
+    residentPollApi.vote.mockReset()
+    residentPollApi.list.mockResolvedValue({ polls: [] })
   })
 
   it('shows the building announcement feed on the home overview', async () => {
@@ -576,6 +588,72 @@ describe('ResidentDashboardPage', () => {
     expect(screen.getByRole('heading', { name: 'تاریخچه پرداخت', level: 1 })).toBeInTheDocument()
     const history = within(screen.getByRole('region', { name: 'تاریخچه پرداخت' }))
     expect(await history.findByText('شارژ شهریور')).toBeInTheDocument()
+  })
+
+  it('opens the polls section and casts a vote', async () => {
+    const user = userEvent.setup()
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentPollApi.list.mockResolvedValue({
+      polls: [
+        {
+          id: 7,
+          title: 'ساعت تخلیه زباله کدام باشد؟',
+          description: 'برای هماهنگی با شهرداری',
+          starts_at: '2026-08-18T09:00:00Z',
+          ends_at: '2099-01-01T12:00:00Z',
+          options: [
+            { id: 3, text: 'ساعت ۸ صبح', position: 0 },
+            { id: 4, text: 'ساعت ۸ شب', position: 1 },
+          ],
+          has_voted: false,
+          selected_option_id: null,
+        },
+      ],
+    })
+    residentPollApi.vote.mockResolvedValue({ message: 'رأی شما با موفقیت ثبت شد.' })
+    renderPage()
+
+    await openSection(user, /نظرسنجی‌ها/)
+
+    expect(screen.getByRole('heading', { name: 'نظرسنجی‌ها', level: 1 })).toBeInTheDocument()
+    expect(await screen.findByText('ساعت تخلیه زباله کدام باشد؟')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'ساعت ۸ شب' }))
+    await user.click(screen.getByRole('button', { name: /ثبت رأی/ }))
+
+    await waitFor(() => expect(residentPollApi.vote).toHaveBeenCalledWith(7, 4))
+    // The card is updated in place: the list is read once, not again after the vote.
+    expect(residentPollApi.list).toHaveBeenCalledTimes(1)
+    expect(await screen.findByText('رأی شما ثبت شد')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /ثبت رأی/ })).not.toBeInTheDocument()
+  })
+
+  it('badges the sidebar with the polls still waiting for a vote', async () => {
+    unitApi.myUnit.mockResolvedValue(sampleUnit)
+    residentPollApi.list.mockResolvedValue({
+      polls: [
+        {
+          id: 7,
+          title: 'پرسش اول',
+          ends_at: '2099-01-01T12:00:00Z',
+          options: [{ id: 1, text: 'بله', position: 0 }],
+          has_voted: false,
+        },
+        {
+          id: 8,
+          title: 'پرسش دوم',
+          ends_at: '2099-01-01T12:00:00Z',
+          options: [{ id: 2, text: 'بله', position: 0 }],
+          has_voted: true,
+          selected_option_id: 2,
+        },
+      ],
+    })
+    renderPage()
+
+    // Only the unanswered poll is counted — an answered one is not waiting.
+    const pollsNav = await screen.findAllByRole('button', { name: /نظرسنجی‌ها/ })
+    await waitFor(() => expect(pollsNav[0]).toHaveTextContent('1'))
   })
 
   it('keeps charges, reservations and services reachable from the sidebar', async () => {
