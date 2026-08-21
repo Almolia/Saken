@@ -1,8 +1,7 @@
 from django.urls import path
 
 from .views import (
-    ManagerPollListCreateView,
-    ManagerPollDetailView, ResidentPollVoteView, ResidentPollListView,
+    ManagerPollListCreateView, ManagerPollDetailView, ResidentPollVoteView, ResidentPollListView,
 )
 
 urlpatterns = [

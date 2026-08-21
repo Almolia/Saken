@@ -460,6 +460,8 @@ class PollListDetailTests(TestCase):
 
 class ResidentPollVotingTests(TestCase):
     def setUp(self):
+        self.client = APIClient()
+
         self.manager = User.objects.create_user(
             phone="09120000000",
             username="poll-manager",

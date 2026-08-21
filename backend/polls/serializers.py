@@ -1,9 +1,9 @@
 from buildings.models import Unit
+from common.constants import PollMessages
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Poll, PollOption, PollStatus
-from ..common.constants import PollMessages
 
 
 class PollOptionSerializer(serializers.ModelSerializer):

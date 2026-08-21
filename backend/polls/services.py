@@ -1,9 +1,8 @@
+from common.constants import PollMessages
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from polls.models import PollStatus, Vote
 from rest_framework import serializers
-
-from backend.common.constants import PollMessages
-from backend.polls.models import PollStatus, Vote
 
 
 def cast_vote(poll, option, resident):

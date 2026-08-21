@@ -1,17 +1,17 @@
+from buildings.models import Unit
+from common.constants import PollMessages
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from users.permissions import IsManagerOrAdmin
+from users.permissions import IsResident
 
 from .models import Poll, PollOption, PollStatus
 from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSerializer, ResidentPollSerializer, \
     VoteCreateSerializer
 from .services import cast_vote
-from ..buildings.models import Unit
-from ..common.constants import PollMessages
-from ..users.permissions import IsResident
 
 
 class ManagerPollListCreateView(APIView):
