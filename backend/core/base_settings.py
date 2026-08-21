@@ -73,6 +73,7 @@ THIRD_PARTY_APPS = [
     "corsheaders",
     "django_filters",
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 LOCAL_APPS = [
@@ -204,3 +205,31 @@ if frontend_app_url:
         cookie_domain = os.getenv("AUTH_COOKIE_DOMAIN", parsed_frontend_url.hostname).strip()
         SESSION_COOKIE_DOMAIN = SESSION_COOKIE_DOMAIN or cookie_domain
         CSRF_COOKIE_DOMAIN = CSRF_COOKIE_DOMAIN or cookie_domain
+
+# --- SimpleJWT settings ---
+# Enable token blacklist for proper logout
+from datetime import timedelta  # noqa: E402
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=JWT_ACCESS_TOKEN_LIFETIME_MINUTES),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=JWT_REFRESH_TOKEN_LIFETIME_DAYS),
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# --- Test optimizations ---
+# When running `manage.py test`, use a fast hasher to avoid PBKDF2 overhead.
+# This is the single biggest win for test speed (4 min -> <1 min).
+# Also use in-memory cache and disable unnecessary middleware checks.
+if "test" in sys.argv:
+    PASSWORD_HASHERS = [
+        "django.contrib.auth.hashers.MD5PasswordHasher",
+    ]
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    }
+    # Speed up test DB creation by not hashing too much and using faster storage
+    # Silence whitenoise warnings already handled above

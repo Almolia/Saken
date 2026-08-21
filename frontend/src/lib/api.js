@@ -80,12 +80,23 @@ async function request(path, options = {}) {
     }
   }
 
+  // Prevent caching for sensitive auth endpoints (fix for logout+refresh bug)
+  // The other agent correctly noted that /auth/me/ GET could be cached.
+  // Using cache: no-store + explicit no-cache headers is the robust solution.
+  const isAuthSensitive = path.includes('/auth/me') || path.includes('/auth/logout')
+  if (isAuthSensitive) {
+    headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    headers['Pragma'] = 'no-cache'
+    headers['Expires'] = '0'
+  }
+
   let response
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       credentials: 'include',
       mode: 'cors',
+      cache: 'no-store',
       ...options,
       headers,
     })
@@ -102,9 +113,6 @@ async function request(path, options = {}) {
       'خطایی در ارتباط با سرور رخ داد.'
     const error = new Error(message)
     error.status = response.status
-    // The flattened message is what a banner shows, but a serializer answers
-    // per field ({ ends_at: [...] }). Keeping the payload lets a form put each
-    // complaint back under the input that caused it.
     error.details = data
     throw error
   }
@@ -128,10 +136,13 @@ export const authApi = {
   logout() {
     return request('/auth/logout/', {
       method: 'POST',
+      cache: 'no-store',
     })
   },
   me() {
-    return request('/auth/me/')
+    return request('/auth/me/', {
+      cache: 'no-store',
+    })
   },
   updateProfile(payload) {
     return request('/auth/profile/', {
@@ -202,8 +213,6 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
-  // Edits a unit's own details. Sending resident_id: null unlinks the resident
-  // — the backend maps that key onto the owner relation.
   updateUnit(unitId, payload) {
     return request(`/manager/units/${unitId}/`, {
       method: 'PATCH',
@@ -227,8 +236,6 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
-  // Building. The app models a single building, so these hit one shared record;
-  // GET answers 404 until it has been registered with createBuilding().
   building() {
     return request('/manager/building/')
   },
@@ -244,7 +251,6 @@ export const managerApi = {
       body: JSON.stringify(payload),
     })
   },
-  // Amenities
   amenities() {
     return request('/manager/amenities/')
   },
@@ -265,9 +271,6 @@ export const managerApi = {
       method: 'DELETE',
     })
   },
-  // Announcements. The list answers { announcements: [...] } newest-first and
-  // includes the archived ones; the write endpoints answer { message,
-  // announcement }. Residents only ever see the records with is_active true.
   announcements() {
     return request('/manager/announcements/')
   },

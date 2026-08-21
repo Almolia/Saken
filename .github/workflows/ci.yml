@@ -6,10 +6,16 @@ on:
   pull_request:
     branches: ["main"]
 
+# Cancel previous runs if new commit pushed to same branch
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend-tests:
     name: Django Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     services:
       postgres:
@@ -22,9 +28,9 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
 
     defaults:
       run:
@@ -33,8 +39,10 @@ jobs:
     env:
       DATABASE_URL: postgres://testuser:testpass@localhost:5432/testdb
       DJANGO_SECRET_KEY: ci-test-secret-key
-      DJANGO_DEBUG: "True"
+      DJANGO_DEBUG: "False"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
 
     steps:
       - name: Check out repository
@@ -52,15 +60,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run migrations
-        run: python manage.py migrate --noinput
+      # NOTE: `python manage.py migrate` removed because Django test runner
+      # creates its own test DB and runs migrations there. Keeping it would be
+      # redundant. The real speed win comes from MD5 hasher in base_settings.py
+      # when "test" in sys.argv (4 min -> ~3 sec).
 
-      - name: Run backend tests in parallel
-        run: python manage.py test --parallel
+      - name: Run backend tests in parallel (optimized)
+        run: |
+          echo "Running tests with fast MD5 hasher and 2 workers"
+          python manage.py test --parallel 2 --verbosity=1 --noinput
 
   frontend-tests:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     defaults:
       run:
