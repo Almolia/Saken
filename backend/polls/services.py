@@ -3,6 +3,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from polls.models import PollStatus, Vote
 from rest_framework import serializers
+from django.db.models import Count
 
 
 def cast_vote(poll, option, resident):
@@ -29,3 +30,25 @@ def cast_vote(poll, option, resident):
             )
     except IntegrityError:
         raise serializers.ValidationError(PollMessages.ALREADY_VOTED)
+
+
+def get_poll_results(poll):
+    total_votes = poll.votes.count()
+
+    # Annotate counts directly in SQL, avoiding memory overload
+    options = poll.options.annotate(vote_count=Count('votes')).order_by('position', 'id')
+
+    results = []
+    for option in options:
+        percentage = round((option.vote_count / total_votes * 100), 1) if total_votes > 0 else 0.0
+        results.append({
+            "id": option.id,
+            "text": option.text,
+            "vote_count": option.vote_count,
+            "percentage": percentage,
+        })
+
+    return {
+        "total_votes": total_votes,
+        "options": results
+    }

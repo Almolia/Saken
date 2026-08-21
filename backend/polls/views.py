@@ -11,7 +11,7 @@ from users.permissions import IsResident
 from .models import Poll, PollOption, PollStatus
 from .serializers import PollCreateSerializer, PollSerializer, PollUpdateSerializer, ResidentPollSerializer, \
     VoteCreateSerializer
-from .services import cast_vote
+from .services import cast_vote, get_poll_results
 
 # Fields the update branches below set by hand rather than through setattr:
 # `status` is decided by the branch itself, `options` are rewritten as rows, and
@@ -259,3 +259,44 @@ class ResidentPollVoteView(APIView):
         )
 
         return Response({"message": PollMessages.VOTE_SUCCESS}, status=status.HTTP_201_CREATED)
+
+
+class ManagerPollResultsView(APIView):
+    permission_classes = [IsManagerOrAdmin]
+
+    def get(self, request, pk):
+        try:
+            poll = Poll.objects.get(pk=pk)
+        except Poll.DoesNotExist:
+            return Response({"detail": PollMessages.POLL_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response(get_poll_results(poll), status=status.HTTP_200_OK)
+
+
+class ResidentPollResultsView(APIView):
+    permission_classes = [IsResident]
+
+    def get(self, request, pk):
+        try:
+            poll = Poll.objects.get(pk=pk)
+        except Poll.DoesNotExist:
+            return Response({"detail": PollMessages.POLL_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND)
+
+        # 1. Enforce Target Unit Security
+        if poll.target_units.exists() and not poll.target_units.filter(owner=request.user).exists():
+            return Response(
+                {"detail": "شما مجاز به مشاهده این نظرسنجی نیستید."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 2. Enforce Timing and Participation Security
+        has_voted = poll.votes.filter(resident=request.user).exists()
+        is_closed = poll.status == PollStatus.CLOSED or poll.ends_at < timezone.now()
+
+        if not has_voted and not is_closed:
+            return Response(
+                {"detail": "نتایج نظرسنجی پس از ثبت رأی شما یا پایان زمان نظرسنجی قابل مشاهده خواهد بود."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return Response(get_poll_results(poll), status=status.HTTP_200_OK)
