@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { FullscreenLoader } from '../components/ui/FullscreenLoader'
 import { authApi } from '../lib/api'
 import { LoginPage } from '../pages/auth/LoginPage'
@@ -15,7 +15,6 @@ import { ProtectedRoute } from './ProtectedRoute'
 export function AppRoutes() {
   const [authState, setAuthState] = useState({ loading: true, user: null })
 
-  // Centralized auth check - always called on mount and after logout/login
   const checkAuth = useCallback(async () => {
     try {
       const data = await authApi.me()
@@ -27,16 +26,11 @@ export function AppRoutes() {
 
   useEffect(() => {
     let active = true
-    
-    // On initial load, check authentication
-    // This is critical: after logout, cookies should be cleared by backend,
-    // so me() must return 401 and user becomes null, redirecting to /login
     checkAuth().then((user) => {
       if (active) {
         setAuthState({ loading: false, user })
       }
     })
-
     return () => {
       active = false
     }

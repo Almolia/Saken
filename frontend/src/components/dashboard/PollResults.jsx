@@ -8,7 +8,12 @@ export function PollResults({ pollId, fetchResults, title = 'نتایج نظرس
     fetchResults(pollId).then((data) => setState({ loading: false, error: '', data }))
       .catch((error) => setState({ loading: false, error: error.message || 'دریافت نتایج ناموفق بود.', data: null }))
   }, [fetchResults, pollId])
+
+  // This effect intentionally triggers a data fetch on mount / poll change.
+  // The setState inside load() is expected and safe here - it reflects async data.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, [load])
+
   if (state.loading) return <div className="flex items-center gap-2 rounded-2xl bg-slate-50 p-5 text-sm font-bold text-slate-500" role="status"><LoaderCircle className="h-5 w-5 animate-spin text-teal-600" />در حال دریافت نتایج...</div>
   if (state.error) return <div className="rounded-2xl border border-rose-100 bg-rose-50 p-5 text-sm text-rose-700" role="alert"><p className="flex items-center gap-2 font-bold"><CircleAlert className="h-5 w-5" />{state.error}</p><button onClick={load} className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold"><RefreshCw className="h-4 w-4" />تلاش مجدد</button></div>
   const data = state.data || { options: [], total_votes: 0 }
