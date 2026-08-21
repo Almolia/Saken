@@ -2,6 +2,8 @@ import { CalendarClock, Check, CircleCheckBig, Hourglass, LoaderCircle, Send, Vo
 import { useState } from 'react'
 import { formatDateTime } from '../../utils/helpers'
 import { hasEnded, hasVoted, pollOptions, remainingLabel, selectedOptionId } from '../../utils/polls'
+import { pollResultsApi } from '../../lib/pollApi'
+import { PollResults } from './PollResults'
 
 /**
  * One poll, with this resident's single vote.
@@ -21,6 +23,7 @@ export function PollVoteCard({ poll, onVote }) {
 
   const [choice, setChoice] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [showResults, setShowResults] = useState(false)
 
   const locked = voted || expired || submitting
 
@@ -178,6 +181,8 @@ export function PollVoteCard({ poll, onVote }) {
           </button>
         )}
       </form>
+      {voted ? <button type="button" onClick={() => setShowResults((value) => !value)} className="mt-3 rounded-xl border border-teal-200 px-3 py-2 text-xs font-bold text-teal-700 hover:bg-teal-50">{showResults ? 'بستن نتایج' : 'مشاهده نتایج'}</button> : null}
+      {showResults ? <PollResults pollId={poll.id} fetchResults={pollResultsApi.resident} /> : null}
     </article>
   )
 }

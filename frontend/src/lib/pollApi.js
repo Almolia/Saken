@@ -62,6 +62,11 @@ export const managerPollApi = {
 // The list is already narrowed server-side to the polls this resident may
 // answer — Active, not past their deadline, and either building-wide or aimed
 // at a unit they own — so whatever it returns is what belongs on screen.
+export const pollResultsApi = {
+  manager(pollId) { return request(`/manager/polls/${pollId}/results/`) },
+  resident(pollId) { return request(`/resident/polls/${pollId}/results/`) },
+}
+
 export const residentPollApi = {
   list() {
     return request('/resident/polls/')

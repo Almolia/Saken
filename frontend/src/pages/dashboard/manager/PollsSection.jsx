@@ -25,7 +25,8 @@ import { PollStatusBadge } from '../../../components/ui/PollStatusBadge'
 import { ServerError } from '../../../components/ui/ServerError'
 import { SummaryCard } from '../../../components/ui/SummaryCard'
 import { useManagerPolls } from '../../../hooks/useManagerPolls'
-import { managerPollApi } from '../../../lib/pollApi'
+import { managerPollApi, pollResultsApi } from '../../../lib/pollApi'
+import { PollResults } from '../../../components/dashboard/PollResults'
 import { formatDate, formatDateTime } from '../../../utils/helpers'
 import {
   PollAction,
@@ -69,7 +70,7 @@ function MetaItem({ icon: Icon, label, children }) {
   )
 }
 
-function PollCard({ poll, units, onEdit, onAction }) {
+function PollCard({ poll, units, onEdit, onAction, onResults }) {
   const options = optionTexts(poll)
   const expired = isExpiredActive(poll)
   const stale = isStaleDraft(poll)
@@ -160,6 +161,7 @@ function PollCard({ poll, units, onEdit, onAction }) {
         {/* Only the transitions the server would accept are offered; the rest
             would earn a 400 and are simply not rendered. */}
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button type="button" onClick={() => onResults(poll)} className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-white px-3 text-xs font-bold text-teal-700 transition hover:bg-teal-50"><Vote className="h-3.5 w-3.5" aria-hidden="true" />نتایج</button>
           {canEdit(poll) ? (
             <button
               type="button"
@@ -232,6 +234,7 @@ export function PollsSection() {
   const [createOpen, setCreateOpen] = useState(false)
   const [editTarget, setEditTarget] = useState(null)
   const [actionTarget, setActionTarget] = useState(null)
+  const [resultsPoll, setResultsPoll] = useState(null)
 
   // Both handlers let the error escape: the modal catches it, shows it inline
   // and stays open with the typed poll intact.
@@ -431,6 +434,7 @@ export function PollsSection() {
                 units={units}
                 onEdit={setEditTarget}
                 onAction={(action, target) => setActionTarget({ action, poll: target })}
+                onResults={setResultsPoll}
               />
             ))}
           </ul>
@@ -453,6 +457,8 @@ export function PollsSection() {
         onClose={() => setEditTarget(null)}
         onSubmit={handleUpdate}
       />
+
+      {resultsPoll ? <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-xl"><div className="flex items-center justify-between"><h2 className="text-lg font-black">نتایج: {resultsPoll.title}</h2><button type="button" onClick={() => setResultsPoll(null)} className="text-sm font-bold text-slate-500">بستن</button></div><PollResults pollId={resultsPoll.id} fetchResults={pollResultsApi.manager} /></div> : null}
 
       <PollActionModal
         open={Boolean(actionTarget)}
