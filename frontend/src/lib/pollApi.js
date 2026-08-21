@@ -56,3 +56,27 @@ export const managerPollApi = {
     })
   },
 }
+
+// Resident-facing poll endpoints.
+//
+// The list is already narrowed server-side to the polls this resident may
+// answer — Active, not past their deadline, and either building-wide or aimed
+// at a unit they own — so whatever it returns is what belongs on screen.
+export const residentPollApi = {
+  list() {
+    return request('/resident/polls/')
+  },
+  /**
+   * Casts this resident's single vote.
+   *
+   * The server refuses a second vote, a poll that is not Active, one whose
+   * deadline has passed, and one aimed at units the resident does not own, so a
+   * card that slipped out of date loses the race rather than double-counting.
+   */
+  vote(pollId, optionId) {
+    return request(`/resident/polls/${pollId}/vote/`, {
+      method: 'POST',
+      body: JSON.stringify({ option_id: optionId }),
+    })
+  },
+}

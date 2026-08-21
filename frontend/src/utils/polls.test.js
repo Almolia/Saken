@@ -13,11 +13,16 @@ import {
   isExpiredActive,
   isStaleDraft,
   matchesPollSearch,
+  hasVoted,
   optionCount,
   optionTexts,
+  pendingVoteCount,
+  pollOptions,
   pollStatusLabel,
   remainingLabel,
+  selectedOptionId,
   sortPolls,
+  sortResidentPolls,
   splitLocalDateTime,
   summarizePolls,
   targetLabel,
@@ -99,6 +104,54 @@ describe('polls', () => {
         ],
       })
       expect(optionTexts(shuffled)).toEqual(['کرم', 'خاکستری'])
+    })
+  })
+
+  describe('the resident view of a poll', () => {
+    it('reports whether this resident has answered', () => {
+      expect(hasVoted(poll({ has_voted: true }))).toBe(true)
+      expect(hasVoted(poll())).toBe(false)
+      expect(hasVoted(undefined)).toBe(false)
+    })
+
+    it('reads back the option this resident chose', () => {
+      expect(selectedOptionId(poll({ selected_option_id: 2 }))).toBe(2)
+      // Not voted yet is null, never a stray zero that could match an option id.
+      expect(selectedOptionId(poll())).toBeNull()
+    })
+
+    it('keeps the options in the order the manager arranged them', () => {
+      const shuffled = poll({
+        options: [
+          { id: 2, text: 'خاکستری', position: 1 },
+          { id: 1, text: 'کرم', position: 0 },
+        ],
+      })
+      expect(pollOptions(shuffled).map((option) => option.id)).toEqual([1, 2])
+      expect(pollOptions({})).toEqual([])
+    })
+
+    it('orders the resident list by deadline, soonest first', () => {
+      const later = poll({ id: 1, ends_at: '2026-09-10T12:00:00Z' })
+      const sooner = poll({ id: 2, ends_at: '2026-08-25T12:00:00Z' })
+      expect(sortResidentPolls([later, sooner]).map((item) => item.id)).toEqual([2, 1])
+    })
+
+    it('puts a poll with no deadline last rather than first', () => {
+      const dated = poll({ id: 1, ends_at: '2026-09-10T12:00:00Z' })
+      const undated = poll({ id: 2, ends_at: null })
+      expect(sortResidentPolls([undated, dated]).map((item) => item.id)).toEqual([1, 2])
+    })
+
+    it('counts only the polls still waiting for a vote', () => {
+      const polls = [
+        poll({ id: 1 }),
+        poll({ id: 2, has_voted: true }),
+        // Expired: nothing is waiting on the resident any more.
+        poll({ id: 3, ends_at: '2026-08-19T12:00:00Z' }),
+      ]
+      expect(pendingVoteCount(polls, now)).toBe(1)
+      expect(pendingVoteCount([], now)).toBe(0)
     })
   })
 
