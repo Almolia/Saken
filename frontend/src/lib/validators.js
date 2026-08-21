@@ -302,17 +302,17 @@ export function validatePoll(values, { now = Date.now() } = {}) {
   // up to a usable question.
   const filled = options.map((option) => option?.trim() ?? '').filter(Boolean)
 
-  options.forEach((option, index) => {
-    const text = option?.trim() ?? ''
-    if (text.length > POLL_OPTION_MAX) {
-      errors[`option_${index}`] = `هر گزینه نمی‌تواند بیشتر از ${POLL_OPTION_MAX} کاراکتر باشد.`
-    }
-  })
+  // The options are reported as one list-level message rather than per row:
+  // rows are added and removed while the form is open, so an error pinned to an
+  // index would end up pointing at whichever option later took that place.
+  const tooLong = options.findIndex((option) => (option?.trim() ?? '').length > POLL_OPTION_MAX)
 
   if (filled.length < POLL_MIN_OPTIONS) {
     errors.options = 'حداقل دو گزینه برای نظرسنجی الزامی است.'
   } else if (new Set(filled).size !== filled.length) {
     errors.options = 'گزینه‌های تکراری مجاز نیستند؛ هر گزینه باید متن یکتا داشته باشد.'
+  } else if (tooLong !== -1) {
+    errors.options = `متن گزینه ${tooLong + 1} نمی‌تواند بیشتر از ${POLL_OPTION_MAX} کاراکتر باشد.`
   } else if (filled.length > POLL_MAX_OPTIONS) {
     errors.options = `حداکثر ${POLL_MAX_OPTIONS} گزینه می‌توانید ثبت کنید.`
   }
