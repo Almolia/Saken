@@ -93,7 +93,7 @@ def _split_cost(cost, unit_count):
     the cost while never putting more than a single cent between any two units,
     so no one unit absorbs the whole rounding remainder.
     """
-    share = (cost / Decimal(unit_count)).quantize(CENT, rounding=ROUND_DOWN)
+    share = (cost / (Decimal(unit_count) + 1)).quantize(CENT, rounding=ROUND_DOWN)
     amounts = [share] * unit_count
 
     # Always fewer leftover cents than units, since share is the floor.
